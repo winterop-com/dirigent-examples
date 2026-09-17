@@ -21,6 +21,7 @@ echo_server=../local-echo/echo_server.py
 echo_pid=
 dev_pid=
 delivered=$(mktemp)
+accepted=$(mktemp)
 log=$(mktemp)
 
 # Whatever this script started is stopped by its pid, however this script ends -- never by
@@ -34,7 +35,7 @@ cleanup() {
     kill "$echo_pid" 2>/dev/null || true
     wait "$echo_pid" 2>/dev/null || true
   fi
-  rm -f "$delivered" "$log"
+  rm -f "$delivered" "$accepted" "$log"
 }
 trap cleanup EXIT
 
@@ -42,6 +43,20 @@ trap cleanup EXIT
 # 3333 from a dg dev somebody is watching.
 free_port() {
   python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+}
+
+# Every assertion goes through this: a bare `jq -e` exits 1 and says nothing, which is a
+# verification that failed without telling anybody what it wanted or what it was handed.
+expect() {
+  local what=$1 records=$2
+  shift 2
+  if ! printf '%s\n' "$records" | jq -e -s "$@" >/dev/null; then
+    echo "echo-schedule: expected $what" >&2
+    echo "  the jq that refused: $*" >&2
+    echo "  what came back:" >&2
+    printf '%s\n' "$records" | sed 's/^/    /' >&2
+    exit 1
+  fi
 }
 
 # The echoes to run against. The empty base is the document's own default, which is the real
@@ -80,9 +95,9 @@ for base in "${bases[@]}"; do
   if [ -n "$base" ]; then
     flags+=(-p "base_url=$base")
   fi
-  uv run dg run --local pipelines/echo-schedule.yaml "${flags[@]}" \
-    | jq -e -s '(map(select(.kind == "run" and has("exit_code"))) | last).message == "succeeded"' \
-      >/dev/null
+  records=$(uv run dg run --local pipelines/echo-schedule.yaml "${flags[@]}")
+  expect "a local run against ${base:-postman-echo.com} to succeed" "$records" \
+    '(map(select(.kind == "run" and has("exit_code"))) | last).message == "succeeded"'
 done
 
 # --- the instance ----------------------------------------------------------------------
@@ -96,16 +111,21 @@ for _ in $(seq 60); do
   curl -sf "$DG_URL/health/ready" >/dev/null 2>&1 && break
   sleep 1
 done
-curl -sf "$DG_URL/health/ready" >/dev/null
+if ! curl -sf "$DG_URL/health/ready" >/dev/null; then
+  echo "echo-schedule: the dg dev on $DG_URL never answered /health/ready within 60s" >&2
+  echo "  its log:" >&2
+  sed 's/^/    /' "$log" >&2
+  exit 1
+fi
 
 # DG_URL beats the local profile, whose url is the default port; without it every command
 # below would address an instance this script did not start. The token comes from dg dev's
 # own admin: on an empty state that is the fixture dev / dirigent-dev, and dg auth login
-# mints a token from it, which is the same token dg dev printed at startup.
+# mints a token of its own from it.
 DG_TOKEN=$(uv run dg auth login --username dev --password dirigent-dev --json \
   | jq -r 'select(.kind == "token.issued") | .token')
 export DG_TOKEN
-[ -n "$DG_TOKEN" ]
+[ -n "$DG_TOKEN" ] || { echo "echo-schedule: dg auth login issued no token" >&2; exit 1; }
 
 uv run dg apply
 
@@ -115,8 +135,9 @@ for base in "${bases[@]}"; do
   if [ -n "$base" ]; then
     flags+=(-p "base_url=$base")
   fi
-  uv run dg run echo-schedule "${flags[@]}" \
-    | jq -e -s '(map(select(.kind == "run")) | last).message == "succeeded"' >/dev/null
+  records=$(uv run dg run echo-schedule "${flags[@]}")
+  expect "a run against ${base:-postman-echo.com} to succeed" "$records" \
+    '(map(select(.kind == "run")) | last).message == "succeeded"'
 done
 
 # --- the clock -------------------------------------------------------------------------
@@ -131,13 +152,14 @@ newest_scheduled() {
 
 before=$(newest_scheduled)
 landed=""
-for _ in $(seq 40); do
+for left in $(seq 200 -5 5); do
   landed=$(newest_scheduled)
   [ -n "$landed" ] && [ "$landed" != "$before" ] && break
+  echo "echo-schedule: no new scheduled run yet, ${left}s left of 200"
   sleep 5
 done
 [ -n "$landed" ] && [ "$landed" != "$before" ] || {
-  echo "no scheduled run landed within 200s" >&2
+  echo "echo-schedule: expected the clock to start a run within 200s; the newest one is still ${before:-none}" >&2
   exit 1
 }
 
@@ -148,13 +170,14 @@ done
 # schedule pins, so a run the clock starts reads the document's default and reaches the real
 # service or nothing. What the clock is for -- that it fired, and with what -- holds either
 # way.
-uv run dg runs show "$landed" --json | jq -e -s --argjson online "$online" '
+expect "the clock's run to be pinned to oslo-blindern at 3.1" \
+  "$(uv run dg runs show "$landed" --json)" --argjson online "$online" '
   .[0].fields.run as $run
   | $run.triggered_by_kind == "schedule"
     and $run.params.station == "oslo-blindern"
     and $run.params.reading == "3.1"
     and (($online | not) or $run.status == "succeeded")
-' >/dev/null
+'
 
 echo "echo-schedule: the clock fired ${landed}, pinned to oslo-blindern"
 
@@ -165,41 +188,61 @@ echo "echo-schedule: the clock fired ${landed}, pinned to oslo-blindern"
 # uses what rotation returns -- which also invalidates the token the last verification used.
 hook=$(uv run dg webhook rotate-token echo-schedule upstream-reading --json | jq -r '.url')
 
-accepted=$(curl -sf -X POST "$hook" \
+# -f alone turns a refusal into an exit status and nothing else, so the body and the status
+# line are kept and printed here rather than lost.
+http=$(curl -s -o "$accepted" -w '%{http_code}' -X POST "$hook" \
   -H 'content-type: application/json' \
   -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}')
+if [ "${http#2}" = "$http" ]; then
+  echo "echo-schedule: expected the hook to accept the POST, and it answered $http" >&2
+  sed 's/^/    /' "$accepted" >&2
+  exit 1
+fi
 
-echo "$accepted" | jq -e '.outcome == "accepted"' >/dev/null
-delivered_run=$(echo "$accepted" | jq -r '.run_id')
+expect "the hook to accept the payload and name the run it created" "$(cat "$accepted")" \
+  '.[0].outcome == "accepted" and (.[0].run_id | length) > 0'
+delivered_run=$(jq -r '.run_id' "$accepted")
 
-for _ in $(seq 30); do
+# The run the POST created settles on its own a moment later, so wait for it -- 60s, counted
+# down out loud, because a wait that prints nothing is a wait nobody can tell from a hang.
+status=
+for left in $(seq 60 -2 2); do
   status=$(uv run dg runs show "$delivered_run" --json | jq -rs '.[0].fields.run.status')
   case "$status" in succeeded | failed | completed_with_errors | cancelled) break ;; esac
+  echo "echo-schedule: ${delivered_run} is ${status:-pending}, ${left}s left of 60"
   sleep 2
 done
+case "$status" in
+  succeeded | failed | completed_with_errors | cancelled) ;;
+  *)
+    echo "echo-schedule: expected ${delivered_run} to settle within 60s, and it is ${status:-pending}" >&2
+    exit 1
+    ;;
+esac
 
 # The mapping put two payload fields onto two parameters and ignored the third thing the
 # POST carried, because nothing in the mapping names it. The status is asserted like the
 # schedule's, and for the same reason: a payload reaches only the parameters this mapping
 # names, and base_url is not one of them.
-uv run dg runs show "$delivered_run" --json | jq -e -s --argjson online "$online" '
+expect "the payload to reach station and reading, and sender to reach nothing" \
+  "$(uv run dg runs show "$delivered_run" --json)" --argjson online "$online" '
   .[0].fields.run as $run
   | $run.triggered_by_kind == "webhook"
     and $run.params.station == "tromso-langnes"
     and $run.params.reading == "-6.8"
     and ($run.params | has("sender") | not)
     and (($online | not) or $run.status == "succeeded")
-' >/dev/null
+'
 
 echo "echo-schedule: the webhook started ${delivered_run}, mapped to tromso-langnes"
 
 # What the local echo was asked, from its own record: the station of a run that was pointed
 # at it. base_url reached the calls, not only the document.
 if [ -s "$delivered" ]; then
-  jq -e -s '
+  expect "the local echo to have been asked for bergen-florida at /get" "$(cat "$delivered")" '
     map(select(.method == "GET" and .path == "/get" and .args.station == "bergen-florida"))
     | length >= 1
-  ' "$delivered" >/dev/null
+  '
 fi
 
 echo "echo-schedule: both triggers fired, against $legs"

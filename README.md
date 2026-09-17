@@ -84,18 +84,26 @@ be handed a port chosen after the document was applied. A run the clock starts r
 page is about -- what travels with the document and what does not -- seen from the other
 side.
 
-So `./verify.sh` asserts of a triggered run what a trigger decides: that it fired, what
-started it, and the parameters it was given. `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
-leg out and holds the two triggered runs to exactly that, and every run it starts itself goes
-to the local echo. `OFFLINE.md` beside this repository is the rest of the story, including
-the `UV_OFFLINE=1` that keeps `uv` off the network too.
+So `./verify.sh` asserts of a triggered run only what a trigger decides: that it fired, what
+started it, and the parameters it was given. Every run it starts itself takes the flag.
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
+leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
+`UV_OFFLINE=1` that keeps `uv` off the network too.
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/echo-schedule`
+and a local run's temporary root as `/tmp`.*
+
 The document is valid offline, with no server and no network:
 
+```bash
+uv run dg validate pipelines/echo-schedule.yaml
+```
+
 ```text
-$ uv run dg validate pipelines/echo-schedule.yaml
 2026-09-17T15:15:25.123+02:00 [info    ] valid                          [validation] code=echo-schedule document=pipelines/echo-schedule.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
@@ -105,20 +113,33 @@ $ uv run dg validate pipelines/echo-schedule.yaml
 
 Applying it stores the document and materialises what it declared -- one clock, one hook:
 
+```bash
+uv run dg apply
+```
+
 ```text
-$ uv run dg apply
 create echo-schedule  version 1 
 (/home/you/echo-schedule/pipelines/echo-schedule.yaml)
+```
 
-$ uv run dg schedule list echo-schedule
+```bash
+uv run dg schedule list echo-schedule
+```
+
+```text
 schedules of echo-schedule                                                                    
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ code         ┃ name         ┃ clock ┃ timezone ┃ paused ┃ next firing         ┃ last fired ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
 │ every-minute │ Every minute │ 1m    │ UTC      │ no     │ 2026-09-17 15:50:04 │ -          │
 └──────────────┴──────────────┴───────┴──────────┴────────┴─────────────────────┴────────────┘
+```
 
-$ uv run dg webhook list echo-schedule
+```bash
+uv run dg webhook list echo-schedule
+```
+
+```text
 webhooks of echo-schedule                                                                         
 ┏━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃            ┃             ┃            ┃        ┃        ┃           ┃             ┃ last       ┃
@@ -135,8 +156,11 @@ one back once, when it is minted.
 
 A minute later, with nobody typing anything:
 
+```bash
+uv run dg runs list --pipeline echo-schedule
+```
+
 ```text
-$ uv run dg runs list --pipeline echo-schedule
 runs                                                                                              
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
 ┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
@@ -149,10 +173,13 @@ runs
 Then the other trigger. There is no command that reads an existing hook token back, so a
 script that has to POST rotates it and uses what the rotation returns:
 
-```text
-$ hook="$(uv run dg webhook rotate-token echo-schedule upstream-reading --json | jq -r .url)"
-$ curl -s -X POST "$hook" -H 'content-type: application/json' \
+```bash
+hook="$(uv run dg webhook rotate-token echo-schedule upstream-reading --json | jq -r .url)"
+curl -s -X POST "$hook" -H 'content-type: application/json' \
     -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}' | jq
+```
+
+```json
 {
   "run_id": "01a0afa1-f69c-7643-ae3d-a08b9b7c878b",
   "outcome": "accepted",
@@ -163,8 +190,11 @@ $ curl -s -X POST "$hook" -H 'content-type: application/json' \
 The POST answers with the run it created, and the two runs sit side by side with what started
 each one:
 
+```bash
+uv run dg runs list --pipeline echo-schedule
+```
+
 ```text
-$ uv run dg runs list --pipeline echo-schedule
 runs                                                                                              
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
 ┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
@@ -174,8 +204,13 @@ runs
 │ 01a0afa1-b827… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
 │                │               │           │ every-minute   │ 15:50:06        │ 15:50:07       │
 └────────────────┴───────────────┴───────────┴────────────────┴─────────────────┴────────────────┘
+```
 
-$ uv run dg runs show 01a0afa1-f69c-7643-ae3d-a08b9b7c878b --json | jq '.fields.run.params'
+```bash
+uv run dg runs show 01a0afa1-f69c-7643-ae3d-a08b9b7c878b --json | jq '.fields.run.params'
+```
+
+```json
 {
   "station": "tromso-langnes",
   "reading": "-6.8",
@@ -348,9 +383,11 @@ again does not let it go.
 
 ## Where to go next
 
+- [`echo-alert`](../echo-alert/README.md) is the half this one implies. A pipeline that
+  fires at three in the morning is a pipeline nobody is watching, so the instance has to be
+  the one that notices when it fails.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.
-- [**echo-alert**](../echo-alert/README.md) is the half this one implies. A pipeline that
-  fires at three in the morning is a pipeline nobody is watching, so the instance has to be
-  the one that notices when it fails.
+- [**dirigent examples**](../README.md) is the shelf: every example in order, and what you
+  need once.
