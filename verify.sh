@@ -24,17 +24,35 @@ delivered=$(mktemp)
 accepted=$(mktemp)
 log=$(mktemp)
 
+# Nothing this script started may still be listening when it returns: a dg dev that outlived
+# its wrapper shares .dirigent/state with the next run, claims its steps and fails them.
+port_clear() {
+  local p="${1:-}" holding
+  [ -n "$p" ] || return 0
+  for _ in 1 2 3 4 5; do
+    holding="$(lsof -nP -iTCP:"$p" -sTCP:LISTEN -t 2>/dev/null || true)"
+    [ -n "$holding" ] || return 0
+    sleep 0.4
+  done
+  kill -KILL $holding 2>/dev/null || true
+}
+
 # Whatever this script started is stopped by its pid, however this script ends -- never by
-# name: a pattern matching `dg dev` matches the shell running this script too.
+# name: a pattern matching `dg dev` matches the shell running this script too. The
+# instance's wrapper has its children taken first: killing `uv run` alone leaves the dg dev
+# under it on the port.
 cleanup() {
   if [ -n "$dev_pid" ]; then
-    kill "$dev_pid" 2>/dev/null || true
+    pkill -TERM -P "$dev_pid" 2>/dev/null || true
+    kill -TERM "$dev_pid" 2>/dev/null || true
     wait "$dev_pid" 2>/dev/null || true
   fi
   if [ -n "$echo_pid" ]; then
-    kill "$echo_pid" 2>/dev/null || true
+    kill -TERM "$echo_pid" 2>/dev/null || true
     wait "$echo_pid" 2>/dev/null || true
   fi
+  port_clear "${port:-}"
+  port_clear "${echo_port:-}"
   rm -f "$delivered" "$accepted" "$log"
 }
 trap cleanup EXIT
