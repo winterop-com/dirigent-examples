@@ -452,5 +452,4 @@ and the instance never sees a form it would refuse.
   the gate passed, and a step skipped behind a gate that refused.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 4 is this step of it.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
