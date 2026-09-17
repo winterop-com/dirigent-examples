@@ -29,6 +29,9 @@ out: same apply, same engine, same worker loop, no server.
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
+
 ```bash
 uv run dg validate pipelines/echo-hello.yaml
 ```
@@ -134,7 +137,9 @@ is the first row's id.
 
 ## Where to go next
 
+- [`echo-read`](../echo-read/README.md) is the next step: one `http.request` against Postman
+  Echo, run locally and then against an instance of your own.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example
   is cut from: this document, and then a real read, a schema gate and a send after it.
-- [**echo-read**](../echo-read) is the next step: one `http.request` against Postman Echo, run
-  locally and then against an instance of your own.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
