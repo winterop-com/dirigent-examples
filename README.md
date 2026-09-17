@@ -25,25 +25,65 @@ the way out with the run in it, so there is nothing left to read the page back f
 second terminal, in this directory:
 
 ```bash
-uv run dg dev --port 3343
+uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
-file under `.dirigent/state/`. Its first start on an empty state directory makes the instance
-and mints one token, in the line it prints -- `dg init` writes that token into the project's
-`.env`, where the `local` profile reads it, and a clone of this repository has neither, so
-copy it out of that line. Back in the first terminal:
+file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
+a fresh clone has, because the state directory is not in the repository -- it migrates the
+schema, makes its own admin `dev`, mints that admin one token, and prints the `export
+DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address the
+`local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
+`DG_URL` is how you tell the CLI where it went.
+
+Back in the first terminal, with that export line pasted:
 
 ```bash
-export DG_URL=http://127.0.0.1:3343 DG_TOKEN=<the token that line printed>
-
 uv run dg apply
 uv run dg run echo-storage --watch
 uv run dg runs report <the run id> --markdown
 ```
 
 `./verify.sh` does all of that unattended, asserting that as many bytes came back as went out
-and that the rendered page carries the table the template wrote.
+and that the rendered page carries the table the template wrote. It picks a free port of its
+own, mints its token with `dg auth login --username dev --password dirigent-dev`, and stops
+the instance it started by pid.
+
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
+points at it:
+
+```bash
+uv run dg run --local pipelines/echo-storage.yaml -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:41:56.142+02:00 [info    ] http call                      [log ask] method=POST url=http://127.0.0.1:8080/post status=200 bytes=761 duration_ms=27
+2026-09-17T15:41:56.205+02:00 [info    ] wrote                          [log save] uri=readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-09-17T15:41:56.276+02:00 [info    ] read                           [log back] uri=readings-2026-01-01.json bytes_read=206 content_type=application/json
+```
+
+The answer is a different size, 761 bytes against 701, because the two echoes report a
+slightly different set of request headers back -- and `bytes_written` is 206 either way.
+What is stored is the batch, not the answer that carried it, so the round trip does not
+notice which echo it came from. An instance takes the same flag:
+
+```bash
+uv run dg run echo-storage --watch -p base_url=http://127.0.0.1:8080
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
+leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
+`UV_OFFLINE=1` that keeps `uv` off the network too.
 
 ## What you see
 
@@ -100,72 +140,71 @@ create echo-storage  version 1
 (/home/you/echo-storage/pipelines/echo-storage.yaml)
 
 $ uv run dg run echo-storage --watch
-2026-09-17T15:19:58.619+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af86-2297-775a-9d46-cbddfb1fcf3a local=false
-2026-09-17T15:19:58.617+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:19:59.024+02:00 [info    ] running                        [step ask] block=http.request attempt=1
-2026-09-17T15:19:58.617+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
-2026-09-17T15:19:59.226+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=192
-2026-09-17T15:19:59.228+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=205
-2026-09-17T15:19:59.558+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0af86-2297-775a-9d46-cbddfb1fcf3a/readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-17T15:19:59.559+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=9
-2026-09-17T15:20:00.068+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0af86-2297-775a-9d46-cbddfb1fcf3a/readings-2026-01-01.json bytes_read=206 content_type=application/json
-2026-09-17T15:20:00.070+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=11
-2026-09-17T15:20:00.600+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=31
-2026-09-17T15:20:00.605+02:00 [info    ] finished                       [log summary] duration_ms=25 output_bytes=85
-2026-09-17T15:20:01.075+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0af86-2297-775a-9d46-cbddfb1fcf3a pipeline_version=1 triggered_by="admin (token init)" duration_ms=1577 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0af86-2297-775a-9d46-cbddfb1fcf3a
+2026-09-17T15:41:18.987+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af99-ac07-7050-9072-751d9e9553ec local=false
+2026-09-17T15:41:18.985+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T15:41:19.456+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-17T15:41:18.985+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
+2026-09-17T15:41:19.739+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=248
+2026-09-17T15:41:19.746+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=290
+2026-09-17T15:41:20.054+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-09-17T15:41:20.056+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=34
+2026-09-17T15:41:20.592+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json bytes_read=206 content_type=application/json
+2026-09-17T15:41:20.594+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=38
+2026-09-17T15:41:21.165+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=71
+2026-09-17T15:41:21.171+02:00 [info    ] finished                       [log summary] duration_ms=43 output_bytes=85
+2026-09-17T15:41:21.454+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0af99-ac07-7050-9072-751d9e9553ec pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1710 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a0af99-ac07-7050-9072-751d9e9553ec
 pipeline      echo-storage (version 1)  
 status        succeeded                 
-triggered by  admin (token init)        
-duration      1.6s                      
+triggered by  dev (token cli-dev)       
+duration      1.7s                      
 items         -                         
 
 steps                                                                        
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step    ┃ block         ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask     │ http.request  │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask     │ http.request  │ succeeded │ -     │ 1        │ 0.3s     │ -     │
 │ save    │ storage.write │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
 │ back    │ storage.read  │ succeeded │ save  │ 1        │ 0.0s     │ -     │
-│ summary │ transform.jq  │ succeeded │ back  │ 1        │ 0.0s     │ -     │
+│ summary │ transform.jq  │ succeeded │ back  │ 1        │ 0.1s     │ -     │
 └─────────┴───────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs                                                                                           
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ output                                                                               ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ status=200  headers={12 keys}  body={7 keys}  body_bytes=701  duration_ms=192        │
-│ save    │ uri=file://./.dirigent/state/artifacts/runs/01a0af86-2297-775a-9d46-cbddfb1fcf3a/re… │
+│ ask     │ status=200  headers={12 keys}  body={7 keys}  body_bytes=701  duration_ms=248        │
+│ save    │ uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/re… │
 │         │ bytes_written=206  content_type=application/json                                     │
 │ back    │ content_type=application/json  value={2 keys}  bytes_read=206                        │
 │ summary │ value={4 keys}                                                                       │
 └─────────┴──────────────────────────────────────────────────────────────────────────────────────┘
 ```
-
 Nobody asked for the report and it is already written: the engine rendered it in the
 transaction that settled the run. Into a pipe `dg runs report --markdown` is one
 `run.report_document` record carrying the whole page, so `jq -r .document` is how it comes out
 as text; at a terminal the same command writes that page as-is, to go into a file or a ticket.
 
 ```text
-$ uv run dg runs report 01a0af86-2297-775a-9d46-cbddfb1fcf3a --markdown | jq -r .document
-# echo-storage on 2026-09-17T13:19:59.024016+00:00
+$ uv run dg runs report 01a0af99-ac07-7050-9072-751d9e9553ec --markdown | jq -r .document
+# echo-storage on 2026-09-17T13:41:19.456000+00:00
 
-**succeeded** in 1s577ms, started by admin (token init).
+**succeeded** in 1s710ms, started by dev (token cli-dev).
 
-The batch landed at `file://./.dirigent/state/artifacts/runs/01a0af86-2297-775a-9d46-cbddfb1fcf3a/readings-2026-01-01.json`, 206b of canonical JSON.
+The batch landed at `file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json`, 206b of canonical JSON.
 
 | Day | Rows | Coldest | Mean |
 | --- | --- | --- | --- |
 | 2026-01-01 | 4 | tromso-langnes | 2.5 |
 
-- **ask** (http.request) succeeded after 1 attempt(s), 205ms
-- **save** (storage.write) succeeded after 1 attempt(s), 9ms
-- **back** (storage.read) succeeded after 1 attempt(s), 11ms
-- **summary** (transform.jq) succeeded after 1 attempt(s), 31ms
+- **ask** (http.request) succeeded after 1 attempt(s), 290ms
+- **save** (storage.write) succeeded after 1 attempt(s), 34ms
+- **back** (storage.read) succeeded after 1 attempt(s), 38ms
+- **summary** (transform.jq) succeeded after 1 attempt(s), 71ms
 ```
 
-`1s577ms` and `206b` are the `duration` and `bytes` filters: the template was handed
+`1s710ms` and `206b` are the `duration` and `bytes` filters: the template was handed
 milliseconds and bytes and asked for them the way a person reads them.
 
 ## The document, hop by hop
@@ -243,12 +282,22 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at
+    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
+    # runs it against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     day:
       type: string
       format: date
       default: "2026-01-01"
       description: The day the written file is named for.
 ```
+
+`base_url` is a parameter doing a structural job: the read below is built on it, so one flag
+on the run moves the whole document to another echo without touching a line of it.
 
 **`ask`** is the read. The batch is written into the request so the example needs nothing
 standing up, and Postman Echo hands it straight back under `json`:
@@ -258,7 +307,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/post
+      url: ${params.base_url}/post
       method: POST
       body:
         day: ${params.day}
