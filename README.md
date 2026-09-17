@@ -141,5 +141,4 @@ is the first row's id.
   Echo, run locally and then against an instance of your own.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example
   is cut from: this document, and then a real read, a schema gate and a send after it.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
