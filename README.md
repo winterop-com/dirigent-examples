@@ -23,6 +23,38 @@ uv run dg run --local pipelines/echo-fanout.yaml
 
 `./verify.sh` does exactly that and asserts on the records it gets back.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
+points at it:
+
+```bash
+uv run dg run --local pipelines/echo-fanout.yaml -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:36:06.312+02:00 [info    ] http call                      [log ask[0]] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=28
+2026-09-17T15:36:06.325+02:00 [info    ] http call                      [log ask[2]] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=3
+2026-09-17T15:36:06.318+02:00 [info    ] http call                      [log ask[1]] method=GET url=http://127.0.0.1:8080/status/500 status=500 bytes=15 duration_ms=3
+```
+
+Three calls, three URLs, and that is the whole of the difference: the two stations still
+answer at `/get`, `oslo-blindern` is still answered 500 at `/status/500`, the item still
+fails on its own, and the run still settles `completed_with_errors` with the same summary
+under `report`.
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
+leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
+`UV_OFFLINE=1` that keeps `uv` off the network too.
+
 ## What you see
 
 ```text
@@ -167,12 +199,21 @@ requires:
 
 The grid is a parameter, so the same document runs against one station or sixteen without
 being edited. Each element is an object rather than a string, because one station carries
-three facts: what it is called, what it reports, and where it answers:
+three facts: what it is called, what it reports, and where it answers. `base_url` above it is
+the same mechanism doing a structural job: every URL here is built on it, so one flag moves
+the whole run to another echo without touching a line of the document:
 
 ```yaml
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at
+    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
+    # runs it against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     stations:
       type: array
       description: One item, one read, per element.
@@ -211,7 +252,7 @@ steps:
     for_each: ${params.stations}
     items: continue
     config:
-      url: https://postman-echo.com/${item.endpoint}
+      url: ${params.base_url}/${item.endpoint}
       method: GET
       query:
         station: ${item.station}
