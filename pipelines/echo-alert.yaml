@@ -1,0 +1,87 @@
+# A run that fails on purpose, so there is something for an alert rule to be about.
+#
+# In:  one station's reading, read back from Postman Echo.
+# Out: nothing. The step that would publish it is answered 404 and the run ends failed.
+#
+# The alerting half of this example is not in this document and cannot be: a rule binds an
+# event to a channel and a channel delivers through a connection, and both are records the
+# INSTANCE holds, minted with `dg connection create` and `dg alerts rules create`. A
+# document that carried either would be a document that carried a credential, which is the
+# one thing a portable document must never do. So this file is only the failure, and
+# README.md is the rule.
+#
+# Hop by hop:
+#
+#   ask      one GET at /get, which answers with the query arguments it was given.
+#   publish  the send, pointed at /status/404. A 404 is the service saying the thing is not
+#            there, so the block classes it rejected and spends no retry budget on it: one
+#            attempt, whatever max_attempts allows. The step fails, so the run fails, and a
+#            failed run is what raises run_failed.
+#   note     never runs. Its edge is the default all_success, and the step it waits for did
+#            not succeed, so it is skipped rather than failed.
+#
+# EXPECT THIS RUN TO FAIL in under a second, with publish rejected on one attempt and note
+# skipped behind it.
+#
+#   uv run dg run --local pipelines/echo-alert.yaml     # fails, by design
+#   uv run dg run --local pipelines/echo-alert.yaml -p publish_status=200   # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: echo-alert
+name: A failure worth alerting on
+description: |
+  A read that works followed by a publish that is answered 404, so the run ends `failed`
+  and an alert rule on `run_failed` has something to fire on.
+
+  The rule and the connection it delivers through are the instance's, never the document's.
+
+tags: [http, failure]
+
+requires:
+  blocks:
+    - http.request
+    - log.write
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      minLength: 1
+      description: The station the reading is asked for.
+    publish_status:
+      type: integer
+      default: 404
+      enum: [200, 404, 500]
+      description: What the publish endpoint answers. 404 is the failure this example is for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  publish:
+    block: http.request
+    depends_on: [ask]
+    # Three attempts allowed, and a rejected failure takes one. The budget is here to show
+    # that it is the class of the failure that decides, not the number in the document: a
+    # 500 under this same budget would be retried three times.
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      url: https://postman-echo.com/status/${params.publish_status}
+      method: GET
+
+  note:
+    block: log.write
+    depends_on: [publish]
+    config:
+      message: "published the reading for ${params.station}"

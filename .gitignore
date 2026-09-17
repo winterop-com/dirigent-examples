@@ -1,0 +1,17 @@
+# The environment uv sync builds from pyproject.toml.
+.venv/
+__pycache__/
+
+# This instance's token. Never shared.
+.env
+
+# This instance itself: the SQLite database, the artifacts, and the profile dg init wrote.
+# An instance is made by dg init, not by a clone.
+.dirigent/
+
+# The key this instance seals its connections with, minted once and kept, because an
+# instance that changes its key cannot read what it stored under the old one.
+.secret-key
+
+# What mkdocs would build here.
+site/
