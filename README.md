@@ -46,6 +46,50 @@ uv run dg run echo-send --watch -p station=     # the gate refuses, and send is 
 `./verify.sh` does all of it non-interactively, on a free port of its own, and asserts that what
 arrived at `/post` is what the gate passed.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+Both documents carry a `base_url` parameter that defaults to the real service, and both the read
+and the send are built on it, so one flag moves the whole run to the stand-in:
+
+```bash
+uv run dg run --local pipelines/echo-send.yaml --schema schemas/echo-answer.json \
+  -p base_url=http://127.0.0.1:8080
+uv run dg run echo-send --watch -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:33:20.461+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=28
+2026-09-17T15:33:20.580+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:8080/post status=200 bytes=408 duration_ms=4
+```
+
+Two lines differ, and only in the address. The stand-in answers a POST with the body it was given
+exactly as the real service does, so the proof of what was sent reads the same:
+
+```bash
+uv run dg run --local pipelines/echo-send.yaml --schema schemas/echo-answer.json \
+  -p base_url=http://127.0.0.1:8080 --json \
+  | jq -s 'map(select(.kind == "run")) | last | .steps[] | select(.step == "send") | .output.body.json'
+```
+
+```json
+{
+  "reading": "12.4",
+  "station": "bergen-florida"
+}
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
+out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
+
 ## What you see
 
 ```bash
@@ -265,6 +309,13 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at another
+    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
+    # against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -274,7 +325,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}
@@ -291,7 +342,7 @@ steps:
     block: http.request
     depends_on: [check]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.base_url}/post
       method: POST
       # Read out of the gate rather than out of the read: every step past a gate provably
       # received the shape the gate passed. Neither value is written twice in this document.
@@ -301,7 +352,8 @@ steps:
 ```
 
 `requires` names both blocks and the schema code, so an instance missing any of them refuses the
-document at apply rather than failing at the step. `ask` is the read from
+document at apply rather than failing at the step. `base_url` is the one value both requests are
+built on, so a run against another echo is a flag rather than an edit. `ask` is the read from
 [echo-read](../echo-read) and `check` the gate from [echo-gate](../echo-gate); what is new is
 `send`, and the only thing worth staring at is where its body comes from:
 
