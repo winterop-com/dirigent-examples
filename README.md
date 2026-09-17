@@ -28,8 +28,11 @@ a real sync is the one that sets `COMMIT` against an instance it owns. Never aga
 
 ## Run it
 
-`.dirigent/` and `.env` are not in the repository: they are one instance's own database and
-its token, and a clone makes its own. Everything else here is committed.
+`.dirigent/state/` and `.env` are not in the repository: one is this instance's own database
+and its artifacts, disposable, the other its token, and a clone makes its own of each.
+`.dirigent/profiles.yaml` beside them is committed, because it is addressing rather than
+state -- which server, and how to get a token for it -- and so is the `.dirigent/.gitignore`
+that keeps the state directory out. Everything else here is committed too.
 
 ```bash
 uv sync
@@ -55,7 +58,12 @@ variable. `pipelines/dhis2-to-other.yaml` and `pipelines/other-to-dhis2.yaml` bo
 points just as happily at the stand-in in `../local-echo`, with no network at all:
 
 ```bash
-uv run dg run --local pipelines/dhis2-to-other.yaml ... -p base_url=http://127.0.0.1:8080
+uv run dg run --local pipelines/dhis2-to-other.yaml \
+  --connections connections.yaml \
+  --schema schemas/org-unit-sync-source.json \
+  --schema schemas/org-unit-sync-import.json \
+  --schema schemas/org-unit-sync-verdict.json \
+  -p base_url=http://127.0.0.1:8080
 ```
 
 Then the instance. A DHIS2 connection carries a password, and a connection secret is encrypted
@@ -69,16 +77,25 @@ uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
-file under `.dirigent/state/`. It keeps running; leave it. The UI is at
-`http://127.0.0.1:3333`. An instance with no accounts yet gets a development admin made for
-it, `dev` with the password `dirigent-dev`, which is who the commands below are.
+file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a
+fresh clone has, because the state directory is not in the repository -- it migrates the schema,
+makes its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to
+paste. The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
+`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
+the CLI where it went.
 
-Back in the first terminal, mint a token for that admin. The command answers with the
-`export DG_TOKEN=` line to paste into this terminal, and that line is the one output this page
-does not print, because it is a credential:
+Back in the first terminal, mint a token for that admin, whose password is `dirigent-dev`. The
+command answers with the `export DG_TOKEN=` line to paste into this terminal, and that line is
+the one output this page does not print, because it is a credential:
 
 ```bash
 uv run dg auth login --username dev --password dirigent-dev
+```
+
+```text
+  export DG_TOKEN=<the token>
+
+This is the only time the token is shown.
 ```
 
 The instance holds the shapes and the credentials; the documents name both by code and carry
@@ -111,6 +128,11 @@ uv run dg run dhis2-to-other --watch
 uv run dg run other-to-dhis2 --watch
 ```
 
+`dg connection create` prompts for every secret field left unset, so each of those two asks
+for `api_token`: there is none, so press Enter. `--set api_token=` is not the same thing: an
+empty value is still a value, and a `dhis2` connection takes an `api_token` or basic
+credentials, not both.
+
 The import report is in the run rather than on the screen, and every command writes records
 into a pipe, so the whole of it is one `jq` away:
 
@@ -142,8 +164,8 @@ echo leg and nothing else: both DHIS2 instances are on the internet and have no 
 
 ## What you see
 
-*Printed as it printed, with this project's directory written as `/home/you/...` and the
-temporary directory a local run makes written as `/tmp/...`.*
+*Printed as it printed, with this project's directory written as
+`/home/you/dhis2-org-unit-sync` and a local run's temporary root as `/tmp`.*
 
 `uv run dg validate`, with no argument, which is the project's own documents:
 
@@ -933,11 +955,9 @@ rather than a section of a pipeline.
 
 ## Where to go next
 
-- [**The basics**](https://winterop-com.github.io/dirigent/basics/) is a read, a gate and a send
-  against Postman Echo, with no pack and no credential.
+This is the last example on the shelf.
+
 - [**The DHIS2 tutorial**](https://winterop-com.github.io/dirigent-dhis2/tutorial/) builds a
   read, a gate and a rehearsed write one section at a time, with the failures shown.
-- **`dhis2-read-gate-send`**, beside this one, is those three moves against a single instance,
-  and the place to start if two connections are one too many.
-- **`dhis2-metadata-to-storage`** is what happens when the answer has to outlive the run: the
-  same read, gated, written to storage, read back and counted.
+- [**The examples**](../README.md) is the shelf all of these sit on, in the order they build
+  on each other.
