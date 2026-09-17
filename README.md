@@ -110,6 +110,9 @@ that keeps `uv` off the network too.
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
+
 ```bash
 uv run dg validate pipelines/echo-read.yaml
 ```
@@ -190,31 +193,32 @@ uv run dg run echo-read --watch
 ```
 
 ```text
-2026-09-17T15:00:44.298+02:00 [info    ] started                        [run] pipeline=echo-read run_id=01a0af74-8585-7178-bed5-d4be2ae675c1 local=false
-2026-09-17T15:00:44.296+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:00:44.812+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=250
-2026-09-17T15:00:44.819+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=275
-2026-09-17T15:00:44.879+02:00 [info    ] succeeded                      [run] pipeline=echo-read run_id=01a0af74-8585-7178-bed5-d4be2ae675c1 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=275 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-17T23:22:00.070+02:00 [info    ] started                        [run] pipeline=echo-read run_id=01a0b13f-7102-7534-85da-d99b22926daa local=false
+2026-09-17T23:22:00.068+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:22:00.309+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-17T23:22:00.711+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=375
+2026-09-17T23:22:00.715+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=406
+2026-09-17T23:22:01.425+02:00 [info    ] succeeded                      [run] pipeline=echo-read run_id=01a0b13f-7102-7534-85da-d99b22926daa pipeline_version=1 triggered_by="dev (token dev)" duration_ms=406 items_total=0 items_failed=0 exit_code=0 priority=normal
 run
-01a0af74-8585-7178-bed5-d4be2ae675c1
+01a0b13f-7102-7534-85da-d99b22926daa
 pipeline      echo-read (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
-duration      0.3s
+triggered by  dev (token dev)
+duration      0.4s
 items         -
 
 steps
 ┏━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step ┃ block        ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.3s     │ -     │
+│ ask  │ http.request │ succeeded │ -     │ 1        │ 0.4s     │ -     │
 └──────┴──────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=250 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=375 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -223,7 +227,7 @@ stored the document and pinned the run to that version, and a `triggered by`, be
 instance is something somebody asked for.
 
 ```bash
-uv run dg runs show 01a0af74-8585-7178-bed5-d4be2ae675c1 --json \
+uv run dg runs show 01a0b13f-7102-7534-85da-d99b22926daa --json \
   | jq '.fields.attempts[] | select(.step_name == "ask") | .output.body'
 ```
 
@@ -319,7 +323,9 @@ This one calls a public endpoint once, so it needs neither.
 
 ## Where to go next
 
+- [`echo-gate`](../echo-gate/README.md) is what comes next: the answer held to a written-down
+  shape, so a payload that has moved stops at the step it arrived in.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example
   is cut from, and section 3 is this step of it.
-- [**echo-gate**](../echo-gate) is what comes next: the answer held to a written-down shape, so a
-  payload that has moved stops at the step it arrived in.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
