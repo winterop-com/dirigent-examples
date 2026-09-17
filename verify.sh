@@ -4,6 +4,11 @@
 #
 # This document fails on purpose -- both its steps fail -- so a non-zero exit is the expected
 # outcome, and what is asserted is how many attempts each step was given and under which class.
+#
+# Every run is made once per echo: the real service the document defaults to, and the stand-in in
+# ../local-echo, which the base_url parameter points it at. The stand-in answers /status/<code>
+# with that status, so a 404 is classified rejected and a 503 transient against either of them.
+# VERIFY_OFFLINE=1 leaves the online leg out, so the whole of this script passes with no network.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -11,6 +16,29 @@ cd "$(dirname "${BASH_SOURCE[0]}")"
 uv sync
 
 uv run dg validate pipelines/echo-retry.yaml
+
+echo_server=../local-echo/echo_server.py
+echo_pid=
+dev_pid=
+
+# Whatever this script started is stopped by its pid, however this script ends.
+cleanup() {
+  if [ -n "$dev_pid" ]; then
+    kill "$dev_pid" 2>/dev/null || true
+    wait "$dev_pid" 2>/dev/null || true
+  fi
+  if [ -n "$echo_pid" ]; then
+    kill "$echo_pid" 2>/dev/null || true
+    wait "$echo_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup EXIT
+
+# Any port nothing is listening on: several instances share this machine, and two of them on one
+# port is two of them failing.
+free_port() {
+  python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
+}
 
 # The failures array carries one entry per attempt, with the class the block decided on. Same
 # budget, one attempt against three: that is the whole lesson, asserted.
@@ -27,23 +55,59 @@ assert_two_classes() {
   ' > /dev/null
 }
 
-# 1. Without a server.
-if records=$(uv run dg run --local pipelines/echo-retry.yaml --json); then
-  echo "echo-retry was meant to fail: both of its steps fail by design" >&2
+# The echoes to run against. The empty base is the document's own default, which is the real
+# service; the other is the stand-in, started here when it is beside this repository.
+bases=()
+legs=
+if [ -z "${VERIFY_OFFLINE:-}" ]; then
+  bases+=("")
+  legs="postman-echo.com"
+fi
+if [ -f "$echo_server" ]; then
+  echo_port=$(free_port)
+  python3 "$echo_server" --port "$echo_port" > /dev/null 2>&1 &
+  echo_pid=$!
+  if ! curl -fs --retry 60 --retry-delay 1 --retry-connrefused --retry-all-errors \
+       "http://127.0.0.1:$echo_port/get" > /dev/null; then
+    echo "local-echo on port $echo_port never answered /get" >&2
+    exit 1
+  fi
+  bases+=("http://127.0.0.1:$echo_port")
+  legs="${legs:+$legs and }local-echo"
+fi
+if [ "${#bases[@]}" -eq 0 ]; then
+  echo "VERIFY_OFFLINE=1 needs $echo_server, and it is not there" >&2
   exit 1
 fi
-printf '%s\n' "$records" | assert_two_classes
+
+# Seeded with the flag every leg passes, because an empty array is not something every bash will
+# expand under set -u.
+base_flags() {
+  flags=(--json)
+  if [ -n "$1" ]; then
+    flags+=(-p "base_url=$1")
+  fi
+}
+
+# 1. Without a server.
+for base in "${bases[@]}"; do
+  base_flags "$base"
+  if records=$(uv run dg run --local pipelines/echo-retry.yaml "${flags[@]}"); then
+    echo "echo-retry was meant to fail: both of its steps fail by design" >&2
+    exit 1
+  fi
+  printf '%s\n' "$records" | assert_two_classes
+  printf '%s\n' "$records" | jq -e -s --arg base "${base:-https://postman-echo.com}" '
+    (map(select(.kind == "run")) | last).failures
+    | all(.error | startswith("GET " + $base + "/status/"))
+  ' > /dev/null
+done
 
 # 2. Against an instance this script starts and stops, where every attempt is a row of its own.
-#
-# $DG_PORT, or any port nothing is listening on: several instances share this machine, and two
-# of them on one port is two of them failing.
-port="${DG_PORT:-$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')}"
+port="${DG_PORT:-$(free_port)}"
 devlog=$(mktemp)
 uv run dg dev --port "$port" > "$devlog" 2>&1 &
 dev_pid=$!
-# The instance this script started is stopped by its pid, however this script ends.
-trap 'kill "$dev_pid" 2>/dev/null || true; wait "$dev_pid" 2>/dev/null || true' EXIT
 
 # --retry-all-errors covers the moment between the socket opening and the instance answering.
 if ! curl -fs --retry 60 --retry-delay 1 --retry-connrefused --retry-all-errors \
@@ -64,22 +128,25 @@ export DG_TOKEN="$token"
 # Applying an unchanged document again is not a new version, so this passes on every run.
 uv run dg apply
 
-if records=$(uv run dg run echo-retry --watch --json); then
-  echo "echo-retry was meant to fail on the instance too" >&2
-  exit 1
-fi
-printf '%s\n' "$records" | assert_two_classes
+for base in "${bases[@]}"; do
+  base_flags "$base"
+  if records=$(uv run dg run echo-retry --watch "${flags[@]}"); then
+    echo "echo-retry was meant to fail on the instance too" >&2
+    exit 1
+  fi
+  printf '%s\n' "$records" | assert_two_classes
 
-# An attempt is a row of its own, which is what makes a retry auditable rather than a counter.
-run_id=$(printf '%s\n' "$records" | jq -r -s 'map(select(.kind == "run")) | last | .run_id')
-uv run dg runs show "$run_id" --json | jq -e '
-  [.fields.attempts[] | {step: .step_name, attempt: .attempt, class: .error_class}]
-  | . == [
-      {step: "refused", attempt: 1, class: "rejected"},
-      {step: "unlucky", attempt: 1, class: "transient"},
-      {step: "unlucky", attempt: 2, class: "transient"},
-      {step: "unlucky", attempt: 3, class: "transient"}
-    ]
-' > /dev/null
+  # An attempt is a row of its own, which is what makes a retry auditable rather than a counter.
+  run_id=$(printf '%s\n' "$records" | jq -r -s 'map(select(.kind == "run")) | last | .run_id')
+  uv run dg runs show "$run_id" --json | jq -e '
+    [.fields.attempts[] | {step: .step_name, attempt: .attempt, class: .error_class}]
+    | . == [
+        {step: "refused", attempt: 1, class: "rejected"},
+        {step: "unlucky", attempt: 1, class: "transient"},
+        {step: "unlucky", attempt: 2, class: "transient"},
+        {step: "unlucky", attempt: 3, class: "transient"}
+      ]
+  ' > /dev/null
+done
 
-echo "echo-retry: document valid, the refusal took one attempt of three, the outage took all three"
+echo "echo-retry: document valid, the refusal took one attempt of three, the outage took all three, against $legs"

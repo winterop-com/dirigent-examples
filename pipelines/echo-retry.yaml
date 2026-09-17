@@ -24,6 +24,17 @@ requires:
   blocks:
     - http.request
 
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so pointing the document at another
+    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
+    # against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
+
 steps:
   refused:
     block: http.request
@@ -33,7 +44,7 @@ steps:
     config:
       # 404 is the service saying the thing is not there. Asking again cannot change that, so the
       # block classifies it rejected and the budget above is never touched.
-      url: https://postman-echo.com/status/404
+      url: ${params.base_url}/status/404
       method: GET
 
   unlucky:
@@ -44,5 +55,5 @@ steps:
     config:
       # 503 is the service saying it is unwell right now, which is a different sentence: the block
       # classifies it transient and every attempt in the budget is spent.
-      url: https://postman-echo.com/status/503
+      url: ${params.base_url}/status/503
       method: GET

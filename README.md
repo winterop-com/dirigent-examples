@@ -43,6 +43,49 @@ auditable rather than a counter.
 `./verify.sh` does all of it non-interactively, on a free port of its own, and asserts that the
 refusal took one attempt of the three it was allowed and the outage took all three.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It answers `/status/<code>` the way the real service does -- that status, and a body with nothing
+in it but the number -- so `/status/404` is still the thing not being there and `/status/503` is
+still the service being unwell. The `base_url` parameter is the whole of the switch:
+
+```bash
+uv run dg run --local pipelines/echo-retry.yaml -p base_url=http://127.0.0.1:8080
+uv run dg run echo-retry --watch -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:35:36.284+02:00 [info    ] http call                      [log refused] method=GET url=http://127.0.0.1:8080/status/404 status=404 bytes=15 duration_ms=29
+2026-09-17T15:35:36.289+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=3
+2026-09-17T15:35:37.962+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=10
+2026-09-17T15:35:42.599+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=3
+```
+
+Four calls, as against the real service: one for `refused`, three for `unlucky`, with the same
+waits between the attempts. The address differs, and the body is a byte longer. The classes, which
+are what this example is about, do not differ at all:
+
+```bash
+uv run dg run --local pipelines/echo-retry.yaml -p base_url=http://127.0.0.1:8080 --json \
+  | jq -c -s 'map(select(.kind == "run")) | last | [.failures[] | {step, attempt, class: .error_class}]'
+```
+
+```json
+[{"step":"refused","attempt":1,"class":"rejected"},{"step":"unlucky","attempt":1,"class":"transient"},{"step":"unlucky","attempt":2,"class":"transient"},{"step":"unlucky","attempt":3,"class":"transient"}]
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
+out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
+
 ## What you see
 
 ```bash
@@ -251,6 +294,17 @@ requires:
   blocks:
     - http.request
 
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so pointing the document at another
+    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
+    # against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
+
 steps:
   refused:
     block: http.request
@@ -260,7 +314,7 @@ steps:
     config:
       # 404 is the service saying the thing is not there. Asking again cannot change that, so the
       # block classifies it rejected and the budget above is never touched.
-      url: https://postman-echo.com/status/404
+      url: ${params.base_url}/status/404
       method: GET
 
   unlucky:
@@ -271,7 +325,7 @@ steps:
     config:
       # 503 is the service saying it is unwell right now, which is a different sentence: the block
       # classifies it transient and every attempt in the budget is spent.
-      url: https://postman-echo.com/status/503
+      url: ${params.base_url}/status/503
       method: GET
 ```
 
@@ -285,7 +339,8 @@ of a fan-out that all failed in the same instant.)
 
 `/status/404` and `/status/503` are Postman Echo answering with a status and nothing else, which
 makes them a stand-in for the two sentences a real service says: *the thing is not there*, and
-*I am unwell right now*.
+*I am unwell right now*. Both are built on `base_url`, the document's one parameter, so those two
+sentences can just as well come from an echo running on this machine.
 
 ## Where to go next
 
