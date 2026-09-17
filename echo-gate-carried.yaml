@@ -30,6 +30,13 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at another
+    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
+    # against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -39,7 +46,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}

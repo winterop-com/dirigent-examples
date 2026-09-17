@@ -48,6 +48,49 @@ uv run dg run echo-gate --watch -p station=       # fails at the gate: an empty 
 `./verify.sh` does all of it non-interactively, on a free port of its own, and asserts that the
 two failures failed the way they were written to.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+All three documents carry a `base_url` parameter that defaults to the real service, so one flag
+moves any of them to the stand-in on `http://127.0.0.1:8080`:
+
+```bash
+uv run dg run --local echo-gate-too-tight.yaml -p base_url=http://127.0.0.1:8080
+uv run dg run --local echo-gate-carried.yaml -p base_url=http://127.0.0.1:8080
+uv run dg run echo-gate --watch -p base_url=http://127.0.0.1:8080
+```
+
+The gate is what makes that worth having: the stand-in answers the shape the real service answers,
+so `echo-answer` holds against it unchanged and the too-tight document still fails on `at
+$.args.reading: '12.4' is not of type 'number'` -- the same line, at the same step. Only the
+address differs, in the log line
+
+```text
+2026-09-17T15:30:02.827+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=34
+```
+
+and in the value the gate handed on:
+
+```bash
+uv run dg run --local echo-gate-carried.yaml -p base_url=http://127.0.0.1:8080 --json \
+  | jq -s 'map(select(.kind == "run")) | last | .steps[] | select(.step == "check") | .output.value.url'
+```
+
+```json
+"http://127.0.0.1:8080/get?reading=12.4&station=bergen-florida"
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
+out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
+
 ## What you see
 
 ### Break it
@@ -326,6 +369,13 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at another
+    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
+    # against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -335,7 +385,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}
@@ -354,7 +404,8 @@ steps:
 `requires.schemas` is what makes a missing shape a refusal at apply rather than a failure at the
 step: an instance that does not hold `echo-answer` will not take this document at all. The `check`
 step names the schema by `code` and takes the read's whole `body` as its `input`; what it gives
-back is that same body, as `value`.
+back is that same body, as `value`. `base_url` is a parameter like any other, and the one every
+URL in the document is built on, so a run against another echo is a flag rather than an edit.
 
 ### `echo-gate-carried.yaml` and `echo-gate-too-tight.yaml`
 
