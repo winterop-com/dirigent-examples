@@ -26,9 +26,15 @@ In a second terminal, in this directory:
 uv run dg dev
 ```
 
-On an empty state -- which is what a fresh clone has -- `dg dev` migrates the schema, makes its own
-admin `dev`, mints that admin one token and prints the `export DG_TOKEN=` line to paste. Back in
-the first terminal, with that line pasted:
+`dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
+under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
+clone has, because the state directory is not in the repository -- it migrates the schema, makes
+its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
+`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
+the CLI where it went.
+
+Back in the first terminal, with that line pasted:
 
 ```bash
 uv run dg apply
@@ -87,6 +93,9 @@ out. `OFFLINE.md` beside this repository is the rest of the story, including the
 that keeps `uv` off the network too.
 
 ## What you see
+
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
 
 ```bash
 uv run dg run --local pipelines/echo-retry.yaml
@@ -158,35 +167,33 @@ uv run dg run echo-retry --watch
 ```
 
 ```text
-2026-09-17T15:12:44.380+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0af7f-8258-75c0-b7fa-a1b6a6157428 local=false
-2026-09-17T15:12:44.378+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
-2026-09-17T15:12:44.378+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
-2026-09-17T15:12:44.669+02:00 [info    ] running                        [step refused] block=http.request attempt=1
-2026-09-17T15:12:44.689+02:00 [info    ] running                        [step unlucky] block=http.request attempt=1
-2026-09-17T15:12:44.935+02:00 [info    ] http call                      [log refused] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=259
-2026-09-17T15:12:44.937+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=267
-2026-09-17T15:12:44.944+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=251
-2026-09-17T15:12:44.945+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=256
-2026-09-17T15:12:44.947+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
-2026-09-17T15:12:47.478+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=263
-2026-09-17T15:12:47.479+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=269
-2026-09-17T15:12:47.481+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
-2026-09-17T15:12:52.509+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=258
-2026-09-17T15:12:52.510+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=263
-2026-09-17T15:12:54.870+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0af7f-8258-75c0-b7fa-a1b6a6157428 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=7841 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-17T23:26:49.742+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0b143-dc8a-736d-83e6-8bd24584d94a local=false
+2026-09-17T23:26:49.740+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
+2026-09-17T23:26:49.740+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
+2026-09-17T23:26:50.208+02:00 [info    ] http call                      [log refused] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=233
+2026-09-17T23:26:50.210+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=241
+2026-09-17T23:26:50.253+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=260
+2026-09-17T23:26:50.254+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=265
+2026-09-17T23:26:50.256+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
+2026-09-17T23:26:52.857+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=318
+2026-09-17T23:26:52.861+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=332
+2026-09-17T23:26:52.866+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
+2026-09-17T23:26:57.909+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=306
+2026-09-17T23:26:57.915+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=318
+2026-09-17T23:27:00.295+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0b143-dc8a-736d-83e6-8bd24584d94a pipeline_version=1 triggered_by="dev (token dev)" duration_ms=7946 items_total=0 items_failed=0 exit_code=1 priority=normal
 run
-01a0af7f-8258-75c0-b7fa-a1b6a6157428
+01a0b143-dc8a-736d-83e6-8bd24584d94a
 pipeline      echo-retry (version 1)
 status        failed
-triggered by  dev (token cli-dev)
-duration      7.8s
+triggered by  dev (token dev)
+duration      7.9s
 items         -
 
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome ┃ after ┃ attempts ┃ duration ┃ error                           ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ refused │ http.request │ failed  │ -     │ 1        │ 0.3s     │ GET                             │
+│ refused │ http.request │ failed  │ -     │ 1        │ 0.2s     │ GET                             │
 │         │              │         │       │          │          │ https://postman-echo.com/statu… │
 │         │              │         │       │          │          │ answered 404                    │
 │ unlucky │ http.request │ failed  │ -     │ 1        │ 0.3s     │ GET                             │
@@ -233,7 +240,7 @@ failed with nothing tolerating it. The error column is narrowed to the terminal'
 failure detail under the table carries each message whole.
 
 ```bash
-uv run dg runs show 01a0af7f-8258-75c0-b7fa-a1b6a6157428 --json \
+uv run dg runs show 01a0b143-dc8a-736d-83e6-8bd24584d94a --json \
   | jq -c '[.fields.attempts[] | {step: .step_name, attempt: .attempt, class: .error_class}]'
 ```
 
@@ -344,7 +351,9 @@ sentences can just as well come from an echo running on this machine.
 
 ## Where to go next
 
+- [`echo-fanout`](../echo-fanout/README.md) is the same two classes over a list: one request per
+  item, one station down, and a join that counts the survivors rather than the rows asked for.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 6 is this step of it.
-- [**echo-send**](../echo-send) is the run that works: a read, a gate and a send, with the gate's
-  refusal skipping the step behind it rather than retrying it.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
