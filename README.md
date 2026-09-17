@@ -51,6 +51,63 @@ uv run dg runs show <run id> --json | jq '.fields.attempts[] | select(.step_name
 `./verify.sh` does all of it non-interactively: it picks a free port of its own, starts an
 instance, applies, runs, reads the answer back out of the run, and stops the instance it started.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document already has the parameter that points at
+it:
+
+```bash
+uv run dg run --local pipelines/echo-read.yaml -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:26:04.931+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=31
+```
+
+That line is the whole of the difference: the `url` the call was made against. The answer is the
+same answer and says the same thing about where it came from.
+
+```bash
+uv run dg run --local pipelines/echo-read.yaml -p base_url=http://127.0.0.1:8080 --json \
+  | jq -s 'map(select(.kind == "run")) | last | .steps[0].output.body'
+```
+
+```json
+{
+  "args": {
+    "reading": "12.4",
+    "station": "bergen-florida"
+  },
+  "headers": {
+    "host": "127.0.0.1:8080",
+    "accept": "*/*",
+    "accept-encoding": "gzip, deflate",
+    "connection": "keep-alive",
+    "user-agent": "python-httpx2/2.13.0"
+  },
+  "url": "http://127.0.0.1:8080/get?reading=12.4&station=bergen-florida"
+}
+```
+
+`args` carries the parameters back exactly as the real service does, and `url` is the address it
+was asked on. An instance takes the same flag:
+
+```bash
+uv run dg run echo-read --watch -p base_url=http://127.0.0.1:8080
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
+out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
+
 ## What you see
 
 ```bash
@@ -218,6 +275,10 @@ through a run.
 params:
   type: object
   properties:
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -230,7 +291,9 @@ params:
 
 `params` is a JSON Schema over the run's parameters, so the schema is the form: `dg run -p
 station=oslo-blindern` overrides one, the UI's run form is drawn from it, and a value the schema
-refuses stops the run before a single call is made. Note that `reading` is a **string**: there
+refuses stops the run before a single call is made. `base_url` is that same mechanism doing a
+structural job: every URL in the document is built on it, so one flag moves the whole run to
+another echo without touching a line of the document. Note that `reading` is a **string**: there
 are no numbers in a query string, so a reading that travels that way is text at the far end
 however numeric it looks. The gate in [echo-gate](../echo-gate) is where that matters.
 
@@ -239,14 +302,15 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}
         reading: ${params.reading}
 ```
 
-`url` is an absolute address, which is all a one-off call needs. The alternative is a
+`url` is an absolute address -- assembled here from a parameter and a path, but an address, which
+is all a one-off call needs. The alternative is a
 **connection**: a coded record the instance holds, carrying a base URL, its credential, its TLS
 setting and its timeout, which the step names with `connection:` and a `path:`. That is what you
 reach for the moment two steps call the same host, or the host wants a password -- a document
