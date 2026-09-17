@@ -327,5 +327,4 @@ This one calls a public endpoint once, so it needs neither.
   shape, so a payload that has moved stops at the step it arrived in.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example
   is cut from, and section 3 is this step of it.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
