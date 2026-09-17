@@ -2,12 +2,11 @@
 .venv/
 __pycache__/
 
-# This instance's token. Never shared.
+# This instance's database and artifacts. Disposable, and never shared.
+.dirigent/state/
+
+# This instance's token, or the stack's key and first password. Never shared.
 .env
 
-# This instance itself: the SQLite database, the artifacts, and the profile dg init wrote.
-# An instance is made by dg init, not by a clone.
-.dirigent/
-
-# What mkdocs would build here.
+# A built documentation site.
 site/

@@ -22,18 +22,20 @@ A trigger only exists on an instance, so the rest needs one. In a second termina
 directory:
 
 ```bash
-uv run dg dev --port 3341
+uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
-file under `.dirigent/state/`. It keeps running; leave it. Its first start on an empty state
-directory makes the instance and mints one token, in the line it prints -- `dg init` writes
-that token into the project's `.env`, where the `local` profile reads it, and a clone of this
-repository has neither, so copy it out of that line. Back in the first terminal:
+file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
+a fresh clone has, because the state directory is not in the repository -- it migrates the
+schema, makes its own admin `dev`, mints that admin one token, and prints the `export
+DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address the
+`local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
+`DG_URL` is how you tell the CLI where it went.
+
+Back in the first terminal, with that export line pasted:
 
 ```bash
-export DG_URL=http://127.0.0.1:3341 DG_TOKEN=<the token that line printed>
-
 uv run dg apply
 uv run dg schedule list echo-schedule
 uv run dg webhook list echo-schedule
@@ -50,8 +52,43 @@ curl -s -X POST "$hook" -H 'content-type: application/json' \
 ```
 
 `./verify.sh` does all of that unattended: it starts a `dg dev` on a free port of its own,
-waits for a scheduled run to land, POSTs the hook, asserts on the records both produced, and
-stops the instance it started by pid.
+mints its token with `dg auth login --username dev --password dirigent-dev`, waits for a
+scheduled run to land, POSTs the hook, asserts on the records both produced, and stops the
+instance it started by pid.
+
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
+points at it, on a local run and on an instance alike:
+
+```bash
+uv run dg run --local pipelines/echo-schedule.yaml -p base_url=http://127.0.0.1:8080
+uv run dg run echo-schedule --watch -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:50:42.073+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=28
+```
+
+A trigger is where that stops, and it is worth knowing why: a schedule's parameters are
+pinned in the document and a webhook's come out of the payload it is POSTed, so neither can
+be handed a port chosen after the document was applied. A run the clock starts reads
+`base_url`'s default and goes to the real service. That is the same fact the rest of this
+page is about -- what travels with the document and what does not -- seen from the other
+side.
+
+So `./verify.sh` asserts of a triggered run what a trigger decides: that it fired, what
+started it, and the parameters it was given. `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
+leg out and holds the two triggered runs to exactly that, and every run it starts itself goes
+to the local echo. `OFFLINE.md` beside this repository is the rest of the story, including
+the `UV_OFFLINE=1` that keeps `uv` off the network too.
 
 ## What you see
 
@@ -78,7 +115,7 @@ schedules of echo-schedule
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ code         ┃ name         ┃ clock ┃ timezone ┃ paused ┃ next firing         ┃ last fired ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ every-minute │ Every minute │ 1m    │ UTC      │ no     │ 2026-09-17 15:14:49 │ -          │
+│ every-minute │ Every minute │ 1m    │ UTC      │ no     │ 2026-09-17 15:50:04 │ -          │
 └──────────────┴──────────────┴───────┴──────────┴────────┴─────────────────────┴────────────┘
 
 $ uv run dg webhook list echo-schedule
@@ -87,7 +124,7 @@ webhooks of echo-schedule
 ┃            ┃             ┃            ┃        ┃        ┃           ┃             ┃ last       ┃
 ┃ code       ┃ name        ┃ token      ┃ signed ┃ active ┃ limit/min ┃ maps        ┃ delivery   ┃
 ┡━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ upstream-… │ Upstream    │ TqzrS9tj.… │ no     │ yes    │ 60        │ reading,    │ -          │
+│ upstream-… │ Upstream    │ jmXBMdEy.… │ no     │ yes    │ 60        │ reading,    │ -          │
 │            │ reading     │            │        │        │           │ station     │            │
 └────────────┴─────────────┴────────────┴────────┴────────┴───────────┴─────────────┴────────────┘
 ```
@@ -104,8 +141,8 @@ runs
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
 ┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
 ┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ 01a0af81-6ed9… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ every-minute   │ 15:14:50        │ 15:14:51       │
+│ 01a0afa1-b827… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
+│                │               │           │ every-minute   │ 15:50:06        │ 15:50:07       │
 └────────────────┴───────────────┴───────────┴────────────────┴─────────────────┴────────────────┘
 ```
 
@@ -117,7 +154,7 @@ $ hook="$(uv run dg webhook rotate-token echo-schedule upstream-reading --json |
 $ curl -s -X POST "$hook" -H 'content-type: application/json' \
     -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}' | jq
 {
-  "run_id": "01a0af81-a7ef-7009-b594-6aead93f7200",
+  "run_id": "01a0afa1-f69c-7643-ae3d-a08b9b7c878b",
   "outcome": "accepted",
   "detail": null
 }
@@ -132,21 +169,23 @@ runs
 ┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
 ┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
 ┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ 01a0af81-a7ef… │ echo-schedule │ succeeded │ webhook        │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ upstream-read… │ 15:15:05        │ 15:15:05       │
-│ 01a0af81-6ed9… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ every-minute   │ 15:14:50        │ 15:14:51       │
+│ 01a0afa1-f69c… │ echo-schedule │ succeeded │ webhook        │ 2026-09-17      │ 2026-09-17     │
+│                │               │           │ upstream-read… │ 15:50:22        │ 15:50:23       │
+│ 01a0afa1-b827… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
+│                │               │           │ every-minute   │ 15:50:06        │ 15:50:07       │
 └────────────────┴───────────────┴───────────┴────────────────┴─────────────────┴────────────────┘
 
-$ uv run dg runs show 01a0af81-a7ef-7009-b594-6aead93f7200 --json | jq '.fields.run.params'
+$ uv run dg runs show 01a0afa1-f69c-7643-ae3d-a08b9b7c878b --json | jq '.fields.run.params'
 {
   "station": "tromso-langnes",
-  "reading": "-6.8"
+  "reading": "-6.8",
+  "base_url": "https://postman-echo.com"
 }
 ```
 
-Two parameters, out of a payload that carried three things. `sender` is not in the mapping, so
-nothing reached it.
+Two parameters out of a payload that carried three things: `sender` is not in the mapping, so
+nothing reached it. The third is `base_url`, which the payload never mentioned and the mapping
+does not name -- a run records every parameter it ran with, and one nobody set is its default.
 
 ## The document, hop by hop
 
@@ -202,6 +241,15 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at
+    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
+    # runs it against a stand-in on this machine, with no network at all. A trigger is the
+    # exception: a schedule's parameters are pinned in this document and a webhook's come out
+    # of the payload, so neither can be handed a port chosen after it was applied.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -213,7 +261,7 @@ params:
       description: The reading reported for it.
 ```
 
-Both parameters carry a `default`, which is what makes the webhook mapping legal: a required
+Every parameter carries a `default`, which is what makes the webhook mapping legal: a required
 parameter nothing maps would be a hook that could never fire, and applying one is refused.
 
 **`ask`** and **`record`** are the pipeline, and they are deliberately small -- the triggers
@@ -224,7 +272,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}
