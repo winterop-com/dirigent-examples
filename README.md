@@ -355,5 +355,4 @@ sentences can just as well come from an echo running on this machine.
   item, one station down, and a join that counts the survivors rather than the rows asked for.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 6 is this step of it.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
