@@ -57,16 +57,27 @@ leg out. `OFFLINE.md` beside this repository is the rest of the story, including
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/echo-fanout` and a
+local run's temporary root as `/tmp`.*
+
+```bash
+uv run dg validate pipelines/echo-fanout.yaml
+```
+
 ```text
-$ uv run dg validate pipelines/echo-fanout.yaml
 2026-09-17T15:09:25.007+02:00 [info    ] valid                          [validation] code=echo-fanout document=pipelines/echo-fanout.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
       report  (transform.jq)
 2026-09-17T15:09:25.011+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+```
 
-$ uv run dg run --local pipelines/echo-fanout.yaml
-2026-09-17T15:09:26.394+02:00 [info    ] started                        [run] pipeline=echo-fanout run_id=01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 local=true scratch=file:///var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-i6adr05u/artifacts/runs/01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 root=/var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-i6adr05u
+```bash
+uv run dg run --local pipelines/echo-fanout.yaml
+```
+
+```text
+2026-09-17T15:09:26.394+02:00 [info    ] started                        [run] pipeline=echo-fanout run_id=01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 local=true scratch=file:///tmp/dirigent-local-i6adr05u/artifacts/runs/01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 root=/tmp/dirigent-local-i6adr05u
 2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[0]] block=http.request attempt=1
 2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[1]] block=http.request attempt=1
 2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[2]] block=http.request attempt=1
@@ -111,9 +122,12 @@ The step below them still ran, because under `continue` the step counts as succe
 The answer itself is in the run rather than on the screen, and every command writes records
 into a pipe, so the whole of it is one `jq` away:
 
-```text
-$ uv run dg run --local pipelines/echo-fanout.yaml --json \
-    | jq -s 'last | .steps[] | select(.step == "report") | .output.value'
+```bash
+uv run dg run --local pipelines/echo-fanout.yaml --json \
+  | jq -s 'last | .steps[] | select(.step == "report") | .output.value'
+```
+
+```json
 {
   "asked": 3,
   "answered": 2,
@@ -287,9 +301,10 @@ it both ways: that pair is the decision this document is really about.
 
 ## Where to go next
 
+- [`echo-transform`](../echo-transform/README.md) is what comes next: the three jq verbs, and
+  what each one is allowed to do to a list on its way between a read and a send.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.
-- [**echo-retry**](../echo-retry/README.md) is the failure beside this one, told properly:
-  the 500 that failed an item here is `transient` and would have been retried under a budget,
-  where a 404 is `rejected` and never is.
+- [**dirigent examples**](../README.md) is the shelf: every example in order, and what you
+  need once.
