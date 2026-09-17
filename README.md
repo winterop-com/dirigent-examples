@@ -30,9 +30,15 @@ In a second terminal, in this directory:
 uv run dg dev
 ```
 
-On an empty state -- which is what a fresh clone has -- `dg dev` migrates the schema, makes its own
-admin `dev`, mints that admin one token and prints the `export DG_TOKEN=` line to paste. Back in
-the first terminal, with that line pasted:
+`dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
+under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
+clone has, because the state directory is not in the repository -- it migrates the schema, makes
+its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
+`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
+the CLI where it went.
+
+Back in the first terminal, with that line pasted:
 
 ```bash
 uv run dg schema create schemas/echo-answer.json
@@ -91,6 +97,9 @@ out. `OFFLINE.md` beside this repository is the rest of the story, including the
 that keeps `uv` off the network too.
 
 ## What you see
+
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
 
 ```bash
 uv run dg run --local pipelines/echo-send.yaml --schema schemas/echo-answer.json
@@ -165,29 +174,30 @@ uv run dg run echo-send --watch
 ```
 
 ```text
-2026-09-17T15:10:11.186+02:00 [info    ] started                        [run] pipeline=echo-send run_id=01a0af7d-2bee-7686-a9fd-cca7c68fe8f7 local=false
-2026-09-17T15:10:11.184+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:10:11.184+02:00 [info    ] queued                         [step check] block=validate.schema attempt=1
-2026-09-17T15:10:11.447+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=234
-2026-09-17T15:10:11.451+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=246
-2026-09-17T15:10:11.739+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=9
-2026-09-17T15:10:11.744+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=283
-2026-09-17T15:10:12.448+02:00 [info    ] http call                      [log send] method=POST url=https://postman-echo.com/post status=200 bytes=378 duration_ms=195
-2026-09-17T15:10:12.452+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=209
-2026-09-17T15:10:12.500+02:00 [info    ] succeeded                      [run] pipeline=echo-send run_id=01a0af7d-2bee-7686-a9fd-cca7c68fe8f7 pipeline_version=2 triggered_by="dev (token cli-dev)" duration_ms=1246 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-17T23:26:05.057+02:00 [info    ] started                        [run] pipeline=echo-send run_id=01a0b143-2dfd-7571-bf1b-2be98f2b644b local=false
+2026-09-17T23:26:05.055+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:26:05.456+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-17T23:26:05.055+02:00 [info    ] queued                         [step send] block=http.request attempt=1
+2026-09-17T23:26:05.712+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=248
+2026-09-17T23:26:05.714+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=258
+2026-09-17T23:26:05.990+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=7
+2026-09-17T23:26:05.997+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=283
+2026-09-17T23:26:06.722+02:00 [info    ] http call                      [log send] method=POST url=https://postman-echo.com/post status=200 bytes=378 duration_ms=224
+2026-09-17T23:26:06.723+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=230
+2026-09-17T23:26:07.516+02:00 [info    ] succeeded                      [run] pipeline=echo-send run_id=01a0b143-2dfd-7571-bf1b-2be98f2b644b pipeline_version=2 triggered_by="dev (token dev)" duration_ms=1267 items_total=0 items_failed=0 exit_code=0 priority=normal
 run
-01a0af7d-2bee-7686-a9fd-cca7c68fe8f7
+01a0b143-2dfd-7571-bf1b-2be98f2b644b
 pipeline      echo-send (version 2)
 status        succeeded
-triggered by  dev (token cli-dev)
-duration      1.2s
+triggered by  dev (token dev)
+duration      1.3s
 items         -
 
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.3s     │ -     │
 │ check │ validate.schema │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
 │ send  │ http.request    │ succeeded │ check │ 1        │ 0.2s     │ -     │
 └───────┴─────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
@@ -196,14 +206,14 @@ outputs
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ output                                                                        ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=234 │
+│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=248 │
 │ check │ value={3 keys}                                                                │
-│ send  │ status=200  headers={12 keys}  body={7 keys}  body_bytes=378  duration_ms=195 │
+│ send  │ status=200  headers={12 keys}  body={7 keys}  body_bytes=378  duration_ms=224 │
 └───────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ```bash
-uv run dg runs show 01a0af7d-2bee-7686-a9fd-cca7c68fe8f7 --json \
+uv run dg runs show 01a0b143-2dfd-7571-bf1b-2be98f2b644b --json \
   | jq '.fields.attempts[] | select(.step_name == "send") | .output.body.json'
 ```
 
@@ -225,20 +235,20 @@ uv run dg run echo-send --watch -p station=
 ```
 
 ```text
-2026-09-17T15:10:15.884+02:00 [info    ] started                        [run] pipeline=echo-send run_id=01a0af7d-3e49-7152-8a34-cd04c6ff0899 local=false
-2026-09-17T15:10:15.882+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:10:16.283+02:00 [info    ] running                        [step ask] block=http.request attempt=1
-2026-09-17T15:10:16.496+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=245 duration_ms=199
-2026-09-17T15:10:16.498+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=215
-2026-09-17T15:10:16.809+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T15:10:16.809+02:00 [info    ] skipped                        [step send] block=http.request attempt=1
-2026-09-17T15:10:16.812+02:00 [error   ] failed                         [log check] duration_ms=0 error_class=rejected error="at $.args.station: '' should be non-empty"
-2026-09-17T15:10:17.203+02:00 [error   ] failed                         [run] pipeline=echo-send run_id=01a0af7d-3e49-7152-8a34-cd04c6ff0899 pipeline_version=2 triggered_by="dev (token cli-dev)" duration_ms=527 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-17T23:26:09.720+02:00 [info    ] started                        [run] pipeline=echo-send run_id=01a0b143-4036-76b0-afb6-330c7095f207 local=false
+2026-09-17T23:26:09.719+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:26:10.041+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-17T23:26:10.298+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=245 duration_ms=244
+2026-09-17T23:26:10.300+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=259
+2026-09-17T23:26:10.577+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=14
+2026-09-17T23:26:10.577+02:00 [info    ] skipped                        [step send] block=http.request attempt=1
+2026-09-17T23:26:10.584+02:00 [error   ] failed                         [log check] duration_ms=0 error_class=rejected error="at $.args.station: '' should be non-empty"
+2026-09-17T23:26:11.019+02:00 [error   ] failed                         [run] pipeline=echo-send run_id=01a0b143-4036-76b0-afb6-330c7095f207 pipeline_version=2 triggered_by="dev (token dev)" duration_ms=536 items_total=0 items_failed=0 exit_code=1 priority=normal
 run
-01a0af7d-3e49-7152-8a34-cd04c6ff0899
+01a0b143-4036-76b0-afb6-330c7095f207
 pipeline      echo-send (version 2)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  dev (token dev)
 duration      0.5s
 items         -
 
@@ -246,7 +256,7 @@ steps
 ┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step          ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error                ┃
 ┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask           │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -                    │
+│ ask           │ http.request    │ succeeded │ -     │ 1        │ 0.3s     │ -                    │
 │ check  1 warn │ validate.schema │ failed    │ ask   │ 1        │ 0.0s     │ at $.args.station:   │
 │               │                 │           │       │          │          │ '' should be         │
 │               │                 │           │       │          │          │ non-empty            │
@@ -257,7 +267,7 @@ outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=245  duration_ms=199 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=245  duration_ms=244 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 
 check failed  validate.schema, attempt 1, rejected
@@ -381,7 +391,9 @@ pair explains every line of it.
 
 ## Where to go next
 
+- [`echo-retry`](../echo-retry/README.md) is the other half of what a failure means: a refusal that
+  no budget can help, beside an outage that a retry is exactly for.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 5 is this step of it.
-- [**echo-retry**](../echo-retry) is the other half of what a failure means: a refusal that no
-  budget can help, beside an outage that a retry is exactly for.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
