@@ -1,0 +1,210 @@
+# The inbound half of a sync: the other system is the source of truth for the register, and
+# DHIS2 is the instance being brought up to date.
+#
+# This is the direction that goes wrong. Outbound, DHIS2 hands over more than the receiver
+# needs and the reshape only ever drops fields. Inbound, the register hands over less than
+# DHIS2 requires -- no shortName, no uid, a date rather than a timestamp -- and the document
+# is where the difference is made up, in public, where a reviewer can see what was invented.
+#
+#   fixture  value.const. Three facilities in the other system's own shape.
+#   fetch    http.request. Asking the other system for them. Postman Echo answers with the
+#            request it was given, so the fixture comes back under .body.json exactly as a
+#            real register would answer a query -- this stands in for a GET on that system.
+#   shape    transform.jq. The register's record turned into DHIS2 metadata.
+#   check    validate.schema. The gate, on the payload rather than on the read: this is the
+#            end where the shape is not under your control and the next hop writes.
+#   mode     value.const. The four import parameters, as a value the run record holds.
+#   send     http.request POST /api/metadata on `target`.
+#   report   transform.jq. DHIS2's three-level import tree flattened.
+#   say      log.write. The stats.
+#   verdict  validate.schema. A refused import fails the run, after `say` has written down
+#            what the target said.
+#
+# IDENTIFIER=CODE is the parameter this document turns on. The register has no idea what a
+# DHIS2 uid is, so every unit and every parent is named by its code and the import is told to
+# match on codes. Get this wrong and DHIS2 reads the code field as a payload to write rather
+# than as a key to match, and creates a second copy of every unit.
+#
+# importMode=VALIDATE is the other one. Both demos are shared, so a rehearsal is the default.
+#
+#   uv run dg run --local pipelines/other-to-dhis2.yaml \
+#     --connections connections.yaml --schema schemas/org-unit-sync-import.json \
+#     --schema schemas/org-unit-sync-verdict.json
+#   uv run dg run other-to-dhis2 --watch -p parent_code=OU_NOT_THERE
+
+format: dirigent/v1
+kind: pipeline
+code: other-to-dhis2
+name: Organisation units, another system to DHIS2
+description: |
+  Take a register of `{code, name, parent_code, opened}` facilities from the system next
+  door, turn it into DHIS2 metadata, gate it, and rehearse the import.
+
+  | Parameter | Means |
+  | --- | --- |
+  | `importStrategy=CREATE_AND_UPDATE` | create what is missing, revise what is there |
+  | `atomicMode=ALL` | the whole payload lands, or none of it does |
+  | `identifier=CODE` | match each unit, and each parent, by its code rather than its uid |
+  | `importMode=VALIDATE` | **a dry run**: resolve, check, report, write nothing |
+
+tags: [dhis2, metadata, validate, transform, http, sync]
+
+requires:
+  blocks:
+    - value.const
+    - http.request
+    - transform.jq
+    - validate.schema
+    - log.write
+  connections:
+    - target
+  schemas:
+    - org-unit-sync-import
+    - org-unit-sync-verdict
+
+params:
+  type: object
+  properties:
+    parent_code:
+      type: string
+      format: dhis2-code
+      default: OU_264
+      # OU_264 is Bo district on the play demo. A code the target does not hold is the
+      # commonest inbound failure there is, and the one worth seeing on purpose:
+      # -p parent_code=OU_NOT_THERE.
+      description: The code of the district every facility in the register sits under.
+    import_mode:
+      type: string
+      enum: [VALIDATE, COMMIT]
+      default: VALIDATE
+      description: VALIDATE rehearses the import and writes nothing. COMMIT performs it, and belongs against your own instance and never against a shared demo.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The system the register is read from.
+
+steps:
+  fixture:
+    block: value.const
+    config:
+      # The other system's own shape: a code, a name, the code of the parent, and a day.
+      # No uid, no shortName, no timestamp -- which is the whole problem this document
+      # solves. These three codes are real chiefdoms on the play demo, so the rehearsal
+      # below reports what a genuine update reports.
+      value:
+        facilities:
+          - code: OU_539
+            name: Badjia
+            parent_code: ${params.parent_code}
+            opened: "1970-01-01"
+          - code: OU_540
+            name: Baoma
+            parent_code: ${params.parent_code}
+            opened: "1970-01-01"
+          - code: OU_541
+            name: Bargbe
+            parent_code: ${params.parent_code}
+            opened: "1970-01-01"
+
+  fetch:
+    block: http.request
+    depends_on: [fixture]
+    config:
+      url: ${params.base_url}/post
+      method: POST
+      body: ${steps.fixture.output.value}
+
+  shape:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      # .body.json is what the echo answered with, which is the register as it arrived.
+      input: ${steps.fetch.output.body.json}
+      # Three decisions, and each one is a choice a reviewer should be able to argue with:
+      #
+      #   shortName    DHIS2 requires it and the register has none, so the name is used,
+      #                cut to the fifty characters DHIS2 allows.
+      #   openingDate  a day is a valid DHIS2 date; the timestamp is the instance's own
+      #                rendering of it, not something the register has to produce.
+      #   parent       named by code, because identifier=CODE below is what resolves it.
+      #                No uid appears anywhere in this payload.
+      program: |
+        {organisationUnits: [.facilities[] | {
+          code: .code,
+          name: .name,
+          shortName: (.name[0:50]),
+          openingDate: .opened,
+          parent: {code: .parent_code}
+        }]}
+
+  check:
+    block: validate.schema
+    depends_on: [shape]
+    config:
+      input: ${steps.shape.output.value}
+      schema: org-unit-sync-import
+
+  mode:
+    block: value.const
+    config:
+      value:
+        importStrategy: CREATE_AND_UPDATE
+        atomicMode: ALL
+        identifier: CODE
+        importMode: ${params.import_mode}
+
+  send:
+    block: http.request
+    depends_on: [check, mode]
+    config:
+      connection: target
+      path: /api/metadata
+      method: POST
+      query: ${steps.mode.output.value}
+      # Sent out of the gate rather than out of the reshape: what is posted provably passed.
+      body: ${steps.check.output.value}
+      # A refused metadata import is a 409 whose body is the report, which is a verdict and
+      # not a transport failure.
+      success_status: [200, 409]
+      max_response: 16mb
+
+  report:
+    block: transform.jq
+    depends_on: [send]
+    config:
+      input: ${steps.send.output.body}
+      program: |
+        [ .response.typeReports[]?.objectReports[]?
+          | .uid as $uid
+          | .displayName as $name
+          | .errorReports[]?
+          | {uid: $uid, name: $name, code: .errorCode, message: .message}
+        ] as $conflicts
+        | {
+            status: .response.status,
+            created: .response.stats.created,
+            updated: .response.stats.updated,
+            deleted: .response.stats.deleted,
+            ignored: .response.stats.ignored,
+            total: .response.stats.total,
+            refused: ($conflicts | length),
+            conflicts: $conflicts,
+            detail: (
+              if ($conflicts | length) == 0 then "no conflicts"
+              else ([$conflicts[] | "\(.name) \(.code): \(.message)"] | join("; "))
+              end
+            )
+          }
+
+  say:
+    block: log.write
+    depends_on: [report]
+    config:
+      message: "${params.import_mode} on the target by code: ${steps.report.output.value.status}, ${steps.report.output.value.created} created, ${steps.report.output.value.updated} updated, ${steps.report.output.value.ignored} ignored, of ${steps.report.output.value.total} units -- ${steps.report.output.value.detail}"
+
+  verdict:
+    block: validate.schema
+    depends_on: [say]
+    config:
+      input: ${steps.report.output.value}
+      schema: org-unit-sync-verdict

@@ -1,0 +1,248 @@
+# Every setting dirigent has, with its default and what it does.
+#
+# This file is read, never loaded: dirigent does not look for it. Copy a line into
+# dirigent.yaml to change it, or set the environment variable named beside it.
+#
+# Generated from the settings model, so it lists what this version actually has.
+
+# Which deployment this instance believes it is, reported on telemetry.
+# DIRIGENT_ENVIRONMENT
+# environment: "local"
+
+# Where the instance's own state lives, as a SQLAlchemy async URL.
+# DIRIGENT_DATABASE_URL
+# database_url: "sqlite+aiosqlite:///./.dirigent/state/dirigent.db"
+
+# Echo every SQL statement to the process log. Debugging only; it is very loud.
+# DIRIGENT_DATABASE_ECHO
+# database_echo: false
+
+# How many database connections one process keeps open. Ignored by SQLite.
+# DIRIGENT_DATABASE_POOL_SIZE
+# database_pool_size: 12
+
+# Connections the pool may open beyond database_pool_size under a burst.
+# DIRIGENT_DATABASE_MAX_OVERFLOW
+# database_max_overflow: 4
+
+# How long a checkout waits for a free connection before failing loudly.
+# DIRIGENT_DATABASE_POOL_TIMEOUT
+# database_pool_timeout: "30s"
+
+# Recycle a pooled connection older than this; unset disables recycling.
+# DIRIGENT_DATABASE_POOL_RECYCLE
+# database_pool_recycle: "30m"
+
+# The address the API server binds. A container needs 0.0.0.0 to be reachable.
+# DIRIGENT_HOST
+# host: "127.0.0.1"
+
+# The port the API server binds.
+# DIRIGENT_PORT
+# port: 3333
+
+# Where the versioned REST API is mounted. /hooks/{token} is not under it.
+# DIRIGENT_API_PREFIX
+# api_prefix: "/api/v1"
+
+# Whether the server serves the bundled web UI beside the API.
+# DIRIGENT_UI_ENABLED
+# ui_enabled: true
+
+# A built web UI bundle to serve, instead of the one installed with the server.
+# DIRIGENT_UI_DIR
+# ui_dir: null
+
+# How loud the process log is. This is the process log; a run's own telemetry is the
+# log_entries table, and a CLI -v or --debug flag wins over this.
+# DIRIGENT_LOG_LEVEL
+# log_level: "INFO"
+
+# How a command spells a log line: console for a person, json for a collector.
+# DIRIGENT_LOG_FORMAT
+# log_format: "console"
+
+# Default storage backend URI prefix for run scratch space and artifacts.
+# DIRIGENT_ARTIFACT_ROOT
+# artifact_root: "file://./.dirigent/state/artifacts"
+
+# Directory on this worker's own filesystem where a run's local working files go.
+# DIRIGENT_WORK_ROOT
+# work_root: "./.dirigent/state/work"
+
+# Which connection configures each storage scheme, as scheme -> connection code.
+# DIRIGENT_STORAGE_CONNECTIONS
+# storage_connections: {}
+
+# Outputs at or below this serialized size are stored inline instead of as a file.
+# DIRIGENT_INLINE_ARTIFACT_MAX
+# inline_artifact_max: 16384
+
+# How much of a captured stream a block may inline in its output.
+# DIRIGENT_INLINE_CAPTURE
+# inline_capture: 8192
+
+# Envelope key for connection secrets; required before any secret is stored.
+# DIRIGENT_SECRET_KEY
+# secret_key: null
+
+# How many step attempts one worker process executes at once.
+# DIRIGENT_WORKER_CONCURRENCY
+# worker_concurrency: 8
+
+# Capability tags a worker advertises to the claim query.
+# DIRIGENT_WORKER_TAGS
+# worker_tags: []
+
+# Registry name of this worker; defaults to hostname plus process id.
+# DIRIGENT_WORKER_NAME
+# worker_name: null
+
+# How long a claimed attempt's lease is valid before the sweeper may reclaim it.
+# DIRIGENT_LEASE
+# lease: "1m"
+
+# How often a worker refreshes the leases it holds and its registry row.
+# DIRIGENT_HEARTBEAT
+# heartbeat: "15s"
+
+# How long a worker waits before asking for work again when the queue is empty.
+# DIRIGENT_CLAIM_IDLE
+# claim_idle: "500ms"
+
+# How often a running attempt's buffered log entries are written to the run.
+# DIRIGENT_LOG_FLUSH_INTERVAL
+# log_flush_interval: "1s"
+
+# How many entries one attempt may log before the rest are dropped with one warning.
+# DIRIGENT_LOG_ENTRIES_PER_ATTEMPT
+# log_entries_per_attempt: 1000
+
+# How many buffered entries write themselves without waiting for the flush interval.
+# DIRIGENT_LOG_FLUSH_BATCH
+# log_flush_batch: 100
+
+# How often a worker runs the crash-recovery sweeper over expired leases.
+# DIRIGENT_SWEEP_INTERVAL
+# sweep_interval: "30s"
+
+# A running run with no attempt progress for this long is flagged as stuck.
+# DIRIGENT_STUCK_RUN
+# stuck_run: "1h"
+
+# A worker whose registry row is older than this has that row reaped by the sweeper.
+# DIRIGENT_STALE_WORKER
+# stale_worker: "15m"
+
+# How often a docker-capable worker looks for compose stacks whose run has ended.
+# DIRIGENT_DOCKER_REAP_INTERVAL
+# docker_reap_interval: "5m"
+
+# How old a compose project must be before the reaper will consider it at all.
+# DIRIGENT_DOCKER_REAP_GRACE
+# docker_reap_grace: "10m"
+
+# How long a settled run is kept, with its items, attempts, artifacts and alerts.
+# DIRIGENT_RETENTION_RUNS
+# retention_runs: null
+
+# How long a log entry is kept, for runs too young to be pruned themselves.
+# DIRIGENT_RETENTION_LOGS
+# retention_logs: null
+
+# How long a webhook delivery is kept.
+# DIRIGENT_RETENTION_DELIVERIES
+# retention_deliveries: null
+
+# How long a schedule firing is kept.
+# DIRIGENT_RETENTION_FIRINGS
+# retention_firings: null
+
+# How long an alert that was sent is kept, for runs too young to be pruned themselves.
+# DIRIGENT_RETENTION_NOTIFICATIONS
+# retention_notifications: null
+
+# Whether pruning a run also deletes its artifacts from storage.
+# DIRIGENT_RETENTION_SCRATCH
+# retention_scratch: true
+
+# How often the scheduler sweeps whatever the retention ages have outlived.
+# DIRIGENT_RETENTION_INTERVAL
+# retention_interval: "1h"
+
+# How many rows of one family a single sweep deletes before committing.
+# DIRIGENT_RETENTION_BATCH
+# retention_batch: 500
+
+# Consecutive GONE probes before the lost-job policy fails a waiting attempt.
+# DIRIGENT_LOST_JOB_MAX_GONE
+# lost_job_max_gone: 3
+
+# Block ids permitted to execute code on a worker; empty means none.
+# DIRIGENT_ENABLED_UNSAFE_BLOCKS
+# enabled_unsafe_blocks: []
+
+# Whether dg server embeds the scheduler rather than leaving it to its own process.
+# DIRIGENT_SCHEDULER_ENABLED
+# scheduler_enabled: true
+
+# How often the leader asks the database which schedules are due.
+# DIRIGENT_SCHEDULER_TICK
+# scheduler_tick: "5s"
+
+# How late a firing may be before it counts as a misfire: fire once, advance, no catchup
+# storm.
+# DIRIGENT_SCHEDULER_MISFIRE_GRACE
+# scheduler_misfire_grace: "5m"
+
+# The advisory-lock key leadership is taken on; only PostgreSQL has one to take.
+# DIRIGENT_SCHEDULER_LOCK_KEY
+# scheduler_lock_key: 1684632167
+
+# A directory of pipeline documents the server applies at boot; unset applies nothing.
+# DIRIGENT_APPLY_DIR
+# apply_dir: null
+
+# Whether the boot apply also deactivates directory-provenance pipelines absent from it.
+# DIRIGENT_APPLY_PRUNE
+# apply_prune: false
+
+# The advisory-lock key the boot apply is serialised on, distinct from the scheduler's.
+# DIRIGENT_APPLY_LOCK_KEY
+# apply_lock_key: 1684632161
+
+# How many times a notification delivery is retried before it is recorded as failed.
+# DIRIGENT_NOTIFICATION_MAX_ATTEMPTS
+# notification_max_attempts: 5
+
+# The delay after a notification's first failed delivery; later ones double from it.
+# DIRIGENT_NOTIFICATION_BACKOFF
+# notification_backoff: "30s"
+
+# How long a claimed notification's lease is valid before another worker may take it.
+# DIRIGENT_NOTIFICATION_LEASE
+# notification_lease: "1m"
+
+# The largest body the webhook intake will read; reading stops one byte past it.
+# DIRIGENT_WEBHOOK_MAX_PAYLOAD
+# webhook_max_payload: 1048576
+
+# How fast one *offered* token may deliver, before anything is looked up.
+# DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE
+# webhook_intake_rate_per_minute: 120
+
+# How many login attempts one address, and one username, get a minute.
+# DIRIGENT_LOGIN_RATE_PER_MINUTE
+# login_rate_per_minute: 10
+
+# The externally reachable base URL, so an alert can link back to the run it is about.
+# DIRIGENT_ALERT_BASE_URL
+# alert_base_url: null
+
+# A run's report document larger than this is dropped with a warning in the run's log.
+# DIRIGENT_REPORT_MAX_SIZE
+# report_max_size: 1048576
+
+# How long a report template may take to render before it is dropped with a warning.
+# DIRIGENT_REPORT_RENDER_TIMEOUT
+# report_render_timeout: "5s"
