@@ -33,9 +33,15 @@ In a second terminal, in this directory:
 uv run dg dev
 ```
 
-On an empty state -- which is what a fresh clone has -- `dg dev` migrates the schema, makes its
-own admin `dev`, mints that admin one token and prints the `export DG_TOKEN=` line to paste. Back
-in the first terminal, with that line pasted:
+`dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
+under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
+clone has, because the state directory is not in the repository -- it migrates the schema, makes
+its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
+`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
+the CLI where it went.
+
+Back in the first terminal, with that line pasted:
 
 ```bash
 uv run dg apply echo-gate-carried.yaml            # refused: a server stores no carried schema
@@ -92,6 +98,9 @@ out. `OFFLINE.md` beside this repository is the rest of the story, including the
 that keeps `uv` off the network too.
 
 ## What you see
+
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
 
 ### Break it
 
@@ -175,9 +184,9 @@ uv run dg apply echo-gate-carried.yaml
 ```
 
 ```text
-2026-09-17T15:05:18.469+02:00 [error   ] this document carries its own schemas (echo-answer), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/$apply
-  - this document carries its own schemas (echo-answer), which an instance will not store: create them with
-`dg schema create` and let the document name them in requires.schemas
+2026-09-17T23:24:16.907+02:00 [error   ] this document carries its own schemas (echo-answer), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/$apply
+  - this document carries its own schemas (echo-answer), which an instance will not store: create
+them with `dg schema create` and let the document name them in requires.schemas
 ```
 
 That refusal is the rule worth learning early: **a server stores no schema a document carries**,
@@ -209,27 +218,27 @@ uv run dg run echo-gate --watch
 ```
 
 ```text
-2026-09-17T15:05:23.172+02:00 [info    ] started                        [run] pipeline=echo-gate run_id=01a0af78-c6e0-70f6-afec-9e4024cf3845 local=false
-2026-09-17T15:05:23.170+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:05:23.170+02:00 [info    ] queued                         [step check] block=validate.schema attempt=1
-2026-09-17T15:05:23.498+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=223
-2026-09-17T15:05:23.504+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=239
-2026-09-17T15:05:23.811+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=17
-2026-09-17T15:05:23.824+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=283
-2026-09-17T15:05:24.515+02:00 [info    ] succeeded                      [run] pipeline=echo-gate run_id=01a0af78-c6e0-70f6-afec-9e4024cf3845 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=546 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-17T23:24:20.271+02:00 [info    ] started                        [run] pipeline=echo-gate run_id=01a0b141-94ab-778c-97f7-933864f7a986 local=false
+2026-09-17T23:24:20.269+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:24:20.721+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-17T23:24:21.046+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=303
+2026-09-17T23:24:21.052+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=330
+2026-09-17T23:24:21.290+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=18
+2026-09-17T23:24:21.302+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=283
+2026-09-17T23:24:21.609+02:00 [info    ] succeeded                      [run] pipeline=echo-gate run_id=01a0b141-94ab-778c-97f7-933864f7a986 pipeline_version=1 triggered_by="dev (token dev)" duration_ms=569 items_total=0 items_failed=0 exit_code=0 priority=normal
 run
-01a0af78-c6e0-70f6-afec-9e4024cf3845
+01a0b141-94ab-778c-97f7-933864f7a986
 pipeline      echo-gate (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
-duration      0.5s
+triggered by  dev (token dev)
+duration      0.6s
 items         -
 
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.2s     │ -     │
+│ ask   │ http.request    │ succeeded │ -     │ 1        │ 0.3s     │ -     │
 │ check │ validate.schema │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
 └───────┴─────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
@@ -237,7 +246,7 @@ outputs
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ output                                                                        ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=223 │
+│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=303 │
 │ check │ value={3 keys}                                                                │
 └───────┴───────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -255,19 +264,19 @@ uv run dg run echo-gate --watch -p station=
 ```
 
 ```text
-2026-09-17T15:05:25.637+02:00 [info    ] started                        [run] pipeline=echo-gate run_id=01a0af78-d082-70f0-81dc-3036166e121c local=false
-2026-09-17T15:05:25.635+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:05:25.635+02:00 [info    ] queued                         [step check] block=validate.schema attempt=1
-2026-09-17T15:05:26.059+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=245 duration_ms=211
-2026-09-17T15:05:26.064+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=231
-2026-09-17T15:05:26.374+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=20
-2026-09-17T15:05:26.392+02:00 [error   ] failed                         [log check] duration_ms=1 error_class=rejected error="at $.args.station: '' should be non-empty"
-2026-09-17T15:05:26.931+02:00 [error   ] failed                         [run] pipeline=echo-gate run_id=01a0af78-d082-70f0-81dc-3036166e121c pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=542 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-17T23:24:22.667+02:00 [info    ] started                        [run] pipeline=echo-gate run_id=01a0b141-9e07-70c3-aaff-0d100fe9b5aa local=false
+2026-09-17T23:24:22.666+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:24:22.666+02:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-09-17T23:24:23.035+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=245 duration_ms=227
+2026-09-17T23:24:23.041+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=239
+2026-09-17T23:24:23.332+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=19
+2026-09-17T23:24:23.342+02:00 [error   ] failed                         [log check] duration_ms=1 error_class=rejected error="at $.args.station: '' should be non-empty"
+2026-09-17T23:24:24.002+02:00 [error   ] failed                         [run] pipeline=echo-gate run_id=01a0b141-9e07-70c3-aaff-0d100fe9b5aa pipeline_version=1 triggered_by="dev (token dev)" duration_ms=530 items_total=0 items_failed=0 exit_code=1 priority=normal
 run
-01a0af78-d082-70f0-81dc-3036166e121c
+01a0b141-9e07-70c3-aaff-0d100fe9b5aa
 pipeline      echo-gate (version 1)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  dev (token dev)
 duration      0.5s
 items         -
 
@@ -285,7 +294,7 @@ outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=245  duration_ms=211 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=245  duration_ms=227 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 
 check failed  validate.schema, attempt 1, rejected
@@ -439,7 +448,9 @@ and the instance never sees a form it would refuse.
 
 ## Where to go next
 
+- [`echo-send`](../echo-send/README.md) is what the gate is for: a request built out of the values
+  the gate passed, and a step skipped behind a gate that refused.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 4 is this step of it.
-- [**echo-send**](../echo-send) is what the gate is for: a request built out of the values the gate
-  passed, and a step skipped behind a gate that refused.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
