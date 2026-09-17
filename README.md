@@ -84,10 +84,18 @@ export DIRIGENT_STORAGE_CONNECTIONS=s3=artifacts
 uv run dg dev
 ```
 
+`dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
+under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
+clone has, because the state directory is not in the repository -- it migrates the schema, makes
+its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
+`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
+the CLI where it went.
+
 Keep the key. An instance that changes it cannot open what it sealed under the old one, which is
 why `verify.sh` mints one per run and writes the connection fresh every time.
 
-Back in the first terminal, with the `export DG_TOKEN=` line `dg dev` printed:
+Back in the first terminal, with that line pasted:
 
 ```bash
 uv run dg connection create s3 artifacts \
@@ -123,7 +131,40 @@ makes the bucket, runs the document locally and then on an instance it starts wi
 root pointed into that bucket, asserts on the records, asks the object store to confirm both
 objects, and removes the container and the instance it started on the way out.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document is built on a `base_url` parameter, so
+one flag moves the read to it:
+
+```bash
+uv run dg run echo-s3 --watch -p base_url=http://127.0.0.1:8080
+```
+
+The S3 server is already local and so is the instance, so the read is the only thing that was
+ever leaving the machine. The images are the other half: pull them once while you still have a
+network.
+
+```bash
+docker pull rustfs/rustfs:1.0.0-rc.4
+docker pull quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+```
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
+out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
+
 ## What you see
+
+*Printed as it printed, with this project's directory written as `/home/you/...` and the
+temporary directory a local run makes written as `/tmp/...`.*
 
 ```bash
 uv run dg validate pipelines/echo-s3.yaml
@@ -185,8 +226,8 @@ uv run dg connection check artifacts
 ```
 
 ```text
-2026-09-17T15:31:49.827+02:00 [info    ] created                        [connection.created] code=artifacts connection_kind=s3 name="Artifact storage" config={"endpoint_url":"http://127.0.0.1:9000","region":"us-east-1","access_key_id":"echo-s3-key","path_style":true,"verify_tls":true,"bucket":"echo-s3","secret_access_key":"***"}
-2026-09-17T15:31:51.048+02:00 [info    ] healthy                        [connection.checked] code=artifacts healthy=true detail="bucket 'echo-s3' reachable"
+2026-09-17T23:27:59.859+02:00 [info    ] created                        [connection.created] code=artifacts connection_kind=s3 name="Artifact storage" config={"endpoint_url":"http://127.0.0.1:9000","region":"us-east-1","access_key_id":"echo-s3-key","path_style":true,"verify_tls":true,"bucket":"echo-s3","secret_access_key":"***"}
+2026-09-17T23:28:00.976+02:00 [info    ] healthy                        [connection.checked] code=artifacts healthy=true detail="bucket 'echo-s3' reachable"
 ```
 
 The record carries the config back with the secret half as `***`: a connection's secret goes in
@@ -200,24 +241,32 @@ uv run dg run echo-s3 --watch
 ```
 
 ```text
-create echo-s3  version 1
-(/home/you/echo-s3/pipelines/echo-s3.yaml)
+create echo-s3  version 1 (/home/you/echo-s3/pipelines/echo-s3.yaml)
 ```
 
 ```text
-2026-09-17T15:31:53.461+02:00 [info    ] started                        [run] pipeline=echo-s3 run_id=01a0af91-0af0-75f0-922e-a118cca37b4b local=false
-2026-09-17T15:31:53.771+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=243 duration_ms=207
-2026-09-17T15:31:54.231+02:00 [info    ] wrote                          [log save] uri=s3://echo-s3/echo/bergen-florida.json bytes_written=243 content_type=application/json
-2026-09-17T15:31:54.236+02:00 [info    ] wrote                          [log stash] uri=s3://echo-s3/artifacts/runs/01a0af91-0af0-75f0-922e-a118cca37b4b/echo/bergen-florida.json bytes_written=243 content_type=application/json
-2026-09-17T15:31:54.856+02:00 [info    ] read                           [log back] uri=s3://echo-s3/echo/bergen-florida.json bytes_read=243 content_type=application/json
-2026-09-17T15:31:55.360+02:00 [info    ] 243 bytes back from s3://echo-s3/echo/bergen-florida.json for station bergen-florida, with this run's scratch at s3://echo-s3/artifacts/runs/01a0af91-0af0-75f0-922e-a118cca37b4b/echo/bergen-florida.json [log say]
-2026-09-17T15:31:56.008+02:00 [info    ] succeeded                      [run] pipeline=echo-s3 run_id=01a0af91-0af0-75f0-922e-a118cca37b4b pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1804 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-17T23:28:03.096+02:00 [info    ] started                        [run] pipeline=echo-s3 run_id=01a0b144-fb14-7445-bdc4-e3da10bcb27a local=false
+2026-09-17T23:28:03.094+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:28:03.094+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
+2026-09-17T23:28:03.094+02:00 [info    ] queued                         [step stash] block=storage.write attempt=1
+2026-09-17T23:28:03.448+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=243 duration_ms=262
+2026-09-17T23:28:03.457+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=279
+2026-09-17T23:28:03.836+02:00 [info    ] wrote                          [log save] uri=s3://echo-s3/echo/bergen-florida.json bytes_written=243 content_type=application/json
+2026-09-17T23:28:03.839+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=140
+2026-09-17T23:28:03.840+02:00 [info    ] wrote                          [log stash] uri=s3://echo-s3/artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florida.json bytes_written=243 content_type=application/json
+2026-09-17T23:28:03.845+02:00 [info    ] succeeded                      [step stash] block=storage.write attempt=1 duration_ms=62
+2026-09-17T23:28:04.339+02:00 [info    ] running                        [step back] block=storage.read attempt=1
+2026-09-17T23:28:04.505+02:00 [info    ] read                           [log back] uri=s3://echo-s3/echo/bergen-florida.json bytes_read=243 content_type=application/json
+2026-09-17T23:28:04.506+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=166
+2026-09-17T23:28:05.022+02:00 [info    ] 243 bytes back from s3://echo-s3/echo/bergen-florida.json for station bergen-florida, with this run's scratch at s3://echo-s3/artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florida.json [log say]
+2026-09-17T23:28:05.022+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=19
+2026-09-17T23:28:05.643+02:00 [info    ] succeeded                      [run] pipeline=echo-s3 run_id=01a0b144-fb14-7445-bdc4-e3da10bcb27a pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1845 items_total=0 items_failed=0 exit_code=0 priority=normal
 run
-01a0af91-0af0-75f0-922e-a118cca37b4
-b
+01a0b144-fb14-7445-bdc4-e3da10bcb27
+a
 pipeline      echo-s3 (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  dev (token dev)
 duration      1.8s
 items         -
 
@@ -225,12 +274,25 @@ steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block         ┃ outcome   ┃ after       ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask   │ http.request  │ succeeded │ -           │ 1        │ 0.2s     │ -     │
-│ save  │ storage.write │ succeeded │ ask         │ 1        │ 0.2s     │ -     │
+│ ask   │ http.request  │ succeeded │ -           │ 1        │ 0.3s     │ -     │
+│ save  │ storage.write │ succeeded │ ask         │ 1        │ 0.1s     │ -     │
 │ stash │ storage.write │ succeeded │ ask         │ 1        │ 0.1s     │ -     │
-│ back  │ storage.read  │ succeeded │ save        │ 1        │ 0.1s     │ -     │
+│ back  │ storage.read  │ succeeded │ save        │ 1        │ 0.2s     │ -     │
 │ say   │ log.write     │ succeeded │ back, stash │ 1        │ 0.0s     │ -     │
 └───────┴───────────────┴───────────┴─────────────┴──────────┴──────────┴───────┘
+
+outputs
+┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step  ┃ output                                                                                   ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ask   │ status=200  headers={12 keys}  body={3 keys}  body_bytes=243  duration_ms=262            │
+│ save  │ uri=s3://echo-s3/echo/bergen-florida.json  bytes_written=243                             │
+│       │ content_type=application/json                                                            │
+│ stash │ uri=s3://echo-s3/artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florid… │
+│       │ bytes_written=243  content_type=application/json                                         │
+│ back  │ content_type=application/json  value={3 keys}  bytes_read=243                            │
+│ say   │ -                                                                                        │
+└───────┴──────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 `stash` now says `s3://echo-s3/artifacts/runs/<run id>/echo/bergen-florida.json`. Nothing in the
@@ -241,8 +303,8 @@ the instance now reads and writes one address, which is what lets there be more 
 And the `mc ls --recursive fs/echo-s3` from the last block of "Run it":
 
 ```text
-[2026-09-17 13:31:54 UTC]   243B STANDARD artifacts/runs/01a0af91-0af0-75f0-922e-a118cca37b4b/echo/bergen-florida.json
-[2026-09-17 13:31:54 UTC]   243B STANDARD echo/bergen-florida.json
+[2026-09-17 21:28:03 UTC]   243B STANDARD artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florida.json
+[2026-09-17 21:28:03 UTC]   243B STANDARD echo/bergen-florida.json
 ```
 
 The two objects, in the one bucket, the run's own prefix beside the object the document named.
@@ -250,7 +312,7 @@ The records already said this; asking the object store is the other half of the 
 what `verify.sh` does after every run.
 
 ```bash
-uv run dg runs show 01a0af91-0af0-75f0-922e-a118cca37b4b --json \
+uv run dg runs show 01a0b144-fb14-7445-bdc4-e3da10bcb27a --json \
   | jq '.fields.attempts[] | select(.step_name == "back") | .output.value'
 ```
 
@@ -272,25 +334,6 @@ uv run dg runs show 01a0af91-0af0-75f0-922e-a118cca37b4b --json \
 
 That value never touched the worker's disk. It came off the wire, went into a bucket, came back
 out of it, and is in the run because `storage.read` put it there.
-
-## Offline
-
-Nothing here needs a network once the two images are pulled. `base_url` is a parameter for
-exactly that: [../local-echo](../local-echo) is the same echo service in one file of Python, with
-the same answer shapes, and pointing the run at it is one flag.
-
-```bash
-python3 ../local-echo/echo_server.py &
-uv run dg run echo-s3 -p base_url=http://127.0.0.1:8080 --watch
-```
-
-The S3 server is already local, the instance is already local, and the read is the only thing
-that was ever leaving the machine. Pull the images once while you still have a network:
-
-```bash
-docker pull rustfs/rustfs:1.0.0-rc.4
-docker pull quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
-```
 
 ## The document, hop by hop
 
@@ -406,9 +449,11 @@ local run and the instance run visible without reading the run back.
 
 ## Where to go next
 
+- [`dhis2-read-gate-send`](../dhis2-read-gate-send/README.md) is what comes next: the same three
+  moves against the DHIS2 play demo, with a pack's blocks, a connection and a rehearsed import.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples are cut from.
-- [**echo-storage**](../echo-storage) is this shape on a filesystem, with a `report:` section:
-  the same two doors, one scheme down.
+- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
+  them.
 - [**Artifacts in object storage**](https://winterop-com.github.io/dirigent/operations/#artifacts-in-object-storage)
   is why a second worker makes a bucket mandatory, and what the compose stack does about it.

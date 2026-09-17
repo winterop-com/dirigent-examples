@@ -5,8 +5,13 @@
 # It starts its own S3 server in a container, creates the bucket, starts its own instance
 # with the artifact root pointed into that bucket, runs the document twice -- once with no
 # server and once against the instance -- and asserts on the records. Everything it started
-# is stopped again on the way out: the instance by the pid this script holds, the container
-# by the name this script gave it.
+# is stopped again on the way out: the instance and the stand-in echo by the pids this
+# script holds, the container by the name this script gave it.
+#
+# Every run is made once per echo: the real service the document defaults to, and the
+# stand-in in ../local-echo, which the base_url parameter points the document at.
+# VERIFY_OFFLINE=1 leaves the online leg out, so the whole of this script passes with no
+# network at all -- the S3 server and the instance were always local.
 #
 # Needs docker and two images, both of which the compose stack already uses:
 #   rustfs/rustfs:1.0.0-rc.4                        the S3 server
@@ -32,13 +37,18 @@ SECRET_KEY=echo-s3-secret
 WORK="$(mktemp -d)"
 
 DEV_PID=""
+ECHO_PID=""
 S3_NAME=""
 cleanup() {
-  # The instance, by the pid this script holds. Never by pattern: a pattern matches the
-  # shell running this script too.
+  # The instance and the stand-in echo, by the pids this script holds. Never by pattern: a
+  # pattern matches the shell running this script too.
   if [ -n "$DEV_PID" ] && kill -0 "$DEV_PID" 2>/dev/null; then
     kill "$DEV_PID" 2>/dev/null || true
     wait "$DEV_PID" 2>/dev/null || true
+  fi
+  if [ -n "$ECHO_PID" ] && kill -0 "$ECHO_PID" 2>/dev/null; then
+    kill "$ECHO_PID" 2>/dev/null || true
+    wait "$ECHO_PID" 2>/dev/null || true
   fi
   # The S3 server, by the name this script gave it, whether or not it ever came up.
   if [ -n "$S3_NAME" ]; then
@@ -143,6 +153,45 @@ for _ in $(seq 1 30); do
 done
 [ "$made" = true ] || { echo "the bucket $BUCKET could not be created:" >&2; mc "mb --ignore-existing fs/$BUCKET"; exit 1; }
 
+# --- the echoes -----------------------------------------------------------------------------
+#
+# The empty base is the document's own default, which is the real service; the other is the
+# stand-in beside this repository, started here on a free port of its own. The document is
+# built on base_url, so a leg is a flag rather than an edit.
+ECHO_SERVER=../local-echo/echo_server.py
+BASES=()
+LEGS=
+if [ -z "${VERIFY_OFFLINE:-}" ]; then
+  BASES+=("")
+  LEGS="postman-echo.com"
+fi
+if [ -f "$ECHO_SERVER" ]; then
+  ECHO_PORT=$(free_port)
+  say "the stand-in echo, on port $ECHO_PORT"
+  python3 "$ECHO_SERVER" --port "$ECHO_PORT" > /dev/null 2>&1 &
+  ECHO_PID=$!
+  if ! curl -fs --retry 60 --retry-delay 1 --retry-connrefused --retry-all-errors \
+       "http://127.0.0.1:$ECHO_PORT/get" > /dev/null; then
+    echo "local-echo on port $ECHO_PORT never answered /get" >&2
+    exit 1
+  fi
+  BASES+=("http://127.0.0.1:$ECHO_PORT")
+  LEGS="${LEGS:+$LEGS and }local-echo"
+fi
+if [ "${#BASES[@]}" -eq 0 ]; then
+  echo "VERIFY_OFFLINE=1 needs $ECHO_SERVER, and it is not there" >&2
+  exit 1
+fi
+
+# Seeded with the flags every leg passes, because an empty array is not something every bash
+# will expand under set -u.
+base_flags() {
+  FLAGS=(--json -p "bucket=$BUCKET")
+  if [ -n "$1" ]; then
+    FLAGS+=(-p "base_url=$1")
+  fi
+}
+
 # --- without a server --------------------------------------------------------------------
 #
 # A local run holds its own scratch in a temporary directory whatever DIRIGENT_ARTIFACT_ROOT
@@ -153,21 +202,23 @@ done
 #
 # The committed connections.yaml names port 9000, which is where the README has you start
 # the server by hand. This script picked its own port, so it writes that port into a copy.
-say "the document, run locally against $S3_NAME"
+say "the document, run locally against $S3_NAME, once per echo"
 sed "s#http://127.0.0.1:9000#http://127.0.0.1:$S3_PORT#" connections.yaml > "$WORK/connections.yaml"
-DIRIGENT_STORAGE_CONNECTIONS="s3=$CONNECTION" \
-  uv run dg run --local "pipelines/$CODE.yaml" \
-    --connections "$WORK/connections.yaml" \
-    -p "bucket=$BUCKET" \
-    --json > "$WORK/local.ndjson"
-assert_run_succeeded "$WORK/local.ndjson" "the local run"
-assert_round_trip "$WORK/local.ndjson" "the local run"
-jq -se '
-  map(select(.kind == "run")) | last | .steps
-  | (map(select(.step == "stash")) | last | .output.uri) as $scratch
-  | if ($scratch | startswith("file://")) then true
-    else error("a local run held its scratch at \($scratch), which this example says it cannot") end
-' "$WORK/local.ndjson" > /dev/null
+for base in "${BASES[@]}"; do
+  base_flags "$base"
+  DIRIGENT_STORAGE_CONNECTIONS="s3=$CONNECTION" \
+    uv run dg run --local "pipelines/$CODE.yaml" \
+      --connections "$WORK/connections.yaml" \
+      "${FLAGS[@]}" > "$WORK/local.ndjson"
+  assert_run_succeeded "$WORK/local.ndjson" "the local run against ${base:-postman-echo.com}"
+  assert_round_trip "$WORK/local.ndjson" "the local run against ${base:-postman-echo.com}"
+  jq -se '
+    map(select(.kind == "run")) | last | .steps
+    | (map(select(.step == "stash")) | last | .output.uri) as $scratch
+    | if ($scratch | startswith("file://")) then true
+      else error("a local run held its scratch at \($scratch), which this example says it cannot") end
+  ' "$WORK/local.ndjson" > /dev/null
+done
 
 # --- the instance ---------------------------------------------------------------------------
 #
@@ -233,30 +284,34 @@ say "the document, applied"
 # Applying an unchanged document again is not a new version, so this passes on every run.
 uv run dg apply --json > /dev/null
 
-say "the run"
-uv run dg run "$CODE" --watch -p "bucket=$BUCKET" --json > "$WORK/run.ndjson"
-assert_run_succeeded "$WORK/run.ndjson" "the server run"
-assert_round_trip "$WORK/run.ndjson" "the server run"
+say "the run, once per echo"
+for base in "${BASES[@]}"; do
+  base_flags "$base"
+  uv run dg run "$CODE" --watch "${FLAGS[@]}" > "$WORK/run.ndjson"
+  assert_run_succeeded "$WORK/run.ndjson" "the server run against ${base:-postman-echo.com}"
+  assert_round_trip "$WORK/run.ndjson" "the server run against ${base:-postman-echo.com}"
 
-RUN_ID="$(jq -rs 'map(select(.kind == "run")) | last | .run_id' "$WORK/run.ndjson")"
+  RUN_ID="$(jq -rs 'map(select(.kind == "run")) | last | .run_id' "$WORK/run.ndjson")"
 
-# The run's own scratch, which the document addresses without naming a scheme at all. On
-# this instance it is in the bucket, because the artifact root is.
-jq -se --arg run "$RUN_ID" '
-  map(select(.kind == "run")) | last | .steps
-  | (map(select(.step == "stash")) | last | .output.uri) as $scratch
-  | if ($scratch | startswith("s3://") | not)
-      then error("the run held its scratch at \($scratch), not in the bucket")
-    elif ($scratch | contains("/artifacts/runs/\($run)/") | not)
-      then error("the scratch is not under the prefix this run owns: \($scratch)")
-    else true end
-' "$WORK/run.ndjson" > /dev/null
+  # The run's own scratch, which the document addresses without naming a scheme at all. On
+  # this instance it is in the bucket, because the artifact root is.
+  jq -se --arg run "$RUN_ID" '
+    map(select(.kind == "run")) | last | .steps
+    | (map(select(.step == "stash")) | last | .output.uri) as $scratch
+    | if ($scratch | startswith("s3://") | not)
+        then error("the run held its scratch at \($scratch), not in the bucket")
+      elif ($scratch | contains("/artifacts/runs/\($run)/") | not)
+        then error("the scratch is not under the prefix this run owns: \($scratch)")
+      else true end
+  ' "$WORK/run.ndjson" > /dev/null
+
+  # The records say where the bytes went; this asks the object store itself, which is the
+  # other half of the proof.
+  mc "stat fs/$BUCKET/echo/$STATION.json" > /dev/null
+  mc "stat fs/$BUCKET/artifacts/runs/$RUN_ID/echo/$STATION.json" > /dev/null
+done
 
 say "what the bucket holds"
-# The records say where the bytes went; this asks the object store itself, which is the
-# other half of the proof.
-mc "stat fs/$BUCKET/echo/$STATION.json" > /dev/null
-mc "stat fs/$BUCKET/artifacts/runs/$RUN_ID/echo/$STATION.json" > /dev/null
 mc "ls --recursive fs/$BUCKET"
 
-say "ok: $CODE wrote to $BUCKET, read it back, and kept run $RUN_ID's scratch in the same bucket"
+say "ok: $CODE wrote to $BUCKET, read it back, and kept run $RUN_ID's scratch in the same bucket, against $LEGS"
