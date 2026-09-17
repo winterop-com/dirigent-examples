@@ -39,17 +39,35 @@ WORK="$(mktemp -d)"
 DEV_PID=""
 ECHO_PID=""
 S3_NAME=""
+
+# Nothing this script started may still be listening when it returns: a dg dev that outlived
+# its wrapper shares .dirigent/state with the next run, claims its steps and fails them.
+port_clear() {
+  local p="${1:-}" holding
+  [ -n "$p" ] || return 0
+  for _ in 1 2 3 4 5; do
+    holding="$(lsof -nP -iTCP:"$p" -sTCP:LISTEN -t 2>/dev/null || true)"
+    [ -n "$holding" ] || return 0
+    sleep 0.4
+  done
+  kill -KILL $holding 2>/dev/null || true
+}
+
 cleanup() {
   # The instance and the stand-in echo, by the pids this script holds. Never by pattern: a
-  # pattern matches the shell running this script too.
+  # pattern matches the shell running this script too. The instance's wrapper has its
+  # children taken first: killing `uv run` alone leaves the dg dev under it on the port.
   if [ -n "$DEV_PID" ] && kill -0 "$DEV_PID" 2>/dev/null; then
-    kill "$DEV_PID" 2>/dev/null || true
+    pkill -TERM -P "$DEV_PID" 2>/dev/null || true
+    kill -TERM "$DEV_PID" 2>/dev/null || true
     wait "$DEV_PID" 2>/dev/null || true
   fi
   if [ -n "$ECHO_PID" ] && kill -0 "$ECHO_PID" 2>/dev/null; then
-    kill "$ECHO_PID" 2>/dev/null || true
+    kill -TERM "$ECHO_PID" 2>/dev/null || true
     wait "$ECHO_PID" 2>/dev/null || true
   fi
+  port_clear "${PORT:-}"
+  port_clear "${ECHO_PORT:-}"
   # The S3 server, by the name this script gave it, whether or not it ever came up.
   if [ -n "$S3_NAME" ]; then
     docker rm -f "$S3_NAME" > /dev/null 2>&1 || true
