@@ -4,7 +4,7 @@
 # Out: nothing. The step that would publish it is answered 404 and the run ends failed.
 #
 # The alerting half of this example is not in this document and cannot be: a rule binds an
-# event to a channel and a channel delivers through a connection, and both are records the
+# event to a notifier and a notifier delivers through a connection, and both are records the
 # INSTANCE holds, minted with `dg connection create` and `dg alerts rules create`. A
 # document that carried either would be a document that carried a credential, which is the
 # one thing a portable document must never do. So this file is only the failure, and

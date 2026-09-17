@@ -121,7 +121,7 @@ curl -sf "$DG_URL/health/ready" >/dev/null
 # DG_URL beats the local profile, whose url is the default port; without it every command
 # below would address an instance this script did not start. The token comes from dg dev's
 # own admin: on an empty state that is the fixture dev / dirigent-dev, and dg auth login
-# mints a token from it, which is the same token dg dev printed at startup.
+# mints a token of its own from it.
 DG_TOKEN=$(uv run dg auth login --username dev --password dirigent-dev --json \
   | jq -r 'select(.kind == "token.issued") | .token')
 export DG_TOKEN
@@ -129,7 +129,7 @@ export DG_TOKEN
 
 uv run dg apply
 
-# --- the channel, and the rule that uses it ----------------------------------------------
+# --- the notifier, and the rule that uses it ----------------------------------------------
 #
 # The sink is an instance record, so pointing this example at another echo is a command
 # rather than a flag. An instance refuses to delete a connection something still points at,
@@ -185,7 +185,7 @@ for base in "${bases[@]}"; do
   done
   [ -n "$sent" ] || { echo "no notification was delivered for run ${run}" >&2; exit 1; }
 
-  # Delivered where: the rule named a channel, the channel named a connection, and that
+  # Delivered where: the rule named a notifier, the notifier named a connection, and that
   # connection's url is the sink. `dg alerts queue` says sent once the POST answered 2xx.
   uv run dg alerts queue --json | jq -e -s --arg run "$run" '
     ([.[] | select(.fields.run_id == $run)] | first).fields as $n
