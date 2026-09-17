@@ -1,0 +1,48 @@
+# Two failures with the same retry budget, to show what the budget is actually for.
+#
+# Neither step depends on the other, so both run in the same run and the run's table puts them side
+# by side: one row against three, under identical retry: blocks. The difference is not the policy,
+# it is what the service said. A rejected failure spends no budget, because the service will answer
+# the same way in two seconds and in two hours; a transient one spends all of it.
+#
+# The delay between attempts is data rather than a sleep: each failure writes the next attempt's
+# time into the future and the worker moves on, so nothing holds a worker slot for the backoff.
+#
+# This run is meant to fail. Both steps fail, so the run ends failed with exit code 1.
+#
+#   dg run --local pipelines/echo-retry.yaml     # failed, by design
+
+format: dirigent/v1
+kind: pipeline
+code: echo-retry
+name: Echo retry
+description: One step is refused and one is unlucky, under the same retry budget, and only one of them is retried.
+
+tags: [http, retry, failure]
+
+requires:
+  blocks:
+    - http.request
+
+steps:
+  refused:
+    block: http.request
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      # 404 is the service saying the thing is not there. Asking again cannot change that, so the
+      # block classifies it rejected and the budget above is never touched.
+      url: https://postman-echo.com/status/404
+      method: GET
+
+  unlucky:
+    block: http.request
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      # 503 is the service saying it is unwell right now, which is a different sentence: the block
+      # classifies it transient and every attempt in the budget is spent.
+      url: https://postman-echo.com/status/503
+      method: GET
