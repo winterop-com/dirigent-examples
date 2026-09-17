@@ -87,8 +87,14 @@ leg out. `OFFLINE.md` beside this repository is the rest of the story, including
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/echo-storage` and
+a local run's temporary root as `/tmp`.*
+
+```bash
+uv run dg validate pipelines/echo-storage.yaml
+```
+
 ```text
-$ uv run dg validate pipelines/echo-storage.yaml
 2026-09-17T15:19:43.364+02:00 [info    ] valid                          [validation] code=echo-storage document=pipelines/echo-storage.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
@@ -96,9 +102,14 @@ $ uv run dg validate pipelines/echo-storage.yaml
         back  (storage.read)
           summary  (transform.jq)
 2026-09-17T15:19:43.366+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+```
 
-$ uv run dg run --local pipelines/echo-storage.yaml
-2026-09-17T15:19:44.618+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af85-ebe6-71db-959c-6addd6f78a80 local=true scratch=file:///var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-btz4qu7f/artifacts/runs/01a0af85-ebe6-71db-959c-6addd6f78a80 root=/var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-btz4qu7f
+```bash
+uv run dg run --local pipelines/echo-storage.yaml
+```
+
+```text
+2026-09-17T15:19:44.618+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af85-ebe6-71db-959c-6addd6f78a80 local=true scratch=file:///tmp/dirigent-local-btz4qu7f/artifacts/runs/01a0af85-ebe6-71db-959c-6addd6f78a80 root=/tmp/dirigent-local-btz4qu7f
 2026-09-17T15:19:44.611+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
 2026-09-17T15:19:44.687+02:00 [info    ] running                        [step ask] block=http.request attempt=1
 2026-09-17T15:19:44.956+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=257
@@ -134,29 +145,37 @@ went out.
 On an instance the same document writes into the artifact root instead of a temporary
 directory, and nothing in the document changed to make that happen:
 
+```bash
+uv run dg apply
+```
+
 ```text
-$ uv run dg apply
 create echo-storage  version 1 
 (/home/you/echo-storage/pipelines/echo-storage.yaml)
+```
 
-$ uv run dg run echo-storage --watch
-2026-09-17T15:41:18.987+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af99-ac07-7050-9072-751d9e9553ec local=false
-2026-09-17T15:41:18.985+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:41:19.456+02:00 [info    ] running                        [step ask] block=http.request attempt=1
-2026-09-17T15:41:18.985+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
-2026-09-17T15:41:19.739+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=248
-2026-09-17T15:41:19.746+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=290
-2026-09-17T15:41:20.054+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-17T15:41:20.056+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=34
-2026-09-17T15:41:20.592+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json bytes_read=206 content_type=application/json
-2026-09-17T15:41:20.594+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=38
-2026-09-17T15:41:21.165+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=71
-2026-09-17T15:41:21.171+02:00 [info    ] finished                       [log summary] duration_ms=43 output_bytes=85
-2026-09-17T15:41:21.454+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0af99-ac07-7050-9072-751d9e9553ec pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1710 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0af99-ac07-7050-9072-751d9e9553ec
+```bash
+uv run dg run echo-storage --watch
+```
+
+```text
+2026-09-17T23:27:40.683+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0b144-a387-7528-808e-3a32aac37406 local=false
+2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
+2026-09-17T23:27:41.002+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=272
+2026-09-17T23:27:41.011+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=307
+2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step summary] block=transform.jq attempt=1
+2026-09-17T23:27:41.271+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-09-17T23:27:41.273+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=27
+2026-09-17T23:27:41.810+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json bytes_read=206 content_type=application/json
+2026-09-17T23:27:41.813+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=41
+2026-09-17T23:27:42.379+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=66
+2026-09-17T23:27:42.385+02:00 [info    ] finished                       [log summary] duration_ms=44 output_bytes=85
+2026-09-17T23:27:43.195+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0b144-a387-7528-808e-3a32aac37406 pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1676 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a0b144-a387-7528-808e-3a32aac37406
 pipeline      echo-storage (version 1)  
 status        succeeded                 
-triggered by  dev (token cli-dev)       
+triggered by  dev (token dev)           
 duration      1.7s                      
 items         -                         
 
@@ -174,37 +193,41 @@ outputs
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ output                                                                               ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ status=200  headers={12 keys}  body={7 keys}  body_bytes=701  duration_ms=248        │
-│ save    │ uri=file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/re… │
+│ ask     │ status=200  headers={12 keys}  body={7 keys}  body_bytes=701  duration_ms=272        │
+│ save    │ uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/re… │
 │         │ bytes_written=206  content_type=application/json                                     │
 │ back    │ content_type=application/json  value={2 keys}  bytes_read=206                        │
 │ summary │ value={4 keys}                                                                       │
 └─────────┴──────────────────────────────────────────────────────────────────────────────────────┘
 ```
+
 Nobody asked for the report and it is already written: the engine rendered it in the
 transaction that settled the run. Into a pipe `dg runs report --markdown` is one
 `run.report_document` record carrying the whole page, so `jq -r .document` is how it comes out
 as text; at a terminal the same command writes that page as-is, to go into a file or a ticket.
 
+```bash
+uv run dg runs report 01a0b144-a387-7528-808e-3a32aac37406 --markdown | jq -r .document
+```
+
 ```text
-$ uv run dg runs report 01a0af99-ac07-7050-9072-751d9e9553ec --markdown | jq -r .document
-# echo-storage on 2026-09-17T13:41:19.456000+00:00
+# echo-storage on 2026-09-17T21:27:40.703694+00:00
 
-**succeeded** in 1s710ms, started by dev (token cli-dev).
+**succeeded** in 1s676ms, started by dev (token dev).
 
-The batch landed at `file://./.dirigent/state/artifacts/runs/01a0af99-ac07-7050-9072-751d9e9553ec/readings-2026-01-01.json`, 206b of canonical JSON.
+The batch landed at `file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json`, 206b of canonical JSON.
 
 | Day | Rows | Coldest | Mean |
 | --- | --- | --- | --- |
 | 2026-01-01 | 4 | tromso-langnes | 2.5 |
 
-- **ask** (http.request) succeeded after 1 attempt(s), 290ms
-- **save** (storage.write) succeeded after 1 attempt(s), 34ms
-- **back** (storage.read) succeeded after 1 attempt(s), 38ms
-- **summary** (transform.jq) succeeded after 1 attempt(s), 71ms
+- **ask** (http.request) succeeded after 1 attempt(s), 307ms
+- **save** (storage.write) succeeded after 1 attempt(s), 27ms
+- **back** (storage.read) succeeded after 1 attempt(s), 41ms
+- **summary** (transform.jq) succeeded after 1 attempt(s), 66ms
 ```
 
-`1s710ms` and `206b` are the `duration` and `bytes` filters: the template was handed
+`1s676ms` and `206b` are the `duration` and `bytes` filters: the template was handed
 milliseconds and bytes and asked for them the way a person reads them.
 
 ## The document, hop by hop
@@ -368,9 +391,9 @@ empty rather than failing the document, because half a run's facts are legitimat
 depending on how it ended, which is why the two steps read into below are guarded:
 
 ```yaml
-# Every fact this template reads is in docs/reports.md. The filters render a value the way
-# a person reads it: duration turns milliseconds into 1m30s, bytes turns bytes into 1.5mb,
-# and iso turns a moment into a timestamp.
+# The template reads the run's own facts -- pipeline, run, step.<name> and steps -- and the
+# filters render a value the way a person reads it: duration turns milliseconds into 1m30s,
+# bytes turns bytes into 1.5mb, and iso turns a moment into a timestamp.
 #
 # A name the facts do not have renders as empty rather than failing, because half a run's
 # facts are legitimately null depending on how it ended -- which is why the two steps below
@@ -402,9 +425,10 @@ is worth writing when somebody other than an operator is going to read the page.
 
 ## Where to go next
 
+- [`echo-s3`](../echo-s3/README.md) is what comes next: this same round trip with a bucket
+  under it, where the scheme comes off a connection rather than off the instance's filesystem.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.
-- [**echo-transform**](../echo-transform/README.md) is the step that usually sits between the
-  read and the write: `filter.jq`, `map.jq` and `transform.jq`, and what each one is allowed
-  to do to a list.
+- [**dirigent examples**](../README.md) is the shelf: every example in order, and what you
+  need once.

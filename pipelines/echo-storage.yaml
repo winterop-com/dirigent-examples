@@ -118,9 +118,9 @@ steps:
          mean_celsius: ((.readings | map(.celsius) | add) / (.readings | length) * 10
                         | round / 10)}
 
-# Every fact this template reads is in docs/reports.md. The filters render a value the way
-# a person reads it: duration turns milliseconds into 1m30s, bytes turns bytes into 1.5mb,
-# and iso turns a moment into a timestamp.
+# The template reads the run's own facts -- pipeline, run, step.<name> and steps -- and the
+# filters render a value the way a person reads it: duration turns milliseconds into 1m30s,
+# bytes turns bytes into 1.5mb, and iso turns a moment into a timestamp.
 #
 # A name the facts do not have renders as empty rather than failing, because half a run's
 # facts are legitimately null depending on how it ended -- which is why the two steps below
