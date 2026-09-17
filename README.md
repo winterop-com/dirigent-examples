@@ -511,5 +511,4 @@ a file of its own rather than a section of the pipeline.
 - [**The DHIS2 tutorial**](https://winterop-com.github.io/dirigent-dhis2/tutorial/) is the
   same three moves -- read, gate, send -- against the same play demo, with the failures
   shown.
-- [**The examples**](../README.md) is the shelf all of these sit on, in the order they build
-  on each other.
+- [**The examples**](../README.md): every example in order, and what you need once.
