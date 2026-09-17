@@ -1,0 +1,66 @@
+# Read, gate, send: the three moves, with the send built out of what the gate passed.
+#
+# validate.schema hands its input on unchanged as value, which makes the gate a waypoint: the send
+# does not read the request's answer again, it reads the gate's output, and every step past the
+# gate provably received the shape. That is also why send is skipped rather than failed when the
+# gate refuses -- it never ran, because the step it waits for did not succeed.
+#
+# Postman Echo answers a POST with the body it was given, so the send's own answer is the proof of
+# what was sent.
+#
+#   dg schema create schemas/echo-answer.json
+#   dg apply
+#   dg run echo-send --watch
+#   dg run echo-send --watch -p station=          # the gate refuses, and send is skipped
+
+format: dirigent/v1
+kind: pipeline
+code: echo-send
+name: Echo send
+description: Ask Postman Echo for one station's reading, hold the answer to a shape, and send the validated values back.
+
+tags: [http, validate, references]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - echo-answer
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      schema: echo-answer
+
+  send:
+    block: http.request
+    depends_on: [check]
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      # Read out of the gate rather than out of the read: every step past a gate provably
+      # received the shape the gate passed. Neither value is written twice in this document.
+      body:
+        station: ${steps.check.output.value.args.station}
+        reading: ${steps.check.output.value.args.reading}

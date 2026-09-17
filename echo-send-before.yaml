@@ -1,0 +1,50 @@
+# The same pipeline one step short, so that applying the real one is a visible version.
+#
+# This is echo-send as it stands before the send is written: a read and a gate, and nothing that
+# does anything with what the gate passed. Apply this first and then apply pipelines/, and the
+# second apply reports an update with `steps added: send` -- because a document is stored as an
+# immutable version and dg apply says what changed between the last one and this one.
+#
+# It lives at the project root rather than in pipelines/, so dg apply never sends it on its own.
+#
+#   dg apply echo-send-before.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: echo-send
+name: Echo send
+description: Ask Postman Echo for one station's reading, and hold the answer to a shape.
+
+tags: [http, validate]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - echo-answer
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body}
+      schema: echo-answer
