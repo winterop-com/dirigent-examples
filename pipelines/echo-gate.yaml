@@ -1,0 +1,57 @@
+# The gate with its shape handed to the instance: the document names a code, and nothing else.
+#
+# schemas/echo-answer.json is the same shape echo-gate-carried.yaml carries, lifted out of the
+# document and stored on the instance with `dg schema create`. The check step does not change at
+# all: it named the schema by code all along, and the code now resolves to the one the instance
+# holds. What changes is who owns the shape -- every pipeline on this instance gating on
+# echo-answer is gating on the same echo-answer.
+#
+# requires.schemas is what makes a missing shape a refusal at apply rather than a failure at the
+# step: an instance that does not hold echo-answer will not take this document.
+#
+#   dg schema create schemas/echo-answer.json
+#   dg apply
+#   dg run echo-gate --watch
+#   dg run echo-gate --watch -p station=          # failed: the gate refuses an empty station
+
+format: dirigent/v1
+kind: pipeline
+code: echo-gate
+name: Echo gate
+description: Ask Postman Echo for a reading and hold the answer to a shape the instance holds.
+
+tags: [http, validate]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - echo-answer
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: https://postman-echo.com/get
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      # The whole answer goes in, and the gate hands it on unchanged as value: a step past the
+      # gate reads ${steps.check.output.value} and provably received the shape.
+      input: ${steps.ask.output.body}
+      schema: echo-answer

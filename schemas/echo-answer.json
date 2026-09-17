@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "echo-answer",
+  "title": "The answer, as Postman Echo gives it",
+  "description": "A /get answer carrying one station and one decimal reading among its query arguments. A query argument is text, so the reading is a string held to the shape of a decimal rather than a number.",
+  "type": "object",
+  "required": ["args", "url"],
+  "properties": {
+    "args": {
+      "type": "object",
+      "required": ["station", "reading"],
+      "properties": {
+        "station": { "type": "string", "minLength": 1 },
+        "reading": { "type": "string", "pattern": "^-?[0-9]+(\\.[0-9]+)?$" }
+      },
+      "additionalProperties": false
+    },
+    "url": { "type": "string" }
+  }
+}
