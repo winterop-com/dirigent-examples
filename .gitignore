@@ -2,12 +2,11 @@
 .venv/
 __pycache__/
 
-# This instance's admin token. Never shared.
+# This instance's database and artifacts. Disposable, and never shared.
+.dirigent/state/
+
+# This instance's token, or the stack's key and first password. Never shared.
 .env
 
-# The instance itself: its database, its artifacts, and the profile that addresses it.
-# A fresh clone makes its own with `dg dev`.
-.dirigent/
-
-# A rendered documentation site.
+# A built documentation site.
 site/

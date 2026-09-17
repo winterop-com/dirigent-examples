@@ -1,0 +1,3 @@
+# A local instance's database and artifacts. Disposable, and never shared.
+# profiles.yaml beside this stays committable: it is addressing, not state.
+state/
