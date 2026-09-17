@@ -453,7 +453,6 @@ local run and the instance run visible without reading the run back.
   moves against the DHIS2 play demo, with a pack's blocks, a connection and a rehearsed import.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples are cut from.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
 - [**Artifacts in object storage**](https://winterop-com.github.io/dirigent/operations/#artifacts-in-object-storage)
   is why a second worker makes a bucket mandatory, and what the compose stack does about it.
