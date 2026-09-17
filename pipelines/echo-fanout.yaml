@@ -1,0 +1,110 @@
+# One read per station, and a station that is down does not take the others with it.
+#
+# In:  a list of stations, each with the reading it reports and the endpoint it answers at.
+# Out: one summary naming the stations that answered and the one that did not.
+#
+# for_each maps one step over a list, with one run item per element. The grid is expanded
+# when the run is created, so it may read params, run and item -- never another step's
+# output, because the width has to be known before anything executes.
+#
+# items: continue is the whole lesson. Under the default, fail_fast, the first item that
+# fails fails the step and every station after it is abandoned. Under continue the failure
+# is recorded against its own item, the other stations finish, the step still counts as
+# succeeded, and the run settles completed_with_errors -- a third status, not a shade of
+# failed.
+#
+# The sharp edge comes with it: a failed item is ABSENT from the step's output list, not
+# null. So the list the join reads is shorter than the grid that was asked for, index 0 is
+# the first station that answered rather than the first one asked, and a join that counts
+# rows is counting survivors. That is why the join below is handed the grid as well as the
+# answers, and computes the difference instead of assuming three.
+#
+# Hop by hop:
+#
+#   ask      one http.request per station. Two are asked at /get, which answers with the
+#            query arguments it was given; oslo-blindern is asked at /status/500, standing
+#            in for a station whose service is down.
+#   report   the join. It has no for_each of its own, which is the entire mechanism: one
+#            attempt, and the batch arrives as a JSON array of the items' outputs.
+#
+# EXPECT THIS RUN TO END completed_with_errors, with two succeeded items, one failed item,
+# a succeeded step, and oslo-blindern named under missing.
+#
+#   uv run dg run --local pipelines/echo-fanout.yaml
+#   uv run dg run --local pipelines/echo-fanout.yaml \
+#     -p stations='[{"station":"bergen-florida","reading":"12.4","endpoint":"get"}]'
+
+format: dirigent/v1
+kind: pipeline
+code: echo-fanout
+name: One read per station
+description: |
+  A fan-out over a list of stations, one HTTP read each, tolerating the station whose
+  service is down.
+
+  A failed item is absent from the step's output, so the join is computed from what
+  answered rather than from the width that was asked for.
+
+tags: [graph, http, transform, fan-out]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    stations:
+      type: array
+      description: One item, one read, per element.
+      minItems: 1
+      maxItems: 16
+      default:
+        - { station: bergen-florida, reading: "12.4", endpoint: get }
+        # Postman Echo answers /status/500 with that status and nothing else, which is how
+        # one element of this grid fails without anything else in the document changing.
+        - { station: oslo-blindern, reading: "3.1", endpoint: status/500 }
+        - { station: tromso-langnes, reading: "-6.8", endpoint: get }
+      items:
+        type: object
+        required: [station, reading, endpoint]
+        properties:
+          station:
+            type: string
+            minLength: 1
+          reading:
+            type: string
+          endpoint:
+            type: string
+        additionalProperties: false
+
+steps:
+  ask:
+    block: http.request
+    # ${item} is the element itself, so an element that is an object is reached into with a
+    # dot the same way a step's output is.
+    for_each: ${params.stations}
+    items: continue
+    config:
+      url: https://postman-echo.com/${item.endpoint}
+      method: GET
+      query:
+        station: ${item.station}
+        reading: ${item.reading}
+
+  report:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      # Both the grid and the answers, because the difference between them is the point.
+      input:
+        asked: ${params.stations}
+        answered: ${steps.ask.output}
+      program: |
+        (.asked | map(.station)) as $asked
+        | [.answered[].body.args.station] as $answered
+        | {asked: ($asked | length),
+           answered: ($answered | length),
+           stations: $answered,
+           missing: ($asked - $answered)}
