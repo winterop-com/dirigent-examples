@@ -27,18 +27,20 @@ terminal, in this directory:
 
 ```bash
 export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
-uv run dg dev --port 3342
+uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
-file under `.dirigent/state/`. Its first start on an empty state directory makes the instance
-and mints one token, in the line it prints -- `dg init` writes that token into the project's
-`.env`, where the `local` profile reads it, and a clone of this repository has neither, so
-copy it out of that line. Back in the first terminal:
+file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
+a fresh clone has, because the state directory is not in the repository -- it migrates the
+schema, makes its own admin `dev`, mints that admin one token, and prints the `export
+DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address the
+`local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
+`DG_URL` is how you tell the CLI where it went.
+
+Back in the first terminal, with that export line pasted:
 
 ```bash
-export DG_URL=http://127.0.0.1:3342 DG_TOKEN=<the token that line printed>
-
 uv run dg connection create webhook echo-sink \
     --name "The alert sink" \
     --description "Postman Echo's /post, which answers with whatever was POSTed to it." \
@@ -62,9 +64,64 @@ uv run dg alerts queue
 The rule is created after the pipeline because `--pipeline` scopes it to one, and a scope
 naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
 keeps the key in a gitignored `.secret-key` so its second run can still read what its first
-run stored, starts a `dg dev` on a free port of its own, creates the connection and the rule
-only where they are missing, fails a run, waits for the notification to be delivered, and
-stops the instance it started by pid.
+run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
+--username dev --password dirigent-dev`, writes the connection and the rule, fails a run,
+waits for the notification to be delivered, and stops the instance it started by pid.
+
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. It is also where the alert goes, and a
+delivery is over before you can read the terminal -- so start it with a record file, outside
+this repository where nothing about it can land in git:
+
+```bash
+python3 ../local-echo/echo_server.py --record ../webhook.ndjson
+```
+
+The document takes the parameter it already carries. The sink does not: a connection is an
+instance record, not a line in the document, so pointing this example at the local echo is
+the same command with a different url:
+
+```bash
+uv run dg connection create webhook echo-sink \
+    --name "The alert sink" \
+    --description "The local echo's /post, which answers with whatever was POSTed to it." \
+    --set url=http://127.0.0.1:8080/post
+
+uv run dg run echo-alert --watch -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:58:08.553+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=2
+2026-09-17T15:58:09.064+02:00 [info    ] http call                      [log publish] method=GET url=http://127.0.0.1:8080/status/404 status=404 bytes=15 duration_ms=3
+2026-09-17T15:58:09.066+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
+```
+
+An instance that already holds `echo-sink` refuses a second one, and it refuses to delete a
+connection a rule still points at -- so repointing the sink is `dg alerts rules delete
+echo-failed`, then `dg connection delete echo-sink`, then those two commands again. That
+order is what `verify.sh` does between its two legs.
+
+Then read what arrived. The alert is delivered as JSON, and it carries the whole of the run's
+context under `context`, so this picks out the three fields the rule's own templates wrote:
+
+```bash
+jq -c 'select(.path == "/post") | {method, path, event: .json.event, subject: .json.subject, body: .json.body}' ../webhook.ndjson
+```
+
+```json
+{"method":"POST","path":"/post","event":"run_failed","subject":"echo-alert run failed","body":"Run 01a0afa9-137e-7667-9bbf-391f20a122cf of echo-alert (version 1) ended failed in 519ms."}
+```
+
+That is the delivery itself rather than the instance's word for it, which is the one thing
+`dg alerts queue` cannot show you.
+
+`./verify.sh` does every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there, and reads the local leg's delivery out of a record
+file exactly like this; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg out.
+`OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
+that keeps `uv` off the network too.
 
 ## What you see
 
@@ -118,7 +175,7 @@ $ uv run dg connection create webhook echo-sink \
     --name "The alert sink" \
     --description "Postman Echo's /post, which answers with whatever was POSTed to it." \
     --set url=https://postman-echo.com/post
-2026-09-17T15:17:20.014+02:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="Postman Echo's /post, which answers with whatever was POSTed to it." config={"url":"https://postman-echo.com/post","bearer_token":null,"headers":{},"verify_tls":true,"timeout":"15s"}
+2026-09-17T15:56:58.958+02:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="Postman Echo's /post, which answers with whatever was POSTed to it." config={"url":"https://postman-echo.com/post","bearer_token":null,"headers":{},"verify_tls":true,"timeout":"15s"}
 
 $ uv run dg apply
 create echo-alert  version 1 
@@ -132,7 +189,7 @@ $ uv run dg alerts rules create echo-failed \
     --connection echo-sink \
     --template '{{ pipeline.code }} run {{ run.status }}' \
     --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.'
-2026-09-17T15:17:22.302+02:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
+2026-09-17T15:57:01.227+02:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
 ```
 
 `throttle=0s` is the default and it means no throttle: every failed run of `echo-alert` raises
@@ -146,29 +203,29 @@ Then the failure, and what it raises:
 
 ```text
 $ uv run dg run echo-alert --watch
-2026-09-17T15:17:30.658+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0af83-e09e-76f4-8acb-0c58f4a32073 local=false
-2026-09-17T15:17:30.656+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:17:30.656+02:00 [info    ] queued                         [step publish] block=http.request attempt=1
-2026-09-17T15:17:31.009+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=226
-2026-09-17T15:17:31.011+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=235
-2026-09-17T15:17:31.498+02:00 [info    ] http call                      [log publish] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=194
-2026-09-17T15:17:31.500+02:00 [info    ] failed                         [step publish] block=http.request attempt=1 duration_ms=200
-2026-09-17T15:17:31.500+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
-2026-09-17T15:17:31.500+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
-2026-09-17T15:17:31.959+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0af83-e09e-76f4-8acb-0c58f4a32073 pipeline_version=1 triggered_by="admin (token init)" duration_ms=723 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-17T15:57:09.995+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0afa8-2ee7-76b9-a084-07934264c006 local=false
+2026-09-17T15:57:09.992+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-17T15:57:09.992+02:00 [info    ] queued                         [step publish] block=http.request attempt=1
+2026-09-17T15:57:10.462+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=288
+2026-09-17T15:57:10.465+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=306
+2026-09-17T15:57:10.932+02:00 [info    ] http call                      [log publish] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=216
+2026-09-17T15:57:10.936+02:00 [info    ] failed                         [step publish] block=http.request attempt=1 duration_ms=237
+2026-09-17T15:57:10.936+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
+2026-09-17T15:57:10.936+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
+2026-09-17T15:57:11.332+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0afa8-2ee7-76b9-a084-07934264c006 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=778 items_total=0 items_failed=0 exit_code=1 priority=normal
 run                                   
-01a0af83-e09e-76f4-8acb-0c58f4a32073  
+01a0afa8-2ee7-76b9-a084-07934264c006  
 pipeline      echo-alert (version 1)  
 status        failed                  
-triggered by  admin (token init)      
-duration      0.7s                    
+triggered by  dev (token cli-dev)     
+duration      0.8s                    
 items         -                       
 
 steps                                                                                             
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome   ┃ after   ┃ attempts ┃ duration ┃ error                     ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ http.request │ succeeded │ -       │ 1        │ 0.2s     │ -                         │
+│ ask     │ http.request │ succeeded │ -       │ 1        │ 0.3s     │ -                         │
 │ publish │ http.request │ failed    │ ask     │ 1        │ 0.2s     │ GET                       │
 │         │              │           │         │          │          │ https://postman-echo.com… │
 │         │              │           │         │          │          │ answered 404              │
@@ -179,14 +236,13 @@ outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=226 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=288 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 
 publish failed  http.request, attempt 1, rejected
   GET https://postman-echo.com/status/404 answered 404
   last log lines:
     info: http call
-(exit 1)
 ```
 
 The line worth finding in that stream is `alert 'echo-failed' queued for delivery through
@@ -200,7 +256,7 @@ notifications
 ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
 ┃ subject               ┃ notifier ┃ status ┃ tries ┃ sent                ┃ error ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-09-17 15:17:31 │ -     │
+│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-09-17 15:57:11 │ -     │
 └───────────────────────┴──────────┴────────┴───────┴─────────────────────┴───────┘
 ```
 
@@ -298,6 +354,14 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at
+    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
+    # runs it against a stand-in on this machine, with no network at all. Where the alert
+    # itself is delivered is not here: that is the sink connection's url, on the instance.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
@@ -318,7 +382,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/get
+      url: ${params.base_url}/get
       method: GET
       query:
         station: ${params.station}
@@ -340,7 +404,7 @@ document:
       max_attempts: 3
       backoff: 2s
     config:
-      url: https://postman-echo.com/status/${params.publish_status}
+      url: ${params.base_url}/status/${params.publish_status}
       method: GET
 ```
 
