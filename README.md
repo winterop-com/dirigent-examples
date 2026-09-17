@@ -21,8 +21,10 @@ with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
 
-`.dirigent/` and `.env` are not in the repository: they are one instance's own database and
-its token, and a clone makes its own. Everything else here is committed.
+`.dirigent/state/` is not in the repository: it is one instance's own database and its
+artifacts, disposable, and a clone makes its own. `.dirigent/profiles.yaml` beside it is
+committed, because it is addressing rather than state -- which server, and how to get a token
+for it. Everything else here is committed too.
 
 ```bash
 uv sync
@@ -53,13 +55,16 @@ uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
-file under `.dirigent/state/`. It keeps running; leave it. The UI is at
-`http://127.0.0.1:3333`. An instance with no accounts yet gets a development admin made for
-it, `dev` with the password `dirigent-dev`, which is who the commands below are.
+file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
+a fresh clone has, because the state directory is not in the repository -- it migrates the
+schema, makes its own admin `dev` with the password `dirigent-dev`, mints that admin one
+token, and prints the `export DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`,
+which is the address the `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port`
+moves the instance and `DG_URL` is how you tell the CLI where it went.
 
-Back in the first terminal, mint a token for that admin. The command answers with the
-`export DG_TOKEN=` line to paste into this terminal, and that line is the one output this page does not print,
-because it is a credential:
+Back in the first terminal, that line is the one output this page does not print, because it
+is a credential. `dg auth login` mints another from the same admin, which is what `verify.sh`
+does and what the commands below are:
 
 ```bash
 uv run dg auth login --username dev --password dirigent-dev

@@ -86,7 +86,7 @@ PORT="${DG_PORT:-$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.
 export DG_URL="http://127.0.0.1:$PORT"
 
 say "the instance, on port $PORT"
-# .dirigent/ is not in the repository, so the first run here starts on nothing: dg dev
+# .dirigent/state/ is not in the repository, so the first run here starts on nothing: dg dev
 # migrates the schema and makes the development admin. Every later run reuses what is there.
 uv run dg dev --port "$PORT" > "$WORK/dev.ndjson" 2>&1 &
 DEV_PID=$!
