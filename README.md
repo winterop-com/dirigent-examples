@@ -25,6 +25,59 @@ uv run dg run --local pipelines/echo-transform.yaml
 dropped one of four and modified nothing, that the map returned exactly as many as it was
 given, and that what Postman Echo received is what the transform built.
 
+## Offline
+
+Postman Echo is the one thing here that needs the network, and `local-echo` beside this
+repository is the same service in one file of Python. Start it in another terminal:
+
+```bash
+python3 ../local-echo/echo_server.py
+```
+
+It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
+points at it:
+
+```bash
+uv run dg run --local pipelines/echo-transform.yaml -p base_url=http://127.0.0.1:8080
+```
+
+```text
+2026-09-17T15:38:01.488+02:00 [info    ] http call                      [log ask] method=POST url=http://127.0.0.1:8080/post status=200 bytes=1029 duration_ms=28
+2026-09-17T15:38:01.747+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:8080/post status=200 bytes=522 duration_ms=4
+```
+
+Two calls, two URLs, and nothing in between them changed: the local echo answers a POST with
+the body it was given, so `ask` still reads its batch back out of an answer and `send` still
+proves what it sent.
+
+```bash
+uv run dg run --local pipelines/echo-transform.yaml -p base_url=http://127.0.0.1:8080 --json \
+  | jq -s 'last | .steps[] | select(.step == "send") | .output.body | {json, url}'
+```
+
+```json
+{
+  "json": {
+    "stations": 3,
+    "regions": [
+      "east",
+      "north",
+      "west"
+    ],
+    "warmest": "bergen-florida",
+    "mean_fahrenheit": 42
+  },
+  "url": "http://127.0.0.1:8080/post"
+}
+```
+
+The summary is the same summary; only the address it was sent to is different.
+
+`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
+`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
+leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
+`UV_OFFLINE=1` that keeps `uv` off the network too.
+
 ## What you see
 
 ```text
@@ -162,11 +215,21 @@ requires:
 params:
   type: object
   properties:
+    # Every URL in this document is built on this one value, so pointing the document at
+    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
+    # runs it against a stand-in on this machine, with no network at all.
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service this document's requests are built on.
     keep:
       type: string
       default: active
       description: The status the filter keeps. Set it to retired to narrow to the other one.
 ```
+
+`base_url` is a parameter doing a structural job: both calls below are built on it, so one
+flag on the run moves the whole document to another echo without touching a line of it.
 
 **`ask`** is the read. The batch is written into the request so the example needs nothing
 standing up, and Postman Echo hands it straight back -- which means every step after this one
@@ -178,7 +241,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: https://postman-echo.com/post
+      url: ${params.base_url}/post
       method: POST
       # /post answers with the body it was given, so the batch below comes back under
       # .body.json and every step after this one reads the answer rather than the literal.
@@ -246,7 +309,7 @@ pipeline went through all three verbs, and nothing can take a shortcut past them
     block: http.request
     depends_on: [summary]
     config:
-      url: https://postman-echo.com/post
+      url: ${params.base_url}/post
       method: POST
       # Built from the transform's output rather than from the read's, so the send carries
       # what the three verbs made and nothing that skipped them.
