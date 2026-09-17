@@ -1,0 +1,112 @@
+# One read, out to a bucket and back, on an instance whose whole artifact root is that bucket.
+#
+# There is no "upload to S3" block and no "download from S3" block. s3:// is a registered URI
+# scheme, so the ordinary storage.write and storage.read address it exactly as they address
+# file://, and what makes the scheme work is two settings and one connection on the instance:
+#
+#   DIRIGENT_STORAGE_CONNECTIONS=s3=artifacts   which s3 connection serves the scheme
+#   DIRIGENT_ARTIFACT_ROOT=s3://<bucket>/artifacts   where ${run.scratch} lives
+#
+# Hop by hop:
+#
+#   ask    the read. Postman Echo answers a GET with the arguments it was given, so what
+#          comes back is the proof of what was asked. base_url is a parameter, so the same
+#          document runs against the local echo in ../local-echo with no network at all.
+#   save   the answer to an object this document names, at a bucket and key it spells out.
+#   stash  the same answer to ${run.scratch}, which names no scheme at all. On this instance
+#          both land in the same bucket -- one because the document says s3://, one because
+#          the instance's artifact root does. That pair is the whole lesson: a document that
+#          writes to scratch moves from a disk to a bucket without being edited.
+#   back   the object read again, at the uri the write reported rather than the path typed
+#          a second time.
+#   say    what came back, in the run's log.
+#
+#   uv run dg run echo-s3 --watch
+#   uv run dg run echo-s3 -p station=oslo-blindern -p base_url=http://127.0.0.1:8080 --watch
+
+format: dirigent/v1
+kind: pipeline
+code: echo-s3
+name: Echo, through a bucket
+description: |
+  Ask Postman Echo for one station, write the answer to an object in S3, read it back and say
+  what came back -- on an instance whose run scratch is in the same bucket.
+
+tags: [http, storage, s3]
+
+# The preflight this document declares. `storage: [s3]` is the one worth noticing: it says the
+# instance must serve the scheme, so one without dirigent-storage-s3 installed refuses the
+# document at apply rather than failing a run halfway through.
+requires:
+  blocks:
+    - http.request
+    - storage.write
+    - storage.read
+    - log.write
+  connections:
+    - artifacts
+  storage:
+    - s3
+
+params:
+  type: object
+  properties:
+    base_url:
+      type: string
+      default: https://postman-echo.com
+      description: The echo service. ../local-echo answers the same shapes with no network.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for, and the object it is named as.
+    bucket:
+      type: string
+      default: echo-s3
+      description: The bucket the answer is written into. It must exist; a write does not create one.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.base_url}/get
+      method: GET
+      query:
+        station: ${params.station}
+
+  save:
+    block: storage.write
+    depends_on: [ask]
+    config:
+      # The bucket always comes from the URI, never from the connection: the connection's own
+      # bucket field is only what `dg connection check artifacts` probes.
+      target: s3://${params.bucket}/echo/${params.station}.json
+      # A value is written as canonical JSON -- sorted keys, no spaces -- so the same answer
+      # writes the same bytes every run.
+      value: ${steps.ask.output.body}
+      # Stored on the object, so whoever fetches it out of the bucket is told what it is.
+      content_type: application/json
+
+  stash:
+    block: storage.write
+    depends_on: [ask]
+    config:
+      # No scheme, no bucket, no host: this run's own prefix under whatever the instance's
+      # artifact root is. A temporary directory under `dg run --local`, and the bucket here.
+      target: ${run.scratch}/echo/${params.station}.json
+      value: ${steps.ask.output.body}
+      content_type: application/json
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      source: ${steps.save.output.uri}
+
+  say:
+    block: log.write
+    depends_on: [back, stash]
+    config:
+      message: >-
+        ${steps.back.output.bytes_read} bytes back from ${steps.save.output.uri}
+        for station ${steps.back.output.value.args.station}, with this run's scratch
+        at ${steps.stash.output.uri}
