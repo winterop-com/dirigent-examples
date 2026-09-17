@@ -959,5 +959,4 @@ This is the last example on the shelf.
 
 - [**The DHIS2 tutorial**](https://winterop-com.github.io/dirigent-dhis2/tutorial/) builds a
   read, a gate and a rehearsed write one section at a time, with the failures shown.
-- [**The examples**](../README.md) is the shelf all of these sit on, in the order they build
-  on each other.
+- [**The examples**](../README.md): every example in order, and what you need once.
