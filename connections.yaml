@@ -1,0 +1,16 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so the credential is handed to it here.
+#
+# This credential is the play demo's own, published so that anyone may try the instance. A
+# real instance's credential belongs in a connection the server holds, encrypted under its
+# key, and never in a file beside the documents -- which is why pipelines/ carries no
+# connections: section and the server would refuse one that did.
+
+connections:
+  play:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
