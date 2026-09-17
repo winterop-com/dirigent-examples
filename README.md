@@ -80,8 +80,14 @@ leg out. `OFFLINE.md` beside this repository is the rest of the story, including
 
 ## What you see
 
+*Printed as it printed, with this project's directory written as `/home/you/echo-transform`
+and a local run's temporary root as `/tmp`.*
+
+```bash
+uv run dg validate pipelines/echo-transform.yaml
+```
+
 ```text
-$ uv run dg validate pipelines/echo-transform.yaml
 2026-09-17T15:11:59.021+02:00 [info    ] valid                          [validation] code=echo-transform document=pipelines/echo-transform.yaml checked="document, offline"
   each step under the last one it waits for
     ask  (http.request)
@@ -90,9 +96,14 @@ $ uv run dg validate pipelines/echo-transform.yaml
           summary  (transform.jq)
             send  (http.request)
 2026-09-17T15:11:59.024+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+```
 
-$ uv run dg run --local pipelines/echo-transform.yaml
-2026-09-17T15:12:00.293+02:00 [info    ] started                        [run] pipeline=echo-transform run_id=01a0af7e-d621-7056-a3be-84ed3d786eca local=true scratch=file:///var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-aa42ai_y/artifacts/runs/01a0af7e-d621-7056-a3be-84ed3d786eca root=/var/folders/7t/m0y6vhq508n4fsfg85vhgjkh0000gp/T/dirigent-local-aa42ai_y
+```bash
+uv run dg run --local pipelines/echo-transform.yaml
+```
+
+```text
+2026-09-17T15:12:00.293+02:00 [info    ] started                        [run] pipeline=echo-transform run_id=01a0af7e-d621-7056-a3be-84ed3d786eca local=true scratch=file:///tmp/dirigent-local-aa42ai_y/artifacts/runs/01a0af7e-d621-7056-a3be-84ed3d786eca root=/tmp/dirigent-local-aa42ai_y
 2026-09-17T15:12:00.289+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
 2026-09-17T15:12:00.372+02:00 [info    ] running                        [step ask] block=http.request attempt=1
 2026-09-17T15:12:00.632+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=941 duration_ms=226
@@ -131,9 +142,12 @@ contract, visible without reading a single jq program.
 Postman Echo answers a POST with the body it was given, so its answer to `send` is the proof
 of what was sent:
 
-```text
-$ uv run dg run --local pipelines/echo-transform.yaml --json \
-    | jq -s 'last | .steps[] | select(.step == "send") | .output.body.json'
+```bash
+uv run dg run --local pipelines/echo-transform.yaml --json \
+  | jq -s 'last | .steps[] | select(.step == "send") | .output.body.json'
+```
+
+```json
 {
   "stations": 3,
   "regions": [
@@ -322,9 +336,10 @@ because nothing in the document was written for three.
 
 ## Where to go next
 
+- [`echo-schedule`](../echo-schedule/README.md) is what comes next: the two things that start
+  a run with nobody typing a command, a clock and a POST, both declared in the document.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.
-- [**echo-gate**](../echo-gate/README.md) is the step that belongs in front of a reshape: a
-  schema the answer is held to, so a payload that has moved stops where it arrived rather
-  than reaching a jq program written for the shape it used to have.
+- [**dirigent examples**](../README.md) is the shelf: every example in order, and what you
+  need once.
