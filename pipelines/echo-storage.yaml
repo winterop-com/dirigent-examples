@@ -1,0 +1,139 @@
+# A payload out of a run and back into it, and a run that writes its own account of itself.
+#
+# In:  a batch of readings, POSTed to Postman Echo and read back out of its answer.
+# Out: one file in the run's scratch space, the batch read back off it, a summary, and a
+#      report document the engine renders when the run settles.
+#
+# A value travels between steps as a step's output. storage.write is the only way one
+# leaves the run and storage.read the only way one comes back in, which is how a payload
+# too large to carry in a step's output is handed along:
+#
+#   storage.write  target, and exactly one of text or value. A value is written as
+#                  canonical JSON -- sorted keys, no spaces -- so the same value writes the
+#                  same bytes every run. Out come uri, bytes_written and content_type.
+#   storage.read   source, and max_size: how much of an object this step will hold, 1mb
+#                  unless it says otherwise. An object above the cap is refused rather than
+#                  truncated, because half a document is not a smaller one, it is a wrong
+#                  one. JSON comes back as value and anything else as text.
+#
+# ${run.scratch} is this run's own prefix in whatever storage the instance is configured
+# with: a temporary directory under a --local run, the artifact root under `dg dev`, and a
+# bucket where an s3 connection serves the scheme. The document says none of that -- it
+# names a scheme-agnostic prefix, and where the bytes land is an instance setting.
+#
+# The `report:` section at the bottom is the other half. A document with no report section
+# renders nothing; one with a section renders a markdown document every time a run of it
+# settles -- succeeded, failed, completed with errors or cancelled. The engine renders it in
+# the transaction that settles the run rather than a step doing it, which is the point: a
+# run whose worker died has no step left to write anything, and that is the run whose
+# account is worth the most. `report: {}` would render the built-in page instead.
+#
+# Hop by hop:
+#
+#   ask      POST the batch to /post, which answers with the body it was given.
+#   save     write the echoed batch to one file under the run's scratch prefix.
+#   back     read that file again, at the uri the write reported rather than the same path
+#            typed twice.
+#   summary  reduce the rows as they came off storage, not as they were held upstream.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second, with four rows written and read back.
+#
+#   uv run dg run --local pipelines/echo-storage.yaml
+#   uv run dg apply && uv run dg run echo-storage --watch && uv run dg runs report RUN_ID --markdown
+
+format: dirigent/v1
+kind: pipeline
+code: echo-storage
+name: Through storage, with a report
+description: |
+  The answer to one read written to storage, read back, and reduced -- and a `report:`
+  section, so every run of it renders its own markdown account when it settles.
+
+  The document names a scheme-agnostic prefix; where the bytes land is an instance setting.
+
+tags: [recipes, http, storage, transform, report]
+
+requires:
+  blocks:
+    - http.request
+    - storage.write
+    - storage.read
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the written file is named for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: https://postman-echo.com/post
+      method: POST
+      body:
+        day: ${params.day}
+        readings:
+          - { station: bergen-florida, celsius: 12.4 }
+          - { station: oslo-blindern, celsius: 3.1 }
+          - { station: tromso-langnes, celsius: -6.8 }
+          - { station: trondheim-voll, celsius: 1.2 }
+
+  save:
+    block: storage.write
+    depends_on: [ask]
+    config:
+      target: ${run.scratch}/readings-${params.day}.json
+      value: ${steps.ask.output.body.json}
+
+  back:
+    block: storage.read
+    depends_on: [save]
+    config:
+      # Where the write said the object landed. One place decides the path, so renaming the
+      # file is a one-line change.
+      source: ${steps.save.output.uri}
+      max_size: 8mb
+
+  summary:
+    block: transform.jq
+    depends_on: [back]
+    config:
+      input: ${steps.back.output.value}
+      program: |
+        {day: .day,
+         rows: (.readings | length),
+         coldest: (.readings | min_by(.celsius) | .station),
+         mean_celsius: ((.readings | map(.celsius) | add) / (.readings | length) * 10
+                        | round / 10)}
+
+# Every fact this template reads is in docs/reports.md. The filters render a value the way
+# a person reads it: duration turns milliseconds into 1m30s, bytes turns bytes into 1.5mb,
+# and iso turns a moment into a timestamp.
+#
+# A name the facts do not have renders as empty rather than failing, because half a run's
+# facts are legitimately null depending on how it ended -- which is why the two steps below
+# are guarded: a run that failed at `ask` has no `save` output to read into.
+report:
+  template: |
+    # {{ pipeline.code }} on {{ run.started_at | iso }}
+
+    **{{ run.status }}** in {{ run.duration_ms | duration }}, started by {{ run.trigger }}.
+
+    {% if step.save.output %}
+    The batch landed at `{{ step.save.output.uri }}`, {{ step.save.output.bytes_written | bytes }} of canonical JSON.
+    {% endif %}
+
+    {% if step.summary.output %}
+    | Day | Rows | Coldest | Mean |
+    | --- | --- | --- | --- |
+    | {{ step.summary.output.value.day }} | {{ step.summary.output.value.rows }} | {{ step.summary.output.value.coldest }} | {{ step.summary.output.value.mean_celsius }} |
+    {% endif %}
+
+    {% for s in steps %}
+    - **{{ s.step }}** ({{ s.block }}) {{ s.outcome }} after {{ s.attempts }} attempt(s), {{ s.duration_ms | duration }}
+    {% endfor %}
