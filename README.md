@@ -57,17 +57,23 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
 a fresh clone has, because the state directory is not in the repository -- it migrates the
-schema, makes its own admin `dev` with the password `dirigent-dev`, mints that admin one
-token, and prints the `export DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`,
-which is the address the `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port`
-moves the instance and `DG_URL` is how you tell the CLI where it went.
+schema, makes its own admin `dev`, mints that admin one token, and prints the
+`export DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address
+the `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
+`DG_URL` is how you tell the CLI where it went.
 
-Back in the first terminal, that line is the one output this page does not print, because it
-is a credential. `dg auth login` mints another from the same admin, which is what `verify.sh`
-does and what the commands below are:
+Back in the first terminal, mint a token for that admin, whose password is `dirigent-dev`.
+The command answers with the `export DG_TOKEN=` line to paste into this terminal, and that
+line is the one output this page does not print, because it is a credential:
 
 ```bash
 uv run dg auth login --username dev --password dirigent-dev
+```
+
+```text
+  export DG_TOKEN=<the token>
+
+This is the only time the token is shown.
 ```
 
 The instance holds the shape and the credential; the document names both by code and carries
@@ -85,6 +91,10 @@ uv run dg connection check play
 uv run dg apply
 uv run dg run dhis2-metadata-to-storage --watch
 ```
+
+`dg connection create` prompts for every secret field left unset. It asks for `api_token`:
+there is none, so press Enter. `--set api_token=` is not the same thing: an empty value is
+still a value, and a `dhis2` connection takes an `api_token` or basic credentials, not both.
 
 The snapshot's URI and the count are in the run rather than on the screen, and every command
 writes records into a pipe, so each of them is one `jq` away:
@@ -111,8 +121,8 @@ gate passed. It stops the instance it started by pid on the way out.
 
 ## What you see
 
-*Printed as it printed, with this project's directory written as `/home/you/...` and the
-temporary directory a local run makes written as `/tmp/...`.*
+*Printed as it printed, with this project's directory written as
+`/home/you/dhis2-metadata-to-storage` and a local run's temporary root as `/tmp`.*
 
 `uv run dg validate pipelines/dhis2-metadata-to-storage.yaml`:
 
@@ -494,12 +504,12 @@ a file of its own rather than a section of the pipeline.
 
 ## Where to go next
 
-- [**The basics**](https://winterop-com.github.io/dirigent/basics/) is where the vocabulary
-  under all of this is taught from nothing: a document, a step, a block, a reference, a
-  parameter, a schema, a version, a run, an attempt, and an error class.
+- [`dhis2-org-unit-sync`](../dhis2-org-unit-sync/README.md) is what comes next: the same
+  three moves in each of the three directions a sync is ever asked for, against two DHIS2
+  instances named by code, with the reshape in the middle written where a reviewer can read
+  it.
 - [**The DHIS2 tutorial**](https://winterop-com.github.io/dirigent-dhis2/tutorial/) is the
   same three moves -- read, gate, send -- against the same play demo, with the failures
   shown.
-- **`dhis2-read-gate-send`**, beside this one, is what happens instead when the gated answer
-  goes back to DHIS2 rather than into a file: the same read, the same gate, and a rehearsed
-  import at the organisation unit the answer named.
+- [**The examples**](../README.md) is the shelf all of these sit on, in the order they build
+  on each other.
