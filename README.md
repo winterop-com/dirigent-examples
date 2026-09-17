@@ -341,5 +341,4 @@ because nothing in the document was written for three.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.
-- [**dirigent examples**](../README.md) is the shelf: every example in order, and what you
-  need once.
+- [**The examples**](../README.md): every example in order, and what you need once.
