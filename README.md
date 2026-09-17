@@ -395,5 +395,4 @@ pair explains every line of it.
   no budget can help, beside an outage that a retry is exactly for.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 5 is this step of it.
-- [**All the examples**](../README.md) is the shelf they sit on, in the order the tutorials teach
-  them.
+- [**The examples**](../README.md): every example in order, and what you need once.
