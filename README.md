@@ -955,8 +955,9 @@ rather than a section of a pipeline.
 
 ## Where to go next
 
-This is the last example on the shelf.
-
+- [`dhis2-org-units-to-markdown`](../dhis2-org-units-to-markdown/README.md) renders the units
+  this example reads as a markdown page, an HTML page and a PDF, the last one from a pandoc
+  container.
 - [**The DHIS2 tutorial**](https://winterop-com.github.io/dirigent-dhis2/tutorial/) builds a
   read, a gate and a rehearsed write one section at a time, with the failures shown.
 - [**The examples**](../README.md): every example in order, and what you need once.
