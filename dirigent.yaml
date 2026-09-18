@@ -1,0 +1,23 @@
+# A dirigent pipeline project: a working set of documents, not a source of truth.
+# The server is where definitions actually live; `dg apply` puts these there.
+
+project:
+  pipelines: pipelines
+  profile: local
+
+  # Block ids every document here assumes. `dg apply` checks these against the target
+  # instance's catalog first, and fails with a complete list of what is missing.
+  requires: []
+
+# This instance's settings. Everything not named here keeps its default; the whole list,
+# with defaults and descriptions, is in dirigent.example.yaml beside this file.
+
+environment: "local"
+log_level: "INFO"
+worker_concurrency: 8
+
+# Block ids allowed to execute code on a worker. docker.run is one: reaching a Docker daemon
+# is reaching root wherever that daemon runs, so the engine refuses the block unless the
+# instance names its id. This project names it because pipelines/org-units-to-pdf.yaml is
+# about that step; an instance running documents it did not write names nothing here.
+enabled_unsafe_blocks: ["docker.run"]

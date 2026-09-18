@@ -1,0 +1,193 @@
+# Turn a piece of the organisation unit hierarchy into a page somebody reads. Eight hops,
+# and the shape is the lesson: one read, one gate, and then TWO renderings of the same
+# values, each with its own sink.
+#
+#   parent         dhis2.metadata. The parent unit itself, read for its name, which is all
+#                  the page's title needs. One extra round trip buys a heading that says
+#                  "Sierra Leone" instead of "ImspTQPwCqd".
+#   read           dhis2.metadata. Its children, projected to the four columns the page is
+#                  about, ordered by name so the table is ordered before a template sees it.
+#   check          validate.schema. The gate. Every id is held to the pack's dhis2-uid
+#                  format and every code to dhis2-code, so a payload that moved stops here
+#                  rather than reaching a reader as a page of plausible nonsense.
+#   markdown       report.render. The markdown page. Output: text, content_type, text_bytes.
+#   save_markdown  storage.write. The text to a URI. report.render writes nothing itself.
+#   html           report.render. The same two values, a different template. Nothing is read
+#                  a second time and nothing is recomputed: a format is a template.
+#   save_html      storage.write. The other file.
+#   say            log.write. Both URIs and both sizes on the run's own timeline.
+#
+# WHY TWO RENDER STEPS AND NOT ONE. A rendering is a template plus the values it reads, and
+# the values here are identical: `parent` and `units`, named the same in both steps. Adding
+# a third format is a ninth step and a tenth, never a change to anything above `markdown`.
+#
+# ORDERING BELONGS TO THE READ. `order: [name:asc]` sorts in DHIS2, so the table is sorted
+# for every rendering at once and no template has to know how to sort.
+#
+# ${run.scratch} is this run's own directory under the artifact root, swept when the run
+# ends -- pass --keep to a local run to be told where it landed instead. A target naming a
+# bucket URI writes there and outlives the run, and nothing above it changes: the scheme is
+# the only difference.
+#
+#   dg run --local pipelines/org-units-to-markdown.yaml --connections connections.yaml \
+#     --schema schemas/org-units-page.json
+#   dg run --local pipelines/org-units-to-markdown.yaml --connections connections.yaml \
+#     --schema schemas/org-units-page.json -p parent=O6uvpzGd5pu   # the chiefdoms of Bo
+
+format: dirigent/v1
+kind: pipeline
+code: org-units-to-markdown
+name: Organisation units, as a page
+description: Read the organisation units under one parent, gate them, and render the list as a markdown page and as an HTML page.
+
+tags: [dhis2, metadata, validate, report, storage]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - report.render
+    - storage.write
+    - log.write
+  connections:
+    - play
+  schemas:
+    - org-units-page
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    parent:
+      type: string
+      # dhis2-uid is the pack's own format, and a parameter's schema is checked with the same
+      # checker a gate is, so a uid of the wrong shape is refused when the run is submitted.
+      format: dhis2-uid
+      default: ImspTQPwCqd
+      description: The organisation unit whose children the page lists. The default is Sierra Leone, the root of the play demo's hierarchy.
+
+steps:
+  parent:
+    block: dhis2.metadata
+    # A read over the wire is worth retrying; what is not worth retrying declines the budget
+    # on its own, because a rejected failure spends none of it.
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      # The list form of the projection, sent comma-joined. A nested selector such as
+      # parent[id,name] has to be quoted inside a flow list, because YAML refuses a bare
+      # bracket in a flow item.
+      fields: [id, name]
+      # A filter is DHIS2's own syntax: a property path, an operator, a value. A reference
+      # inside a larger string interpolates as text, which is what a filter wants.
+      filter: "id:eq:${params.parent}"
+
+  read:
+    block: dhis2.metadata
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      # The columns the page has a header for, and `level` so the gate can hold it.
+      fields: [id, code, name, level]
+      filter: "parent.id:eq:${params.parent}"
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: org-units-page
+
+  markdown:
+    block: report.render
+    depends_on: [parent, check]
+    config:
+      # What the template may read, and the only thing it may read. A name it was not given
+      # renders as the empty string rather than failing the step.
+      values:
+        parent: ${steps.parent.output.body.organisationUnits.0.name}
+        # Out of the gate, not out of the read: what the page lists provably passed.
+        units: ${steps.check.output.value.organisationUnits}
+      content_type: text/markdown
+      # Jinja, with trim_blocks and lstrip_blocks on, so a loop on its own line leaves no
+      # blank line between the table's rows.
+      template: |
+        # Organisation units under {{ parent }}
+
+        | id | code | name |
+        | --- | --- | --- |
+        {% for unit in units %}
+        | `{{ unit.id }}` | {{ unit.code }} | {{ unit.name }} |
+        {% endfor %}
+
+        {{ units | length }} organisation units, read from the DHIS2 play demo.
+
+  save_markdown:
+    block: storage.write
+    depends_on: [markdown]
+    config:
+      target: ${run.scratch}/org-units.md
+      text: ${steps.markdown.output.text}
+      # Said twice on purpose: the render says what the text is and the write records it, so
+      # the object carries its type on a backend that can hold one and is read from the .md
+      # extension on one that cannot.
+      content_type: ${steps.markdown.output.content_type}
+
+  html:
+    block: report.render
+    depends_on: [parent, check]
+    config:
+      values:
+        parent: ${steps.parent.output.body.organisationUnits.0.name}
+        units: ${steps.check.output.value.organisationUnits}
+      content_type: text/html
+      # The sandbox does not autoescape, so a template writing HTML escapes what it
+      # interpolates itself: `| e` is the filter, on every value that reaches the markup.
+      # The stylesheet is inline and there is no asset to fetch, so the file opens from disk.
+      template: |
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8">
+        <title>Organisation units under {{ parent | e }}</title>
+        <style>
+        body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border-bottom: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+        code { font-family: ui-monospace, monospace; }
+        </style>
+        </head>
+        <body>
+        <h1>Organisation units under {{ parent | e }}</h1>
+        <table>
+        <thead><tr><th>id</th><th>code</th><th>name</th></tr></thead>
+        <tbody>
+        {% for unit in units %}
+        <tr><td><code>{{ unit.id | e }}</code></td><td>{{ unit.code | e }}</td><td>{{ unit.name | e }}</td></tr>
+        {% endfor %}
+        </tbody>
+        </table>
+        <p>{{ units | length }} organisation units, read from the DHIS2 play demo.</p>
+        </body>
+        </html>
+
+  save_html:
+    block: storage.write
+    depends_on: [html]
+    config:
+      target: ${run.scratch}/org-units.html
+      text: ${steps.html.output.text}
+      content_type: ${steps.html.output.content_type}
+
+  say:
+    block: log.write
+    depends_on: [save_markdown, save_html]
+    config:
+      message: "the page is at ${steps.save_markdown.output.uri} (${steps.save_markdown.output.bytes_written} bytes) and ${steps.save_html.output.uri} (${steps.save_html.output.bytes_written} bytes)"

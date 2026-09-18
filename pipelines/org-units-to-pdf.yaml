@@ -1,0 +1,216 @@
+# The same page, and a third format that dirigent cannot produce on its own. Nine hops: the
+# eight of org-units-to-markdown.yaml, unchanged, and then one container.
+#
+#   pdf  docker.run. A pandoc container reads the markdown file the run just wrote and
+#        writes a PDF beside it. The markdown arrives as a read-only input mount and the PDF
+#        leaves through the output mount, so the container sees two directories, no network
+#        and nothing else of this machine.
+#
+# WHY A CONTAINER AND NOT A BLOCK. Rendering a PDF is a typesetter: TeX, or typst, or a
+# browser engine, tens or hundreds of megabytes of it, with fonts. A block that shipped one
+# would put it in every worker image for the pipelines that never ask for a PDF. A container
+# is the seam: the pipeline names an image and a version, the worker holds nothing, and a
+# pipeline that wants LaTeX instead of typst changes one line.
+#
+# docker.run IS AN UNSAFE BLOCK. It declares local_execution, because reaching a Docker
+# daemon is reaching root wherever that daemon runs, and the engine refuses the block unless
+# the instance names its id. Three ways to name it, one per way of running:
+#
+#   dg run --local pipelines/org-units-to-pdf.yaml --enable-unsafe docker.run ...
+#   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]'    # for an instance
+#   enabled_unsafe_blocks: ["docker.run"]                     # in dirigent.yaml, which is
+#                                                             # where this project names it
+#
+# THE IMAGE. pandoc/typst:3.11-alpine is pandoc with typst as its PDF engine: 86MB to pull
+# against 240MB for pandoc/latex and 566MB for pandoc/extra, a PDF in a fifth of the time,
+# and the only one of the three published for arm64 as well as amd64. Its entrypoint IS
+# pandoc, so `argv` here is pandoc's argument vector and never a command of its own.
+#
+# THE DAEMON. A bind mount is resolved on the daemon's filesystem, not the worker's, so the
+# input and output mounts only reach the container when the daemon can see the run's work
+# directory. That holds for the daemon on this machine and for the dind sidecar in dirigent's
+# own compose stack; docs/docker.md has the table. A deployment where only some workers have
+# a daemon tags them `docker` and the document declares `requires.workers: [docker]`.
+#
+#   dg run --local pipelines/org-units-to-pdf.yaml --connections connections.yaml \
+#     --schema schemas/org-units-page.json --enable-unsafe docker.run
+
+format: dirigent/v1
+kind: pipeline
+code: org-units-to-pdf
+name: Organisation units, as a PDF
+description: Render the organisation units under one parent as markdown and HTML, then run a pandoc container over the markdown to produce a PDF.
+
+tags: [dhis2, metadata, validate, report, storage, docker]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - report.render
+    - storage.write
+    - docker.run
+    - log.write
+  connections:
+    - play
+  schemas:
+    - org-units-page
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    parent:
+      type: string
+      format: dhis2-uid
+      default: ImspTQPwCqd
+      description: The organisation unit whose children the page lists. The default is Sierra Leone, the root of the play demo's hierarchy.
+
+steps:
+  parent:
+    block: dhis2.metadata
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      fields: [id, name]
+      filter: "id:eq:${params.parent}"
+
+  read:
+    block: dhis2.metadata
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      fields: [id, code, name, level]
+      filter: "parent.id:eq:${params.parent}"
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: org-units-page
+
+  markdown:
+    block: report.render
+    depends_on: [parent, check]
+    config:
+      values:
+        parent: ${steps.parent.output.body.organisationUnits.0.name}
+        units: ${steps.check.output.value.organisationUnits}
+      content_type: text/markdown
+      template: |
+        # Organisation units under {{ parent }}
+
+        | id | code | name |
+        | --- | --- | --- |
+        {% for unit in units %}
+        | `{{ unit.id }}` | {{ unit.code }} | {{ unit.name }} |
+        {% endfor %}
+
+        {{ units | length }} organisation units, read from the DHIS2 play demo.
+
+  save_markdown:
+    block: storage.write
+    depends_on: [markdown]
+    config:
+      target: ${run.scratch}/org-units.md
+      text: ${steps.markdown.output.text}
+      content_type: ${steps.markdown.output.content_type}
+
+  html:
+    block: report.render
+    depends_on: [parent, check]
+    config:
+      values:
+        parent: ${steps.parent.output.body.organisationUnits.0.name}
+        units: ${steps.check.output.value.organisationUnits}
+      content_type: text/html
+      template: |
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8">
+        <title>Organisation units under {{ parent | e }}</title>
+        <style>
+        body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border-bottom: 1px solid #ccc; padding: 0.4rem 0.6rem; text-align: left; }
+        code { font-family: ui-monospace, monospace; }
+        </style>
+        </head>
+        <body>
+        <h1>Organisation units under {{ parent | e }}</h1>
+        <table>
+        <thead><tr><th>id</th><th>code</th><th>name</th></tr></thead>
+        <tbody>
+        {% for unit in units %}
+        <tr><td><code>{{ unit.id | e }}</code></td><td>{{ unit.code | e }}</td><td>{{ unit.name | e }}</td></tr>
+        {% endfor %}
+        </tbody>
+        </table>
+        <p>{{ units | length }} organisation units, read from the DHIS2 play demo.</p>
+        </body>
+        </html>
+
+  save_html:
+    block: storage.write
+    depends_on: [html]
+    config:
+      target: ${run.scratch}/org-units.html
+      text: ${steps.html.output.text}
+      content_type: ${steps.html.output.content_type}
+
+  pdf:
+    block: docker.run
+    depends_on: [save_markdown]
+    # A pull and a typesetter, bounded by the step rather than by the block: the container
+    # runs under the deadline, and the engine owns it.
+    deadline: 5m
+    config:
+      image: pandoc/typst:3.11-alpine
+      # Fetch the image rather than requiring the daemon to hold it already, so this runs on
+      # a machine that has never rendered a PDF. The pull is the daemon's; `network: none`
+      # below is the container's.
+      pull: true
+      # A pandoc container needs nothing from the network: its input is a file.
+      network: none
+      # inputs is always storage: each key is a file name inside the read-only mount and each
+      # value the URI it is read from. The URI is the one the write returned, not the path
+      # typed a second time.
+      inputs:
+        org-units.md: ${steps.save_markdown.output.uri}
+      # outputs is the way back out: a target carrying a URI scheme is copied to storage once
+      # the container exits, and one without a scheme is a path in the run's work directory.
+      # The key carries no dot, because a reference path splits on dots: a key named
+      # `org-units.pdf` could not be read back, and `page` reads as
+      # ${steps.pdf.output.outputs.page}. The extension on the target is what makes the
+      # object application/pdf.
+      outputs:
+        page: ${run.scratch}/org-units.pdf
+      # The image's entrypoint is pandoc itself, so this vector is pandoc's arguments. --to
+      # says what to build, which is why the output file needs no extension of its own.
+      argv:
+        - /dirigent/inputs/org-units.md
+        - --from=markdown
+        - --to=pdf
+        - --pdf-engine=typst
+        - --output=/dirigent/outputs/page
+      # What a runaway image may take from the worker it landed on.
+      memory: 512mb
+      pids_limit: 128
+
+  say:
+    block: log.write
+    depends_on: [save_markdown, save_html, pdf]
+    # The two writes report their own sizes; the container's output collection reports the
+    # PDF's in a record of its own, so this line names the file rather than claiming a size
+    # it was not handed.
+    config:
+      message: "the page is at ${steps.save_markdown.output.uri} (${steps.save_markdown.output.bytes_written} bytes), ${steps.save_html.output.uri} (${steps.save_html.output.bytes_written} bytes) and ${steps.pdf.output.outputs.page}"
