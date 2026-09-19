@@ -95,9 +95,14 @@ assert_run_succeeded "$WORK/local.ndjson" "the local run"
 assert_round_trip "$WORK/local.ndjson" "the local run"
 
 # The instance seals a connection's secret with this key, so the key has to exist before the
-# connection does. It is minted per run here, which is why the connection below is written
-# fresh every time: a row sealed under an earlier run's key cannot be opened with this one's.
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+# connection does. It is minted once into .env, which is not in the repository and already
+# holds this instance's token: an instance that changes its key cannot open what it sealed
+# under the old one, so the connection this script leaves behind stays readable -- by its next
+# run, and by a reader who starts a dg dev of their own on the same state.
+if ! grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null; then
+  (umask 077; printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env)
+fi
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 
 PORT="${DG_PORT:-$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')}"
 export DG_URL="http://127.0.0.1:$PORT"
@@ -129,14 +134,36 @@ if ! uv run dg schema list --json | jq -e --arg code "$SCHEMA" 'select(.fields.c
 fi
 
 say "the connection to the play demo"
-uv run dg connection delete play --json > /dev/null 2>&1 || true
-uv run dg connection create dhis2 play \
-  --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
-  --set basic_username=admin \
-  --set basic_password=district \
-  --json > /dev/null
-uv run dg connection check play --json > "$WORK/check.ndjson"
+# Written when the instance does not hold it, and left alone when it does: the row is sealed
+# with the key in .env, which is the same key on every run, so there is nothing to rewrite and
+# the state a reader inherits is the state this script asserted on.
+create_play() {
+  uv run dg connection create dhis2 play \
+    --name "DHIS2 play demo" \
+    --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+    --set basic_username=admin \
+    --set basic_password=district \
+    --json > /dev/null
+}
+
+if ! uv run dg connection list --json | jq -e 'select(.fields.code == "play")' > /dev/null; then
+  create_play
+fi
+
+# A row sealed under a key that is gone cannot be opened by this one, and the check names the
+# class in its own record. Nothing recovers that secret, so the connection is written again
+# under the key in hand -- which is what a reader does by hand after losing a key.
+uv run dg connection check play --json > "$WORK/check.ndjson" || true
+if jq -se '
+  map(select(.kind == "connection.checked")) | last
+  | (.detail // "") | startswith("SecretKeyMismatch")
+' "$WORK/check.ndjson" > /dev/null; then
+  say "the connection, sealed again under the key in .env"
+  uv run dg connection delete play --json > /dev/null
+  create_play
+  uv run dg connection check play --json > "$WORK/check.ndjson"
+fi
+
 jq -se '
   map(select(.kind == "connection.checked")) | last
   | if .healthy then true else error("the play connection is not healthy: \(.detail)") end

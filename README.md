@@ -45,12 +45,16 @@ A local run deletes its artifacts on the way out, so add `--keep` to leave the s
 behind and be told where it landed.
 
 Then the instance. A DHIS2 connection carries a password, and a connection secret is
-encrypted at rest with the instance's own key, so mint one and start the instance with it in
-a second terminal, in this directory. Keep the key: an instance that changes it cannot read
-what it stored under the old one.
+encrypted at rest with the instance's own key, so the instance needs a key before it can hold
+one. Mint it once into `.env` -- the gitignored file beside the state that already holds this
+instance's token -- and read it back from there on every start, because an instance that
+changes its key cannot open the secrets it already stored. In a second terminal, in this
+directory:
 
 ```bash
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
+  || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -118,7 +122,28 @@ uv run dg run dhis2-metadata-to-storage --watch -p level=9
 port of its own, the schema, the connection, the apply, the run -- and asserts on the
 records rather than on anything rendered: that the bytes written are the bytes read, that
 what came back out of storage is what went in, and that the count is the count of what the
-gate passed. It stops the instance it started by pid on the way out.
+gate passed. It reads the key from that same `.env` line, and writes the schema and the
+connection only when the instance does not already hold them, so its second run inherits the
+state its first run left. It stops the instance it started by pid on the way out.
+
+### If the key was lost
+
+A connection is sealed with the key the instance held when it was written, so a state left over
+from a key that is gone answers `uv run dg connection check play` with a record whose `detail`
+begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection update`,
+and the secret it holds is not recoverable -- so delete it and write it once more under the key
+this instance has now:
+
+```bash
+uv run dg connection delete play
+uv run dg connection create dhis2 play \
+  --name "DHIS2 play demo" \
+  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set basic_username=admin \
+  --set basic_password=district
+```
+
+`verify.sh` does exactly that when its own check reports that class.
 
 ## What you see
 
