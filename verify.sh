@@ -241,9 +241,14 @@ done
 # --- the instance ---------------------------------------------------------------------------
 #
 # The instance seals a connection's secret with this key, so the key has to exist before the
-# connection does. It is minted per run here, which is why the connection below is written
-# fresh every time: a row sealed under an earlier run's key cannot be opened with this one's.
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+# connection does. It is minted once into .env, which is not in the repository and already
+# holds this instance's token: an instance that changes its key cannot open what it sealed
+# under the old one, so the connection this script leaves behind stays readable -- by its next
+# run, and by a reader who starts a dg dev of their own on the same state.
+if ! grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null; then
+  (umask 077; printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env)
+fi
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 
 PORT="${DG_PORT:-$(free_port)}"
 export DG_URL="http://127.0.0.1:$PORT"
@@ -275,24 +280,53 @@ fi
 if [ -z "${DG_TOKEN:-}" ]; then
   DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
     | jq -r 'select(.kind == "token.issued") | .token')"
-  [ -n "$DG_TOKEN" ] && (umask 077; printf 'DG_TOKEN=%s\n' "$DG_TOKEN" > .env)
+  # Appended, never written over: .env already carries the key this instance seals with.
+  [ -n "$DG_TOKEN" ] && (umask 077; printf 'DG_TOKEN=%s\n' "$DG_TOKEN" >> .env)
 fi
 [ -n "${DG_TOKEN:-}" ] || { echo "no token in .env and none to log in for" >&2; exit 1; }
 export DG_TOKEN
 
 say "the connection the s3:// scheme resolves through"
-# Deleted first rather than updated: the secret half of the row this script wrote last time
-# was sealed with the key that run minted, and this run's key cannot open it.
-uv run dg connection delete "$CONNECTION" --json > /dev/null 2>&1 || true
-uv run dg connection create s3 "$CONNECTION" \
-  --name "Artifact storage" \
-  --set "endpoint_url=http://127.0.0.1:$S3_PORT" \
-  --set "bucket=$BUCKET" \
-  --set "access_key_id=$ACCESS_KEY" \
-  --set "secret_access_key=$SECRET_KEY" \
-  --set path_style=true \
-  --json > /dev/null
-uv run dg connection check "$CONNECTION" --json > "$WORK/check.ndjson"
+create_artifacts() {
+  uv run dg connection create s3 "$CONNECTION" \
+    --name "Artifact storage" \
+    --set "endpoint_url=http://127.0.0.1:$S3_PORT" \
+    --set "bucket=$BUCKET" \
+    --set "access_key_id=$ACCESS_KEY" \
+    --set "secret_access_key=$SECRET_KEY" \
+    --set path_style=true \
+    --json > /dev/null
+}
+
+# Left alone when the instance already holds it: the row is sealed with the key in .env, which
+# is the same key on every run, so the state a reader inherits is the state this script
+# asserted on. What does move is the endpoint, because the container above takes a free port
+# unless S3_PORT names one, and a row addressing last run's port addresses nothing -- so a row
+# naming another endpoint is written again. There is no `dg connection update`: a connection
+# changes by being deleted and created.
+ENDPOINT="http://127.0.0.1:$S3_PORT"
+if ! uv run dg connection show "$CONNECTION" --json 2>/dev/null \
+     | jq -se --arg url "$ENDPOINT" '
+         map(select(.kind == "connection")) | last | .fields.config.endpoint_url == $url
+       ' > /dev/null; then
+  uv run dg connection delete "$CONNECTION" --json > /dev/null 2>&1 || true
+  create_artifacts
+fi
+
+# A row sealed under a key that is gone cannot be opened by this one, and the check names the
+# class in its own record. Nothing recovers that secret, so the connection is written again
+# under the key in hand -- which is what a reader does by hand after losing a key.
+uv run dg connection check "$CONNECTION" --json > "$WORK/check.ndjson" || true
+if jq -se '
+  map(select(.kind == "connection.checked")) | last
+  | (.detail // "") | startswith("SecretKeyMismatch")
+' "$WORK/check.ndjson" > /dev/null; then
+  say "the connection, sealed again under the key in .env"
+  uv run dg connection delete "$CONNECTION" --json > /dev/null
+  create_artifacts
+  uv run dg connection check "$CONNECTION" --json > "$WORK/check.ndjson"
+fi
+
 jq -se '
   map(select(.kind == "connection.checked")) | last
   | if .healthy then true else error("the artifacts connection is not healthy: \(.detail)") end

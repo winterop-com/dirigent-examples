@@ -78,7 +78,9 @@ key the instance seals connection secrets with, the artifact root, and which con
 the scheme that root is written in.
 
 ```bash
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
+  || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 export DIRIGENT_ARTIFACT_ROOT=s3://echo-s3/artifacts
 export DIRIGENT_STORAGE_CONNECTIONS=s3=artifacts
 uv run dg dev
@@ -92,8 +94,9 @@ The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile i
 `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
 the CLI where it went.
 
-Keep the key. An instance that changes it cannot open what it sealed under the old one, which is
-why `verify.sh` mints one per run and writes the connection fresh every time.
+`.env` is gitignored and already holds this instance's token, so the key goes on a line beside
+it and is read back on every start: an instance that changes its key cannot open the secrets it
+already stored. `verify.sh` writes and reads that same line.
 
 Back in the first terminal, with that line pasted:
 
@@ -131,7 +134,31 @@ docker rm -f dirigent-s3
 `./verify.sh` does all of it non-interactively: it starts the server on a free port of its own,
 makes the bucket, runs the document locally and then on an instance it starts with the artifact
 root pointed into that bucket, asserts on the records, asks the object store to confirm both
-objects, and removes the container and the instance it started on the way out.
+objects, and removes the container and the instance it started on the way out. It reads the key
+from that same `.env` line, and leaves the connection alone unless it is addressing another
+endpoint -- the container takes a free port unless `S3_PORT` names one -- so its second run
+inherits the state its first run left.
+
+### If the key was lost
+
+A connection is sealed with the key the instance held when it was written, so a state left over
+from a key that is gone answers `uv run dg connection check artifacts` with a record whose
+`detail` begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection
+update`, and the secret it holds is not recoverable -- so delete it and write it once more under
+the key this instance has now:
+
+```bash
+uv run dg connection delete artifacts
+uv run dg connection create s3 artifacts \
+  --name "Artifact storage" \
+  --set endpoint_url=http://127.0.0.1:9000 \
+  --set bucket=echo-s3 \
+  --set access_key_id=echo-s3-key \
+  --set secret_access_key=echo-s3-secret \
+  --set path_style=true
+```
+
+`verify.sh` does exactly that when its own check reports that class.
 
 ## Offline
 
