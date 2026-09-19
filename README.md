@@ -73,14 +73,13 @@ DIRIGENT_STORAGE_CONNECTIONS=s3=artifacts \
 
 ### The instance whose artifacts live in the bucket
 
-In a second terminal, in this directory. The three environment settings are the whole of it: the
-key the instance seals connection secrets with, the artifact root, and which connection serves
-the scheme that root is written in.
+In a second terminal, in this directory. Three settings are the whole of it: the key the
+instance seals connection secrets with, which goes on a line in `.env`, the artifact root, and
+which connection serves the scheme that root is written in.
 
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 export DIRIGENT_ARTIFACT_ROOT=s3://echo-s3/artifacts
 export DIRIGENT_STORAGE_CONNECTIONS=s3=artifacts
 uv run dg dev
@@ -95,8 +94,8 @@ The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile i
 the CLI where it went.
 
 `.env` is gitignored and already holds this instance's token, so the key goes on a line beside
-it and is read back on every start: an instance that changes its key cannot open the secrets it
-already stored. `verify.sh` writes and reads that same line.
+it, and every command run in this directory reads it from there: an instance that changes its
+key cannot open the secrets it already stored. `verify.sh` writes that same line.
 
 Back in the first terminal, with that line pasted:
 
@@ -134,8 +133,8 @@ docker rm -f dirigent-s3
 `./verify.sh` does all of it non-interactively: it starts the server on a free port of its own,
 makes the bucket, runs the document locally and then on an instance it starts with the artifact
 root pointed into that bucket, asserts on the records, asks the object store to confirm both
-objects, and removes the container and the instance it started on the way out. It reads the key
-from that same `.env` line, and leaves the connection alone unless it is addressing another
+objects, and removes the container and the instance it started on the way out. It keeps the key
+on that same `.env` line, and leaves the connection alone unless it is addressing another
 endpoint -- the container takes a free port unless `S3_PORT` names one -- so its second run
 inherits the state its first run left.
 
