@@ -117,13 +117,13 @@ done
 #
 # A connection carries a credential, so the instance will not store one until it has a key
 # to seal it with. The key is minted once into .env, which is not in the repository and
-# already holds this instance's token: an instance that changes its key cannot read what it
-# stored under the old one, and this script has to read, on its second run, the connection
-# its first run stored.
+# already holds this instance's token, and every command below runs in this directory and
+# reads it from there: an instance that changes its key cannot read what it stored under the
+# old one, and this script has to read, on its second run, the connection its first run
+# stored.
 if ! grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null; then
   (umask 077; printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env)
 fi
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 
 port="${DG_PORT:-$(free_port)}"
 export DG_URL="http://127.0.0.1:${port}"
