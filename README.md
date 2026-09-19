@@ -110,8 +110,10 @@ uv run dg apply
 uv run dg run echo-s3 --watch
 ```
 
-Leave `--set secret_access_key=` off and the command asks for it without echoing it, which is
-what you want for a credential that is not a throwaway container's. `--set path_style=true` is
+An invocation carrying `--set` has said what it wants, so it is asked only for a secret the
+kind cannot do without, and `secret_access_key` is not one. Leave every `--set` off instead, and
+the command offers each secret field in turn without echoing it, which is what you want for a
+credential that is not a throwaway container's. `--set path_style=true` is
 not optional against a clone: every S3 implementation but AWS itself addresses a bucket as a
 path segment rather than as a subdomain.
 
