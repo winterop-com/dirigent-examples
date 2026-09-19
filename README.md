@@ -22,14 +22,14 @@ uv run dg run --local pipelines/echo-alert.yaml     # ends failed, and exits 1
 
 The alerting half needs an instance. A connection carries a credential, so the instance will
 not store one until it has a key to seal it with. Mint it once into `.env` -- the gitignored
-file beside the state that already holds this instance's token -- and read it back from there
-on every start, because an instance that changes its key cannot open the secrets it already
-stored. In a second terminal, in this directory:
+file beside the state that already holds this instance's token -- and every command run in this
+directory reads it from there, which is what keeps this instance on the key it sealed with: one
+that changes its key cannot open the secrets it already stored. In a second terminal, in this
+directory:
 
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
