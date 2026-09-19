@@ -339,7 +339,9 @@ Schemas screen in the UI, and every document's `requires.schemas`. `type`, `requ
 `properties` carry most of the weight: `required` is about presence, `properties` about shape, and
 `additionalProperties: false` closes the door on anything you did not name. The `pattern` on
 `reading` is the whole point of the example: the value is text, and text held to the shape of a
-decimal is a real check, where `type: number` was a wrong one.
+decimal is a real check, where `type: number` was a wrong one. In the pipeline editor the
+`check` step's `schema` box draws a row under it that opens on this body, with a link to the
+Schemas screen.
 
 ### `pipelines/echo-gate.yaml`
 
