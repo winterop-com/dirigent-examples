@@ -71,12 +71,16 @@ the three only this one and the `-debian` and `-ubuntu` tags of the other two ar
 for arm64 as well as amd64.
 
 Then the instance. A DHIS2 connection carries a password, and a connection secret is
-encrypted at rest with the instance's own key, so mint one and start the instance with it in
-a second terminal, in this directory. Keep the key: an instance that changes it cannot read
-what it stored under the old one.
+encrypted at rest with the instance's own key, so the instance needs a key before it can hold
+one. Mint it once into `.env` -- the gitignored file beside the state that already holds this
+instance's token -- and read it back from there on every start, because an instance that
+changes its key cannot open the secrets it already stored. In a second terminal, in this
+directory:
 
 ```bash
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
+  || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -162,8 +166,29 @@ the name the `parent` step read; the markdown table has exactly one row per unit
 passed; the HTML carries a `<table`; each write reports the bytes its rendering built, at the
 file name the document named; and the PDF the container collected is above a floor of 5000
 bytes. When no Docker daemon answers, the PDF document is skipped with a message and the rest
-still has to pass, so the repository verifies on a machine that has no Docker at all. It stops
-the instance it started by pid on the way out.
+still has to pass, so the repository verifies on a machine that has no Docker at all. It reads
+the key from that same `.env` line, and writes the schema and the connection only when the
+instance does not already hold them, so its second run inherits the state its first run left.
+It stops the instance it started by pid on the way out.
+
+### If the key was lost
+
+A connection is sealed with the key the instance held when it was written, so a state left over
+from a key that is gone answers `uv run dg connection check play` with a record whose `detail`
+begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection update`,
+and the secret it holds is not recoverable -- so delete it and write it once more under the key
+this instance has now:
+
+```bash
+uv run dg connection delete play
+uv run dg connection create dhis2 play \
+  --name "DHIS2 play demo" \
+  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set basic_username=admin \
+  --set basic_password=district
+```
+
+`verify.sh` does exactly that when its own check reports that class.
 
 ## What you see
 
