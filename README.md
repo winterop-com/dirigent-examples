@@ -130,9 +130,10 @@ uv run dg run org-units-to-markdown --watch
 uv run dg run org-units-to-pdf --watch
 ```
 
-`dg connection create` prompts for every secret field left unset. It asks for `api_token`:
-there is none, so press Enter. `--set api_token=` is not the same thing: an empty value is
-still a value, and a `dhis2` connection takes an `api_token` or basic credentials, not both.
+`dg connection create` asks only for a secret the kind cannot do without, and only when the
+command did not say what it wants. This one carries `--set`, and `api_token` is optional, so it
+completes without a prompt and leaves that field unset -- which is what it has to be, because a
+`dhis2` connection takes an `api_token` or basic credentials, not both.
 
 The pages themselves are in the run rather than on the screen, and every command writes
 records into a pipe, so each of them is one `jq` away:
