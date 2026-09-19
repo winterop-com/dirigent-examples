@@ -73,14 +73,13 @@ for arm64 as well as amd64.
 Then the instance. A DHIS2 connection carries a password, and a connection secret is
 encrypted at rest with the instance's own key, so the instance needs a key before it can hold
 one. Mint it once into `.env` -- the gitignored file beside the state that already holds this
-instance's token -- and read it back from there on every start, because an instance that
-changes its key cannot open the secrets it already stored. In a second terminal, in this
-directory:
+instance's token -- and every command run in this directory reads it from there, which is what
+keeps this instance on the key it sealed with: one that changes its key cannot open the secrets
+it already stored. In a second terminal, in this directory:
 
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -166,8 +165,8 @@ the name the `parent` step read; the markdown table has exactly one row per unit
 passed; the HTML carries a `<table`; each write reports the bytes its rendering built, at the
 file name the document named; and the PDF the container collected is above a floor of 5000
 bytes. When no Docker daemon answers, the PDF document is skipped with a message and the rest
-still has to pass, so the repository verifies on a machine that has no Docker at all. It reads
-the key from that same `.env` line, and writes the schema and the connection only when the
+still has to pass, so the repository verifies on a machine that has no Docker at all. It keeps
+the key on that same `.env` line, and writes the schema and the connection only when the
 instance does not already hold them, so its second run inherits the state its first run left.
 It stops the instance it started by pid on the way out.
 
