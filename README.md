@@ -21,12 +21,15 @@ uv run dg run --local pipelines/echo-alert.yaml     # ends failed, and exits 1
 ```
 
 The alerting half needs an instance. A connection carries a credential, so the instance will
-not store one until it has a key to seal it with -- and an instance that changes its key
-cannot read what it stored under the old one, so mint one key and keep it. In a second
-terminal, in this directory:
+not store one until it has a key to seal it with. Mint it once into `.env` -- the gitignored
+file beside the state that already holds this instance's token -- and read it back from there
+on every start, because an instance that changes its key cannot open the secrets it already
+stored. In a second terminal, in this directory:
 
 ```bash
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
+  || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -67,10 +70,27 @@ is optional, so it completes without a prompt and leaves that field unset.
 
 The rule is created after the pipeline because `--pipeline` scopes it to one, and a scope
 naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
-keeps the key in a gitignored `.secret-key` so its second run can still read what its first
-run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
+keeps the key on a line in the gitignored `.env` so its second run can still read what its
+first run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
 --username dev --password dirigent-dev`, writes the connection and the rule, fails a run,
 waits for the notification to be delivered, and stops the instance it started by pid.
+
+### If the key was lost
+
+A connection is sealed with the key the instance held when it was written, so a state left over
+from a key that is gone answers `uv run dg connection check echo-sink` with a record whose
+`detail` begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection
+update`, and the secret it holds is not recoverable -- so write it once more under the key this
+instance has now. The rule points at the connection and an instance refuses to delete a
+connection a rule still holds, so the rule goes first and both are written again after:
+
+```bash
+uv run dg alerts rules delete echo-failed
+uv run dg connection delete echo-sink
+```
+
+Then the `dg connection create` and `dg alerts rules create` above, unchanged -- which is the
+same order `verify.sh` uses between its two legs.
 
 ## Offline
 

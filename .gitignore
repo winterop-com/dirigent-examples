@@ -8,9 +8,5 @@ __pycache__/
 # This instance's token, or the stack's key and first password. Never shared.
 .env
 
-# The key this instance seals its connections with, minted once and kept, because an
-# instance that changes its key cannot read what it stored under the old one.
-.secret-key
-
 # A built documentation site.
 site/
