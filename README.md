@@ -128,10 +128,10 @@ uv run dg run dhis2-to-other --watch
 uv run dg run other-to-dhis2 --watch
 ```
 
-`dg connection create` prompts for every secret field left unset, so each of those two asks
-for `api_token`: there is none, so press Enter. `--set api_token=` is not the same thing: an
-empty value is still a value, and a `dhis2` connection takes an `api_token` or basic
-credentials, not both.
+`dg connection create` asks only for a secret the kind cannot do without, and only when the
+command did not say what it wants. Each of those two carries `--set`, and `api_token` is
+optional, so both complete without a prompt and leave that field unset -- which is what it has
+to be, because a `dhis2` connection takes an `api_token` or basic credentials, not both.
 
 The import report is in the run rather than on the screen, and every command writes records
 into a pipe, so the whole of it is one `jq` away:
