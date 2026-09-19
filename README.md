@@ -69,13 +69,13 @@ uv run dg run --local pipelines/dhis2-to-other.yaml \
 Then the instance. A DHIS2 connection carries a password, and a connection secret is encrypted
 at rest with the instance's own key, so the instance needs a key before it can hold one. Mint it
 once into `.env` -- the gitignored file beside the state that already holds this instance's
-token -- and read it back from there on every start, because an instance that changes its key
-cannot open the secrets it already stored. In a second terminal, in this directory:
+token -- and every command run in this directory reads it from there, which is what keeps this
+instance on the key it sealed with: one that changes its key cannot open the secrets it already
+stored. In a second terminal, in this directory:
 
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -162,7 +162,7 @@ uv run dg run other-to-dhis2 --watch -p parent_code=OU_NOT_THERE
 `./verify.sh` does all of it unattended -- validate, three local runs against both echoes, the
 refusal above, an instance on a free port of its own, the three schemas, both connections, the
 apply and the three runs -- and asserts on the records rather than on anything rendered. It
-reads the key from that same `.env` line, and writes the schemas and the connections only when
+keeps the key on that same `.env` line, and writes the schemas and the connections only when
 the instance does not already hold them, so its second run inherits the state its first run
 left. It stops the instance it started by pid on the way out. `VERIFY_OFFLINE=1` leaves out the
 online echo leg and nothing else: both DHIS2 instances are on the internet and have no stand-in.
