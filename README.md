@@ -47,14 +47,13 @@ behind and be told where it landed.
 Then the instance. A DHIS2 connection carries a password, and a connection secret is
 encrypted at rest with the instance's own key, so the instance needs a key before it can hold
 one. Mint it once into `.env` -- the gitignored file beside the state that already holds this
-instance's token -- and read it back from there on every start, because an instance that
-changes its key cannot open the secrets it already stored. In a second terminal, in this
-directory:
+instance's token -- and every command run in this directory reads it from there, which is what
+keeps this instance on the key it sealed with: one that changes its key cannot open the secrets
+it already stored. In a second terminal, in this directory:
 
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 uv run dg dev
 ```
 
@@ -122,7 +121,7 @@ uv run dg run dhis2-metadata-to-storage --watch -p level=9
 port of its own, the schema, the connection, the apply, the run -- and asserts on the
 records rather than on anything rendered: that the bytes written are the bytes read, that
 what came back out of storage is what went in, and that the count is the count of what the
-gate passed. It reads the key from that same `.env` line, and writes the schema and the
+gate passed. It keeps the key on that same `.env` line, and writes the schema and the
 connection only when the instance does not already hold them, so its second run inherits the
 state its first run left. It stops the instance it started by pid on the way out.
 
