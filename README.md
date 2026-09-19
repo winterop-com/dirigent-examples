@@ -61,8 +61,9 @@ uv run dg run echo-alert --watch
 uv run dg alerts queue
 ```
 
-At a terminal, `dg connection create` prompts for every secret field the kind declares and the
-command did not set. It asks for `bearer_token`: there is none, so press Enter.
+At a terminal, `dg connection create` asks only for a secret the kind cannot do without, and
+only when the command did not say what it wants. This one carries `--set`, and `bearer_token`
+is optional, so it completes without a prompt and leaves that field unset.
 
 The rule is created after the pipeline because `--pipeline` scopes it to one, and a scope
 naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
@@ -181,8 +182,9 @@ saying the thing is not there, and asking again in two seconds or in two hours c
 it, so the budget is untouched. `note` is **skipped** rather than failed -- it never ran,
 because the step it waits for did not succeed.
 
-Now the instance. The connection is minted first, because the rule names it, and the prompt
-below is the secret field the command did not set:
+Now the instance. The connection is minted first, because the rule names it. Nothing is asked
+for along the way: the command carries `--set`, so only a secret the kind cannot do without
+would stop it, and `bearer_token` is not one:
 
 ```bash
 uv run dg connection create webhook echo-sink \
@@ -192,8 +194,7 @@ uv run dg connection create webhook echo-sink \
 ```
 
 ```text
-bearer_token: 
-2026-09-17T23:26:30.369+02:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="Postman Echo's /post, which answers with whatever was POSTed to it." config={"url":"https://postman-echo.com/post","bearer_token":null,"headers":{},"verify_tls":true,"timeout":"15s"}
+2026-09-19T12:07:51.873+02:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="Postman Echo's /post, which answers with whatever was POSTed to it." config={"url":"https://postman-echo.com/post","bearer_token":null,"headers":{},"verify_tls":true,"timeout":"15s"}
 ```
 
 ```bash
@@ -217,7 +218,7 @@ uv run dg alerts rules create echo-failed \
 ```
 
 ```text
-2026-09-17T23:26:32.574+02:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
+2026-09-19T12:07:54.108+02:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
 ```
 
 `throttle=0s` is the default and it means no throttle: every failed run of `echo-alert` raises
@@ -234,42 +235,41 @@ uv run dg run echo-alert --watch
 ```
 
 ```text
-2026-09-17T23:26:33.680+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0b143-9dca-7556-9094-49b099f8caa1 local=false
-2026-09-17T23:26:33.677+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T23:26:34.029+02:00 [info    ] running                        [step ask] block=http.request attempt=1
-2026-09-17T23:26:34.384+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=349
-2026-09-17T23:26:34.386+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=357
-2026-09-17T23:26:34.551+02:00 [info    ] running                        [step publish] block=http.request attempt=1
-2026-09-17T23:26:35.059+02:00 [info    ] http call                      [log publish] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=503
-2026-09-17T23:26:35.071+02:00 [info    ] failed                         [step publish] block=http.request attempt=1 duration_ms=520
-2026-09-17T23:26:35.071+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
-2026-09-17T23:26:35.071+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
-2026-09-17T23:26:35.535+02:00 [info    ] alert delivered through 'webhook' [log] notifier=webhook event=run_failed
-2026-09-17T23:26:36.120+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0b143-9dca-7556-9094-49b099f8caa1 pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1042 items_total=0 items_failed=0 exit_code=1 priority=normal
-run                                   
-01a0b143-9dca-7556-9094-49b099f8caa1  
+2026-09-19T12:07:55.187+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0b923-052e-74b6-a3c6-001186f6fee8 local=false
+2026-09-19T12:07:55.184+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
+2026-09-19T12:07:55.639+02:00 [info    ] running                        [step ask] block=http.request attempt=1
+2026-09-19T12:07:55.964+02:00 [info    ] http call                      [log ask] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=292
+2026-09-19T12:07:55.970+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=331
+2026-09-19T12:07:56.203+02:00 [info    ] running                        [step publish] block=http.request attempt=1
+2026-09-19T12:07:56.483+02:00 [info    ] http call                      [log publish] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=263
+2026-09-19T12:07:56.485+02:00 [info    ] failed                         [step publish] block=http.request attempt=1 duration_ms=282
+2026-09-19T12:07:56.485+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
+2026-09-19T12:07:56.485+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
+2026-09-19T12:07:56.657+02:00 [info    ] alert delivered through 'webhook' [log] notifier=webhook event=run_failed
+2026-09-19T12:07:57.639+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0b923-052e-74b6-a3c6-001186f6fee8 pipeline_version=1 triggered_by="dev (token dev)" duration_ms=845 items_total=0 items_failed=0 exit_code=1 priority=normal
+run 01a0b923-052e-74b6-a3c6-001186f6fee8
 pipeline      echo-alert (version 1)  
 status        failed                  
 triggered by  dev (token dev)         
-duration      1.0s                    
+duration      0.8s                    
 items         -                       
 
-steps                                                                                             
+steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome   ┃ after   ┃ attempts ┃ duration ┃ error                     ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ http.request │ succeeded │ -       │ 1        │ 0.4s     │ -                         │
-│ publish │ http.request │ failed    │ ask     │ 1        │ 0.5s     │ GET                       │
+│ ask     │ http.request │ succeeded │ -       │ 1        │ 0.3s     │ -                         │
+│ publish │ http.request │ failed    │ ask     │ 1        │ 0.3s     │ GET                       │
 │         │              │           │         │          │          │ https://postman-echo.com… │
 │         │              │           │         │          │          │ answered 404              │
 │ note    │ log.write    │ skipped   │ publish │ 1        │ -        │ -                         │
 └─────────┴──────────────┴───────────┴─────────┴──────────┴──────────┴───────────────────────────┘
 
-outputs                                                                                 
+outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                        ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=349 │
+│ ask  │ status=200  headers={12 keys}  body={3 keys}  body_bytes=273  duration_ms=292 │
 └──────┴───────────────────────────────────────────────────────────────────────────────┘
 
 publish failed  http.request, attempt 1, rejected
@@ -289,11 +289,11 @@ uv run dg alerts queue
 ```
 
 ```text
-notifications                                                                      
+notifications
 ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
 ┃ subject               ┃ notifier ┃ status ┃ tries ┃ sent                ┃ error ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-09-17 23:26:35 │ -     │
+│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-09-19 12:07:56 │ -     │
 └───────────────────────┴──────────┴────────┴───────┴─────────────────────┴───────┘
 ```
 
