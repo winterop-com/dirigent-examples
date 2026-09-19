@@ -195,9 +195,14 @@ jq -se '
 ' "$WORK/orphan.ndjson" > /dev/null
 
 # The instance seals a connection's secret with this key, so the key has to exist before the
-# connection does. It is minted per run here, which is why the connections below are written
-# fresh every time: a row sealed under an earlier run's key cannot be opened with this one's.
-export DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
+# connection does. It is minted once into .env, which is not in the repository and already
+# holds this instance's token: an instance that changes its key cannot open what it sealed
+# under the old one, so the connections this script leaves behind stay readable -- by its next
+# run, and by a reader who starts a dg dev of their own on the same state.
+if ! grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null; then
+  (umask 077; printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env)
+fi
+export DIRIGENT_SECRET_KEY="$(sed -n 's/^DIRIGENT_SECRET_KEY=//p' .env)"
 
 PORT="${DG_PORT:-$(free_port)}"
 export DG_URL="http://127.0.0.1:$PORT"
@@ -232,21 +237,44 @@ done
 
 say "the two DHIS2 connections"
 create_connection() {
-  uv run dg connection delete "$1" --json > /dev/null 2>&1 || true
   uv run dg connection create dhis2 "$1" \
     --name "$2" \
     --set "base_url=$3" \
     --set basic_username=admin \
     --set basic_password=district \
     --json > /dev/null
-  uv run dg connection check "$1" --json > "$WORK/check-$1.ndjson"
+}
+
+# Written when the instance does not hold them, and left alone when it does: the rows are
+# sealed with the key in .env, which is the same key on every run, so there is nothing to
+# rewrite and the state a reader inherits is the state this script asserted on.
+#
+# A row sealed under a key that is gone cannot be opened by this one, and the check names the
+# class in its own record. Nothing recovers that secret, so the connection is written again
+# under the key in hand -- which is what a reader does by hand after losing a key.
+ensure_connection() {
+  if ! uv run dg connection list --json | jq -e --arg code "$1" 'select(.fields.code == $code)' > /dev/null; then
+    create_connection "$@"
+  fi
+
+  uv run dg connection check "$1" --json > "$WORK/check-$1.ndjson" || true
+  if jq -se '
+    map(select(.kind == "connection.checked")) | last
+    | (.detail // "") | startswith("SecretKeyMismatch")
+  ' "$WORK/check-$1.ndjson" > /dev/null; then
+    say "the $1 connection, sealed again under the key in .env"
+    uv run dg connection delete "$1" --json > /dev/null
+    create_connection "$@"
+    uv run dg connection check "$1" --json > "$WORK/check-$1.ndjson"
+  fi
+
   jq -se --arg code "$1" '
     map(select(.kind == "connection.checked")) | last
     | if .healthy then true else error("the \($code) connection is not healthy: \(.detail)") end
   ' "$WORK/check-$1.ndjson" > /dev/null
 }
-create_connection source "DHIS2 play demo, the source" "$SOURCE_URL"
-create_connection target "DHIS2 play demo, the target" "$TARGET_URL"
+ensure_connection source "DHIS2 play demo, the source" "$SOURCE_URL"
+ensure_connection target "DHIS2 play demo, the target" "$TARGET_URL"
 
 # The two instances must be two instances, or the sync is syncing a thing with itself.
 jq -se '
