@@ -184,7 +184,7 @@ uv run dg apply echo-gate-carried.yaml
 ```
 
 ```text
-2026-09-17T23:24:16.907+02:00 [error   ] this document carries its own schemas (echo-answer), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/$apply
+2026-09-17T23:24:16.907+02:00 [error   ] this document carries its own schemas (echo-answer), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas [error] status=422 title="Unprocessable Content" code=server.document_refused params={"detail":"this document carries its own schemas (echo-answer), which an instance will not store: create them with `dg schema create` and let the document name them in requires.schemas"} instance=/api/v1/pipelines/$apply
   - this document carries its own schemas (echo-answer), which an instance will not store: create
 them with `dg schema create` and let the document name them in requires.schemas
 ```
