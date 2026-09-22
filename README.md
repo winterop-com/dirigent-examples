@@ -317,7 +317,7 @@ in.
 `uv run dg run dhis2-metadata-to-storage --watch -p level=9`:
 
 ```text
-2026-09-17T15:09:04.877+02:00 [error   ] parameter level is invalid: 9 is greater than the maximum of 4 [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/dhis2-metadata-to-storage/$run
+2026-09-17T15:09:04.877+02:00 [error   ] parameter level is invalid: 9 is greater than the maximum of 4 [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"level","detail":"9 is greater than the maximum of 4"} instance=/api/v1/pipelines/dhis2-metadata-to-storage/$run
 ```
 
 Nothing ran. A parameter's schema is checked when the run is submitted, not when the call is
