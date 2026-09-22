@@ -32,7 +32,7 @@ is stored, which is what `requires: {storage: [s3]}` in the document is for:
 ```text
 2026-09-17T15:33:48.531+02:00 [error   ] the document does not validate against the installed catalog:
   requires.connections.0: no connection coded 'artifacts' exists on this instance
-  requires.storage.0: no storage backend claims 's3' (file) [error] status=3 title=Refused
+  requires.storage.0: no storage backend claims 's3' (file) [error] status=3 title=Refused code=cli.guard_refused params={"detail":"the document does not validate against the installed catalog:\n  requires.connections.0: no connection coded 'artifacts' exists on this instance\n  requires.storage.0: no storage backend claims 's3' (file)"}
 ```
 
 ### The S3 server
