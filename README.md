@@ -519,7 +519,7 @@ And the write and the container's output, by name:
 `uv run dg run --local pipelines/org-units-to-markdown.yaml ... -p parent=nope`:
 
 ```text
-2026-09-18T22:11:31.014+02:00 [error   ] parameter parent is invalid: 'nope' is not a 'dhis2-uid' [error] status=3 title=Refused
+2026-09-18T22:11:31.014+02:00 [error   ] parameter parent is invalid: 'nope' is not a 'dhis2-uid' [error] status=3 title=Refused code=cli.guard_refused params={"detail":"parameter parent is invalid: 'nope' is not a 'dhis2-uid'"}
 ```
 
 Nothing ran. `format: dhis2-uid` on the parameter is the pack's own format, and a parameter's
