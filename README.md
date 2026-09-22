@@ -275,7 +275,7 @@ step rather than reporting success with bad news inside it.
 `uv run dg run dhis2-read-gate-send --watch -p parent=ImspTQPwCq`:
 
 ```text
-2026-09-17T15:03:23.287+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/dhis2-read-gate-send/$run
+2026-09-17T15:03:23.287+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-read-gate-send/$run
 ```
 
 Ten characters instead of eleven. Nothing ran.
