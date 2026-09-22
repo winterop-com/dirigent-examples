@@ -545,7 +545,7 @@ again in two hours, so no retry budget is spent on it.
 And the parameter refused before anything is contacted:
 
 ```text
-2026-09-17T16:05:42.245+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" instance=/api/v1/pipelines/dhis2-to-dhis2/$run
+2026-09-17T16:05:42.245+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-to-dhis2/$run
 ```
 
 Ten characters instead of eleven. Nothing ran.
