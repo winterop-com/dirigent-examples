@@ -172,7 +172,6 @@ point_sink_at() {
     --name "Echo failures to the sink" \
     --event run_failed \
     --pipeline echo-alert \
-    --notifier webhook \
     --connection echo-sink \
     --template '{{ pipeline.code }} run {{ run.status }}' \
     --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.' \
