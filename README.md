@@ -354,10 +354,9 @@ declares secret -- `bearer_token` here -- is encrypted at rest and comes back re
 every read; this connection has none set, so it reads as null.
 
 `dg alerts queue` is the one place a notifier that has quietly stopped delivering is visible,
-because the thing that would otherwise tell you is the notifier. `dg alerts test webhook
---connection echo-sink` sends one message through the same queue, which is the only way to
-prove an endpoint accepts an alert -- `dg connection check` sends a HEAD and proves only that
-it is reachable.
+because the thing that would otherwise tell you is the notifier. `dg alerts test --connection
+echo-sink` sends one message through the same queue, which is the only way to prove an endpoint
+accepts an alert -- `dg connection check` sends a HEAD and proves only that it is reachable.
 
 ## The document, hop by hop
 
