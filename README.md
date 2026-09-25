@@ -489,7 +489,7 @@ it is addressed by, `title` its name, `description` its body.
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "metadata-snapshot-org-units",
   "title": "Organisation units, as a snapshot keeps them",
-  "description": "An organisationUnits read projected to id, code, name and level, with every identifier held to the pack's own dhis2-uid format and every code to dhis2-code.",
+  "description": "An organisationUnits read projected to id, code, name and level, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so the gate holds its shape without demanding it.",
   "type": "object",
   "required": ["organisationUnits"],
   "properties": {
@@ -498,7 +498,7 @@ it is addressed by, `title` its name, `description` its body.
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "code", "name", "level"],
+        "required": ["id", "name", "level"],
         "properties": {
           "id": { "type": "string", "format": "dhis2-uid" },
           "code": { "type": "string", "format": "dhis2-code" },

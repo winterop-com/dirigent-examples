@@ -128,8 +128,13 @@ export DG_TOKEN
 [ -n "$DG_TOKEN" ]
 
 say "the shape the instance holds"
-# A listing writes one record per row, with the row itself under fields.
-if ! uv run dg schema list --json | jq -e --arg code "$SCHEMA" 'select(.fields.code == $code)' > /dev/null; then
+# A read writes the row under fields, so the stored body is fields.body. There is no
+# `dg schema update`: a schema changes by being deleted and created, so a body that no longer
+# matches the file on disk is replaced rather than left as a gate nobody edited.
+if ! uv run dg schema show "$SCHEMA" --json 2>/dev/null \
+     | jq -se --slurpfile want "schemas/$SCHEMA.json" \
+         'map(select(.kind == "schema")) | last | .fields.body == $want[0]' > /dev/null; then
+  uv run dg schema delete "$SCHEMA" --json > /dev/null 2>&1 || true
   uv run dg schema create "schemas/$SCHEMA.json" --json > /dev/null
 fi
 
