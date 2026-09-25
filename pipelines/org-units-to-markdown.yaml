@@ -8,8 +8,9 @@
 #   read           dhis2.metadata. Its children, projected to the four columns the page is
 #                  about, ordered by name so the table is ordered before a template sees it.
 #   check          validate.schema. The gate. Every id is held to the pack's dhis2-uid
-#                  format and every code to dhis2-code, so a payload that moved stops here
-#                  rather than reaching a reader as a page of plausible nonsense.
+#                  format and every code that is set to dhis2-code, so a payload that
+#                  moved stops here rather than reaching a reader as a page of
+#                  plausible nonsense.
 #   markdown       report.render. The markdown page. Output: text, content_type, text_bytes.
 #   save_markdown  storage.write. The text to a URI. report.render writes nothing itself.
 #   html           report.render. The same two values, a different template. Nothing is read

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "org-units-page",
   "title": "Organisation units, as a page lists them",
-  "description": "An organisationUnits read projected to id, code, name and level: one object per row of the page's table, with every identifier held to the pack's own dhis2-uid format and every code to dhis2-code.",
+  "description": "An organisationUnits read projected to id, code, name and level: one object per row of the page's table, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so a unit without one still makes a row.",
   "type": "object",
   "required": ["organisationUnits"],
   "properties": {
@@ -11,7 +11,7 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["id", "code", "name", "level"],
+        "required": ["id", "name", "level"],
         "properties": {
           "id": { "type": "string", "format": "dhis2-uid" },
           "code": { "type": "string", "format": "dhis2-code" },
