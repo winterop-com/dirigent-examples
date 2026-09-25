@@ -45,17 +45,30 @@ docker run -d --rm --name dirigent-s3 -p 127.0.0.1:9000:9000 \
   -e RUSTFS_ACCESS_KEY=echo-s3-key \
   -e RUSTFS_SECRET_KEY=echo-s3-secret \
   rustfs/rustfs:1.0.0-rc.4
-
-docker run --rm --network container:dirigent-s3 --entrypoint /bin/sh \
-  quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z -ec '
-    mc alias set fs http://127.0.0.1:9000 echo-s3-key echo-s3-secret
-    mc mb --ignore-existing fs/echo-s3'
 ```
 
-`--network container:dirigent-s3` puts the client inside the server's own network namespace, so
-it reaches it at `127.0.0.1:9000` with no published port to find and nothing host-specific about
-the command. The published port on the line above is for `dg` on the host, which is outside that
-namespace.
+```bash
+uv run python - <<'PY'
+import boto3
+from botocore.config import Config
+
+store = boto3.client(
+    "s3",
+    endpoint_url="http://127.0.0.1:9000",
+    aws_access_key_id="echo-s3-key",
+    aws_secret_access_key="echo-s3-secret",
+    config=Config(s3={"addressing_style": "path"}),
+)
+store.create_bucket(Bucket="echo-s3")
+PY
+```
+
+`boto3` is already here, because `dirigent-storage-s3` brings it: the bucket is made with the
+client this project installed rather than with a second image to pull. An instance that already
+has its database and its connection makes this bucket with `dg storage ensure` instead, which is
+what the compose stack's bootstrap container runs -- but the first write here is the local run
+further down, and it has neither. `addressing_style` is the client-side half of the connection's
+`path_style=true`.
 
 ### Without a server
 
@@ -122,11 +135,24 @@ path segment rather than as a subdomain.
 Then ask the object store itself what it holds, and stop the server when you are done:
 
 ```bash
-docker run --rm --network container:dirigent-s3 --entrypoint /bin/sh \
-  quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z -ec '
-    mc alias set fs http://127.0.0.1:9000 echo-s3-key echo-s3-secret
-    mc ls --recursive fs/echo-s3'
+uv run python - <<'PY'
+import boto3
+from botocore.config import Config
 
+store = boto3.client(
+    "s3",
+    endpoint_url="http://127.0.0.1:9000",
+    aws_access_key_id="echo-s3-key",
+    aws_secret_access_key="echo-s3-secret",
+    config=Config(s3={"addressing_style": "path"}),
+)
+for page in store.get_paginator("list_objects_v2").paginate(Bucket="echo-s3"):
+    for obj in page.get("Contents", ()):
+        print(f"{obj['Size']:>6}B  {obj['Key']}")
+PY
+```
+
+```bash
 docker rm -f dirigent-s3
 ```
 
@@ -176,12 +202,11 @@ uv run dg run echo-s3 --watch -p base_url=http://127.0.0.1:8080
 ```
 
 The S3 server is already local and so is the instance, so the read is the only thing that was
-ever leaving the machine. The images are the other half: pull them once while you still have a
+ever leaving the machine. The image is the other half: pull it once while you still have a
 network.
 
 ```bash
 docker pull rustfs/rustfs:1.0.0-rc.4
-docker pull quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
 ```
 
 `./verify.sh` makes every assertion on this page twice, once against each echo, whenever
@@ -328,11 +353,11 @@ document changed between the two runs -- the instance's artifact root did, and `
 followed it. That is what `DIRIGENT_ARTIFACT_ROOT=s3://echo-s3/artifacts` bought: every worker on
 the instance now reads and writes one address, which is what lets there be more than one of them.
 
-And the `mc ls --recursive fs/echo-s3` from the last block of "Run it":
+And the listing from the last block of "Run it":
 
 ```text
-[2026-09-17 21:28:03 UTC]   243B STANDARD artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florida.json
-[2026-09-17 21:28:03 UTC]   243B STANDARD echo/bergen-florida.json
+   243B  artifacts/runs/01a0b144-fb14-7445-bdc4-e3da10bcb27a/echo/bergen-florida.json
+   243B  echo/bergen-florida.json
 ```
 
 The two objects, in the one bucket, the run's own prefix beside the object the document named.

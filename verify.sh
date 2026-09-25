@@ -13,9 +13,8 @@
 # VERIFY_OFFLINE=1 leaves the online leg out, so the whole of this script passes with no
 # network at all -- the S3 server and the instance were always local.
 #
-# Needs docker and two images, both of which the compose stack already uses:
-#   rustfs/rustfs:1.0.0-rc.4                        the S3 server
-#   quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z   the client that makes the bucket
+# Needs docker and one image, which the compose stack already uses:
+#   rustfs/rustfs:1.0.0-rc.4   the S3 server
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -26,7 +25,6 @@ STATION=bergen-florida
 CONNECTION=artifacts
 
 S3_IMAGE="${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4}"
-MC_IMAGE="${DIRIGENT_MC_IMAGE:-quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z}"
 
 # Thrown away with the container. A real bucket's key belongs in a connection the server
 # holds, encrypted under the instance key, and nowhere else.
@@ -78,15 +76,52 @@ trap cleanup EXIT
 
 say() { printf '\n== %s\n' "$1"; }
 
-# mc keeps its alias in its own config, which goes with the container, so every call sets
-# the alias and then does its work. --network container: puts mc inside the S3 server's own
-# network namespace, so it reaches it at 127.0.0.1:9000 with no host networking, no
-# published port and no host.docker.internal -- the same command on Linux and on macOS.
-mc() {
-  docker run --rm --network "container:$S3_NAME" --entrypoint /bin/sh "$MC_IMAGE" -ec "
-    mc --no-color alias set fs http://127.0.0.1:9000 '$ACCESS_KEY' '$SECRET_KEY' > /dev/null
-    mc --no-color $*
-  "
+# The object store itself, over the S3 API: the bucket, and what is in it. boto3 is in this
+# project's environment because dirigent-storage-s3 brings it, so none of this needs a client
+# image. The verb and the key are arguments; the endpoint and the throwaway credentials are
+# the environment. Path addressing, because every S3 implementation but AWS itself addresses a
+# bucket as a path segment rather than as a subdomain.
+store() {
+  S3_VERB="$1" S3_OBJECT="${2:-}" \
+  S3_ENDPOINT="http://127.0.0.1:$S3_PORT" S3_BUCKET="$BUCKET" \
+  S3_ACCESS_KEY="$ACCESS_KEY" S3_SECRET_KEY="$SECRET_KEY" \
+  uv run python - <<'PY'
+import os
+import sys
+
+import boto3
+from botocore.config import Config
+from botocore.exceptions import ClientError
+
+bucket = os.environ["S3_BUCKET"]
+key = os.environ["S3_OBJECT"]
+store = boto3.client(
+    "s3",
+    endpoint_url=os.environ["S3_ENDPOINT"],
+    aws_access_key_id=os.environ["S3_ACCESS_KEY"],
+    aws_secret_access_key=os.environ["S3_SECRET_KEY"],
+    region_name="us-east-1",
+    config=Config(s3={"addressing_style": "path"}),
+)
+verb = os.environ["S3_VERB"]
+
+if verb == "make":
+    # A bucket already owned is the outcome asked for; a name somebody else holds is not.
+    try:
+        store.create_bucket(Bucket=bucket)
+    except ClientError as err:
+        if err.response["Error"]["Code"] != "BucketAlreadyOwnedByYou":
+            raise
+elif verb == "stat":
+    try:
+        store.head_object(Bucket=bucket, Key=key)
+    except ClientError:
+        sys.exit(f"{bucket}/{key} is not in the store")
+elif verb == "list":
+    for page in store.get_paginator("list_objects_v2").paginate(Bucket=bucket):
+        for obj in page.get("Contents", ()):
+            print(f"{obj['Size']:>6}B  {obj['Key']}")
+PY
 }
 
 free_port() {
@@ -161,15 +196,15 @@ done
 [ "$serving" = true ] || { echo "the S3 server on port $S3_PORT never answered" >&2; exit 1; }
 
 say "the bucket"
-# A write does not create a bucket, so it has to exist first. --ignore-existing makes this
-# the same command on the first run and the tenth; the retry covers the moment between the
+# A write does not create a bucket, so it has to exist first. Making one that is already there
+# is the same call on the first run and the tenth; the retry covers the moment between the
 # socket opening and the object store being ready to serve.
 made=false
 for _ in $(seq 1 30); do
-  if mc "mb --ignore-existing fs/$BUCKET" > /dev/null 2>&1; then made=true; break; fi
+  if store make > /dev/null 2>&1; then made=true; break; fi
   sleep 1
 done
-[ "$made" = true ] || { echo "the bucket $BUCKET could not be created:" >&2; mc "mb --ignore-existing fs/$BUCKET"; exit 1; }
+[ "$made" = true ] || { echo "the bucket $BUCKET could not be created:" >&2; store make; exit 1; }
 
 # --- the echoes -----------------------------------------------------------------------------
 #
@@ -359,11 +394,11 @@ for base in "${BASES[@]}"; do
 
   # The records say where the bytes went; this asks the object store itself, which is the
   # other half of the proof.
-  mc "stat fs/$BUCKET/echo/$STATION.json" > /dev/null
-  mc "stat fs/$BUCKET/artifacts/runs/$RUN_ID/echo/$STATION.json" > /dev/null
+  store stat "echo/$STATION.json"
+  store stat "artifacts/runs/$RUN_ID/echo/$STATION.json"
 done
 
 say "what the bucket holds"
-mc "ls --recursive fs/$BUCKET"
+store list
 
 say "ok: $CODE wrote to $BUCKET, read it back, and kept run $RUN_ID's scratch in the same bucket, against $LEGS"
