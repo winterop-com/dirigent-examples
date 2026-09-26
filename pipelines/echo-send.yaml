@@ -5,10 +5,14 @@
 # gate provably received the shape. That is also why send is skipped rather than failed when the
 # gate refuses -- it never ran, because the step it waits for did not succeed.
 #
-# Postman Echo answers a POST with the body it was given, so the send's own answer is the proof of
-# what was sent.
+# The playground answers a POST with the body it was given, under request.body, so the send's own
+# answer is the proof of what was sent.
 #
-#   dg schema create schemas/echo-answer.json
+# NEEDS AN INSTANCE TO CALL. The playground is a request-and-response service every dirigent
+# instance serves itself under /api/v1/playground, unauthenticated, so a document teaching HTTP
+# calls its own instance and nothing on the public internet. `dg dev` is what serves it.
+#
+#   dg schema create schemas/playground-answer.json
 #   dg apply
 #   dg run echo-send --watch
 #   dg run echo-send --watch -p station=          # the gate refuses, and send is skipped
@@ -17,7 +21,7 @@ format: dirigent/v1
 kind: pipeline
 code: echo-send
 name: Echo send
-description: Ask Postman Echo for one station's reading, hold the answer to a shape, and send the validated values back.
+description: Ask the playground for one station's reading, hold the answer to a shape, and send the validated values back.
 
 tags: [http, validate, references]
 
@@ -26,18 +30,17 @@ requires:
     - http.request
     - validate.schema
   schemas:
-    - echo-answer
+    - playground-answer
 
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at another
-    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
-    # against a stand-in on this machine, with no network at all.
-    base_url:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
       type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     station:
       type: string
       default: bergen-florida
@@ -47,7 +50,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: ${params.base_url}/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -57,17 +60,19 @@ steps:
     block: validate.schema
     depends_on: [ask]
     config:
-      input: ${steps.ask.output.body}
-      schema: echo-answer
+      # The envelope's `request` is the part this pipeline is about, so that is what the gate is
+      # given and what every step past it reads.
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer
 
   send:
     block: http.request
     depends_on: [check]
     config:
-      url: ${params.base_url}/post
+      url: ${params.playground}/request
       method: POST
       # Read out of the gate rather than out of the read: every step past a gate provably
-      # received the shape the gate passed. Neither value is written twice in this document.
+      # received the shape. Neither value is written twice in this document.
       body:
         station: ${steps.check.output.value.args.station}
         reading: ${steps.check.output.value.args.reading}

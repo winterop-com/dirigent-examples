@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "echo-answer",
-  "title": "The answer, as Postman Echo gives it",
-  "description": "A /get answer carrying one station and one decimal reading among its query arguments. A query argument is text, so the reading is a string held to the shape of a decimal rather than a number.",
+  "$id": "playground-answer",
+  "title": "The reading, as the playground answers it",
+  "description": "A reflected request carrying one station and one decimal reading among its query arguments. A query argument is text, so the reading is a string held to the shape of a decimal rather than a number.",
   "type": "object",
   "required": ["args", "url"],
   "properties": {
