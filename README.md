@@ -137,8 +137,8 @@ is the first row's id.
 
 ## Where to go next
 
-- [`echo-read`](../echo-read/README.md) is the next step: one `http.request` against Postman
-  Echo, run locally and then against an instance of your own.
+- [`echo-read`](../echo-read/README.md) is the next step: one `http.request` against the
+  playground an instance serves itself, run locally and then against that instance.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example
   is cut from: this document, and then a real read, a schema gate and a send after it.
 - [**The examples**](../README.md): every example in order, and what you need once.
