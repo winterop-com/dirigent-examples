@@ -90,7 +90,7 @@ params:
       description: One page is one request against a 60-per-hour budget; ask for enough.
     webhook_url:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground/request
+      default: http://127.0.0.1:4444/api/v1/playground/request
 
 steps:
   releases:

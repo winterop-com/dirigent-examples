@@ -90,7 +90,7 @@ params:
       description: Raise this until the digest is worth reading.
     webhook_url:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground/request
+      default: http://127.0.0.1:4444/api/v1/playground/request
       description: Where the digest goes; this instance's own playground, so the example posts for real.
 
 steps:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Take this project from a fresh clone to an instance at http://127.0.0.1:3333 holding every
+# Take this project from a fresh clone to an instance at http://127.0.0.1:4444 holding every
 # pipeline, schema and connection, without asking anything.
 #
 #   ./setup.sh          the S3 container, the instance, the connections, the schemas, the apply
@@ -19,7 +19,7 @@ here="$(pwd -P)"
 # shellcheck source=bootstrap.sh
 source ./bootstrap.sh
 
-PORT="${DG_PORT:-3333}"
+PORT="${DG_PORT:-4444}"
 S3_PORT="${S3_PORT:-9000}"
 S3_NAME=everything-s3
 SERVICES=everything-services

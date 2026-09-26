@@ -70,7 +70,7 @@ connections:
   playground-receiver:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       hmac_secret: a shared secret between two dirigent instances
       timeout: 30s
       health_path: /request

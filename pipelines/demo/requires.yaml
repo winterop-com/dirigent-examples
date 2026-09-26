@@ -10,7 +10,7 @@
 # The connection carries the credentials, and the document carries only its name. Create it
 # once on a server:
 #   dg connection create http playground \
-#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set base_url=http://127.0.0.1:4444/api/v1/playground \
 #     --set basic_username=playground --set basic_password=playground
 #
 # Or hand it to a local run, which has no server to hold it:

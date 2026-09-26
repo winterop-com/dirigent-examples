@@ -44,7 +44,7 @@ connections:
   playground:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       basic_username: playground
       basic_password: playground
       hmac_secret: a shared secret between two dirigent instances
@@ -55,7 +55,7 @@ connections:
   playground-auth:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       basic_username: playground
       basic_password: playground
       health_path: /request

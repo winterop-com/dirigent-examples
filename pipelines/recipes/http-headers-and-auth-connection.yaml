@@ -17,7 +17,7 @@
 # On a server the connection is created once and the document says only its code:
 #
 #   dg connection create http playground \
-#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set base_url=http://127.0.0.1:4444/api/v1/playground \
 #     --set basic_username=playground --set basic_password=playground
 #
 # basic_password is a SecretStr: sealed on the way in, encrypted at rest, and redacted in
@@ -74,7 +74,7 @@ connections:
   playground-auth:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       basic_username: playground
       basic_password: playground
       timeout: 30s

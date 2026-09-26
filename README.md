@@ -24,7 +24,7 @@ and the warehouse of `infra/compose.sql.yaml`), with the topic `orders` and the 
 `shop-orders` and `shop-reports`; writes the connections `play`, `source`, `target`,
 `artifacts`, `playground`, `playground-auth`, `orders-topic`, `shop-queue` and `warehouse-read`
 into `.dirigent/state`; creates the buckets `echo-s3` and `dirigent-archive`; starts `dg dev`
-on http://127.0.0.1:3333 in the background; logs in as `dev` / `dirigent-dev` and keeps the
+on http://127.0.0.1:4444 in the background; logs in as `dev` / `dirigent-dev` and keeps the
 token in `.env`; creates the ten schemas; applies everything under `pipelines/` through
 `seed.py`, which creates what a document carries and applies it without; and writes
 echo-alert's rule `echo-failed` with its sink `echo-sink`, the instance's own playground.
@@ -32,6 +32,10 @@ Running it again changes nothing that is already right.
 
 A schedule the walk creates is created paused, as `dg dev --seed` does, except echo-schedule's
 `every-minute`, which is resumed.
+
+The instance is on 4444 rather than dg's default 3333: `port: 4444` in `dirigent.yaml`, the
+local profile, and every playground address in the documents say so. The other examples beside
+this one use 3333, so both can run at once.
 
 To watch the instance's log, start it first in a second terminal and `setup.sh` fills it
 instead of starting its own:
@@ -76,7 +80,7 @@ In this directory `dg` reads the token from `.env`, so a shell still exporting a
 `tutorial/` holds the three documents the echo tutorials step through on the way to theirs,
 which an instance does not take: `echo-gate-too-tight` and `echo-gate-carried` carry their own
 schemas, and `echo-send-before` is an earlier `echo-send`. They run locally, with an instance
-answering the playground on 3333:
+answering the playground on 4444:
 
 ```bash
 uv run dg run --local tutorial/echo-gate-too-tight.yaml    # fails at the gate, by design
@@ -88,8 +92,11 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 190 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at f6a69199.
 A document with a required parameter or a `${run.window}` reference says so in its command.
-`a-stream-to-read` takes `playground` rather than `instance`, the one change from the corpus,
-and needs the dirigent after 0.19: on 0.19 its route answers 404.
+Three changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`;
+`a-stream-to-read` takes `playground` rather than `instance`; and
+`connections-referenced-vs-carried` builds its absolute URL from a `playground` parameter
+rather than spelling out the port, so a run on another instance is a flag. `a-stream-to-read`
+needs the dirigent after 0.19: on 0.19 its route answers 404.
 
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
@@ -404,7 +411,7 @@ and needs the dirigent after 0.19: on 0.19 its route answers 404.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance alone; validates all 211 documents; applies them; runs the 21
+it leaves the demo instance on 4444 alone; validates all 211 documents; applies them; runs the 21
 pipelines beside the shelves and the two playground routes on the shelves with their own assertions and the three tutorial documents locally;
 runs every corpus pipeline through `corpus.py`, six at a time, each judged on its last run
 record against the outcome it is meant to end with; waits for echo-schedule's webhook and its
@@ -413,5 +420,4 @@ clock; and stops what it started. Expect about ten minutes. It does not run:
 | Pipeline | Why |
 | --- | --- |
 | `kobo-submissions-to-csv` | Needs a KoboToolbox account: an `asset_uid` and a token. |
-| `connections-referenced-vs-carried` | A step calls `http://127.0.0.1:3333` by absolute URL, so it is run only when something answers there. |
 | the five above | They are not applied. |

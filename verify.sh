@@ -5,7 +5,7 @@
 #
 # It starts its own S3 container, its own brokers and warehouse, and its own instance, on free
 # ports and on a throwaway state of its own, so it neither needs nor touches the demo instance
-# setup.sh leaves on 3333. Every document is applied, the pipelines beside the shelves are run
+# setup.sh leaves on 4444. Every document is applied, the pipelines beside the shelves are run
 # one by one with their own assertions, corpus.py runs every pipeline on a shelf, the three
 # tutorial documents are run locally, and both of echo-schedule's triggers are waited on.
 # Everything it started is stopped on the way out.
@@ -297,9 +297,7 @@ passed+=(playground-auth)
 
 # --- the dhis2-* pipelines --------------------------------------------------------------------
 say "dhis2-read-gate-send"
-# Bagruwa rather than the default Badjia: the play demo is shared, and on 2026-09-26 somebody
-# added an organisation unit under Badjia with no code, which the gate refuses as it should.
-run dhis2-read-gate-send "$WORK/r.ndjson" -p parent=jPidqyo7cpF
+run dhis2-read-gate-send "$WORK/r.ndjson"
 expect "a gated read and a rehearsed import" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
     and ($step.check.output.value.organisationUnits | length) >= 1

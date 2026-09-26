@@ -6,9 +6,9 @@ the instance and the document is applied without them, and a schedule a first ap
 is created paused. The walk runs twice, so a document that requires a pipeline later in the
 walk finds it the second time.
 
-The corpus's carried connections address the playground at 127.0.0.1:3333. Once the walk is
-done, each of them is rewritten to address DG_URL instead, one config per code: where two
-documents carry the same code, the fields of both are kept.
+The carried connections address the playground at 127.0.0.1:4444, this project's port. Once
+the walk is done, each of them is rewritten to address DG_URL instead, one config per code:
+where two documents carry the same code, the fields of both are kept.
 
 Writes one NDJSON record per line: the walk's own records, each with the pass it came from,
 then one seed.readdressed record per connection rewritten.
@@ -27,7 +27,7 @@ from dirigent_client import Dirigent
 from dirigent_core.documents import is_document, readable
 
 PASSES = 2
-DEFAULT_PLAYGROUND = "http://127.0.0.1:3333/api/v1/playground"
+DEFAULT_PLAYGROUND = "http://127.0.0.1:4444/api/v1/playground"
 
 
 def carried_connections(root: Path) -> dict[str, dict[str, Any]]:

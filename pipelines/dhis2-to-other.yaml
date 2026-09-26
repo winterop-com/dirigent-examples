@@ -27,7 +27,7 @@
 #
 #   uv run dg run --local pipelines/dhis2-to-other.yaml \
 #     --connections connections.yaml --schema schemas/org-unit-sync-source.json
-#   uv run dg run dhis2-to-other --watch -p playground=http://127.0.0.1:3333/api/v1/playground
+#   uv run dg run dhis2-to-other --watch -p playground=http://127.0.0.1:4444/api/v1/playground
 
 format: dirigent/v1
 kind: pipeline
@@ -66,7 +66,7 @@ params:
       description: The uid of the parent whose children are synchronised. Bo district by default, which has fifteen chiefdoms under it.
     playground:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground
+      default: http://127.0.0.1:4444/api/v1/playground
       # The receiving system, standing in for the register next door. `dg dev` serves these
       # routes on this machine, so nothing on the public internet takes the batch.
       description: The playground routes the batch is posted to.

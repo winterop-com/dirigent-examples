@@ -87,7 +87,7 @@ connections:
   playground-carried:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       basic_username: playground
       basic_password: playground
       timeout: 30s
@@ -98,6 +98,10 @@ connections:
 params:
   type: object
   properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:4444/api/v1/playground
+      description: The playground routes the absolute call reaches; `dg dev` serves them here.
     dataset:
       type: string
       description: Sent by all three calls, so the three answers are comparable.
@@ -130,7 +134,7 @@ steps:
     config:
       # No connection at all. Legitimate for an endpoint with no credential and no
       # environment to move between, and nothing more than that.
-      url: http://127.0.0.1:3333/api/v1/playground/request
+      url: ${params.playground}/request
       query:
         dataset: "${params.dataset}"
         via: absolute

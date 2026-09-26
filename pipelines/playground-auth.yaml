@@ -9,7 +9,7 @@
 # carries the pair is the instance's, never this document's:
 #
 #   uv run dg connection create http playground-auth \
-#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set base_url=http://127.0.0.1:4444/api/v1/playground \
 #     --set basic_username=playground --set basic_password=playground \
 #     --set health_path=/request
 #
@@ -55,7 +55,7 @@ params:
   properties:
     playground:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground
+      default: http://127.0.0.1:4444/api/v1/playground
       description: The playground routes the bare call reaches; `dg dev` serves them here.
 
 steps:

@@ -6,7 +6,7 @@ default: local
 
 profiles:
   local:
-    url: http://127.0.0.1:3333
+    url: http://127.0.0.1:4444
     token_env: DG_TOKEN
 
   # staging:

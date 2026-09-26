@@ -61,7 +61,7 @@ params:
   properties:
     playground:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground
+      default: http://127.0.0.1:4444/api/v1/playground
       description: The playground routes on the instance this calls; `dg dev` serves them here.
     day:
       type: string

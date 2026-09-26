@@ -79,7 +79,7 @@ params:
       description: Held to format email.
     endpoint:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground/request
+      default: http://127.0.0.1:4444/api/v1/playground/request
       description: Held to format uri.
     digest:
       type: string

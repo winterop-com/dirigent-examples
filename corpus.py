@@ -24,7 +24,7 @@ from typing import Any
 import yaml
 
 PIPELINES = Path("pipelines")
-DEFAULT_INSTANCE = "http://127.0.0.1:3333"
+DEFAULT_INSTANCE = "http://127.0.0.1:4444"
 #: How many runs are watched at once. An instance gives one user eight streams, and the
 #: consumers hold theirs for as long as they wait.
 PARALLEL = 6
@@ -97,9 +97,6 @@ PRODUCERS = ("report-to-kafka", "kafka-produce-then-consume")
 #: How long the consumers are given to take their first poke.
 CONSUMER_HEAD_START_SECONDS = 20
 
-#: Pipelines with a step that calls the default instance by absolute URL.
-HARDCODED = {"connections-referenced-vs-carried"}
-
 
 def emit(kind: str, **fields: Any) -> None:
     print(json.dumps({"kind": kind, **fields}), flush=True)
@@ -156,24 +153,14 @@ def run(code: str, flags: list[str], expected: str) -> dict[str, Any]:
     return {"kind": "corpus.failed", **fields, "failures": failures[:3]}
 
 
-def answers(url: str) -> bool:
-    try:
-        return subprocess.run(["curl", "-fsS", f"{url}/health"], capture_output=True, check=False).returncode == 0
-    except OSError:
-        return False
-
-
 def main() -> int:
     instance = os.environ.get("DG_URL", DEFAULT_INSTANCE)
     now = datetime.now(UTC).replace(microsecond=0)
     window = f"{(now - timedelta(days=1)).isoformat()}..{now.isoformat()}"
-    default_answers = instance == DEFAULT_INSTANCE or answers(DEFAULT_INSTANCE)
     counts = {"passed": 0, "failed": 0, "skipped": 0}
     planned: list[tuple[str, list[str], str]] = []
     for code, path, raw in documents():
         reason = NOT_APPLIED.get(code) or SKIPPED.get(code)
-        if reason is None and code in HARDCODED and not default_answers:
-            reason = f"a step calls {DEFAULT_INSTANCE} by absolute URL, and nothing answers there"
         flags = flags_for(raw, path.read_text(), instance, window) if reason is None else reason
         if isinstance(flags, str):
             counts["skipped"] += 1

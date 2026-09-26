@@ -66,7 +66,7 @@ connections:
   playground-slow:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       # The default for every call through this connection. Deliberately short, so the
       # override below is doing real work.
       timeout: 3s

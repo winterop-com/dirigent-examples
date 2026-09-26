@@ -36,7 +36,7 @@
 #
 # To change it: -p messages=20 for a longer stream, and -p every=1s to watch it take longer.
 # Watching it arrive rather than reading it whole is a terminal's job:
-#   curl -N 'http://127.0.0.1:3333/api/v1/playground/stream?messages=20&every=500ms'
+#   curl -N 'http://127.0.0.1:4444/api/v1/playground/stream?messages=20&every=500ms'
 
 format: dirigent/v1
 kind: pipeline
@@ -60,7 +60,7 @@ params:
   properties:
     playground:
       type: string
-      default: http://127.0.0.1:3333/api/v1/playground
+      default: http://127.0.0.1:4444/api/v1/playground
       description: The playground routes on the instance this calls; `dg dev` serves them here.
     messages:
       type: integer

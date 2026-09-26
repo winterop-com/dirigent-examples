@@ -77,12 +77,12 @@ requires:
 # Carried, because a --local run has no instance to hold a connection. Against a real
 # instance this is a connection created once, and the document names it by code:
 #   dg connection create http ops-receiver \
-#     --set base_url=http://127.0.0.1:3333/api/v1/playground --set hmac_secret=...
+#     --set base_url=http://127.0.0.1:4444/api/v1/playground --set hmac_secret=...
 connections:
   ops-receiver:
     kind: http
     config:
-      base_url: http://127.0.0.1:3333/api/v1/playground
+      base_url: http://127.0.0.1:4444/api/v1/playground
       # A SecretStr: sealed on the way in, redacted on the way out, and never readable back
       # from the API. This one is a demonstration value and protects nothing.
       hmac_secret: a shared secret between two dirigent instances
