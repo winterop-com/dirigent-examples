@@ -19,7 +19,7 @@
 #
 # A reference walks a value with dots, and an array index is a dot too, so
 # ${steps.check.output.value.organisationUnits.0.id} is the first validated unit's uid --
-# Ngelehun CHC, because the read is ordered by name.
+# Benkeh MCHP, because the read is ordered by name.
 
 format: dirigent/v1
 kind: pipeline
@@ -47,8 +47,8 @@ params:
       # A format the pack contributes. A run submitted with something that is not a DHIS2
       # uid is refused here, before a call is made.
       format: dhis2-uid
-      default: YuQRtpLP10I
-      description: The uid of the parent whose children are read. Badjia chiefdom by default.
+      default: jPidqyo7cpF
+      description: The uid of the parent whose children are read. Bagruwa chiefdom by default.
     period:
       type: string
       format: dhis2-period

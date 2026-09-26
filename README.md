@@ -156,23 +156,23 @@ holds, each step under the last one it waits for.
 `uv run dg run --local ...`:
 
 ```text
-2026-09-17T15:03:03.605+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0af76-a5b1-7772-b22e-6acf1a44d881 local=true scratch=file:///tmp/dirigent-local-90judxtu/artifacts/runs/01a0af76-a5b1-7772-b22e-6acf1a44d881 root=/tmp/dirigent-local-90judxtu
-2026-09-17T15:03:03.601+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:03:03.637+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:03:04.770+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1124
-2026-09-17T15:03:04.771+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1134
-2026-09-17T15:03:04.784+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=4
-2026-09-17T15:03:04.784+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
-2026-09-17T15:03:04.786+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=175
-2026-09-17T15:03:05.410+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
-2026-09-17T15:03:05.411+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=627
-2026-09-17T15:03:05.527+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0af76-a5b1-7772-b22e-6acf1a44d881 exit_code=0
+2026-09-26T15:05:42.542+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f local=true scratch=file:///tmp/dirigent-local-wfem4yaq/artifacts/runs/01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f root=/tmp/dirigent-local-wfem4yaq
+2026-09-26T15:05:42.537+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-09-26T15:05:42.579+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-09-26T15:05:43.774+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1182
+2026-09-26T15:05:43.776+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1197
+2026-09-26T15:05:43.788+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
+2026-09-26T15:05:43.791+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=469
+2026-09-26T15:05:43.840+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
+2026-09-26T15:05:44.469+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
+2026-09-26T15:05:44.471+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=631
+2026-09-26T15:05:44.545+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f exit_code=0
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ block                       ┃ outcome   ┃ after ┃ duration ┃ output                      ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ dhis2.metadata              │ succeeded │ -     │ 1.1s     │ body={1 keys}               │
-│       │                             │           │       │          │ duration_ms=1124            │
+│ read  │ dhis2.metadata              │ succeeded │ -     │ 1.2s     │ body={1 keys}               │
+│       │                             │           │       │          │ duration_ms=1182            │
 │ check │ validate.schema             │ succeeded │ read  │ 0.0s     │ value={1 keys}              │
 │ send  │ dhis2.data_value_set_import │ succeeded │ check │ 0.6s     │ status=SUCCESS  imported=0  │
 │       │                             │           │       │          │ updated=2  ignored=0        │
@@ -214,39 +214,38 @@ create dhis2-read-gate-send  version 1 (/home/you/dhis2-read-gate-send/pipelines
 `uv run dg run dhis2-read-gate-send --watch`:
 
 ```text
-2026-09-17T15:03:16.902+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0af76-d9a2-70fc-80ba-21f822a9294b local=false
-2026-09-17T15:03:16.900+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:03:17.165+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:03:16.900+02:00 [info    ] queued                         [step check] block=validate.schema attempt=1
-2026-09-17T15:03:17.797+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=624
-2026-09-17T15:03:17.799+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=634
-2026-09-17T15:03:18.183+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T15:03:18.186+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=175
-2026-09-17T15:03:18.685+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
-2026-09-17T15:03:19.358+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
-2026-09-17T15:03:19.359+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=674
-2026-09-17T15:03:21.039+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0af76-d9a2-70fc-80ba-21f822a9294b pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=2195 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0af76-d9a2-70fc-80ba-21f822a9294b
+2026-09-26T15:06:39.861+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec local=false
+2026-09-26T15:06:39.859+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-09-26T15:06:40.100+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-09-26T15:06:41.160+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1042
+2026-09-26T15:06:41.164+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1065
+2026-09-26T15:06:41.669+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
+2026-09-26T15:06:41.674+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=469
+2026-09-26T15:06:42.172+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
+2026-09-26T15:06:43.282+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
+2026-09-26T15:06:43.285+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=1113
+2026-09-26T15:06:43.989+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=3185 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a0ddd3-2e71-75d5-9632-1cb6d40056ec
 pipeline      dhis2-read-gate-send (version 1)
 status        succeeded
 triggered by  dev (token cli-dev)
-duration      2.2s
+duration      3.2s
 items         -
 
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block                       ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ read  │ dhis2.metadata              │ succeeded │ -     │ 1        │ 0.6s     │ -     │
+│ read  │ dhis2.metadata              │ succeeded │ -     │ 1        │ 1.1s     │ -     │
 │ check │ validate.schema             │ succeeded │ read  │ 1        │ 0.0s     │ -     │
-│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 1        │ 0.7s     │ -     │
+│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 1        │ 1.1s     │ -     │
 └───────┴─────────────────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ output                                                      ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ body={1 keys}  duration_ms=624                              │
+│ read  │ body={1 keys}  duration_ms=1042                             │
 │ check │ value={1 keys}                                              │
 │ send  │ status=SUCCESS  imported=0  updated=2  ignored=0  deleted=0 │
 └───────┴─────────────────────────────────────────────────────────────┘
@@ -327,8 +326,8 @@ params:
     parent:
       type: string
       format: dhis2-uid
-      default: YuQRtpLP10I
-      description: The uid of the parent whose children are read. Badjia chiefdom by default.
+      default: jPidqyo7cpF
+      description: The uid of the parent whose children are read. Bagruwa chiefdom by default.
     period:
       type: string
       format: dhis2-period
@@ -382,7 +381,7 @@ out the order from them.
 
 **Hop three, `send`.** The write, rehearsed. A reference walks a value with dots, and an
 array index is a dot too, so `${steps.check.output.value.organisationUnits.0.id}` is the
-first validated unit's uid -- Ngelehun CHC, because the read is ordered by name. It reads out
+first validated unit's uid -- Benkeh MCHP, because the read is ordered by name. It reads out
 of the gate rather than out of the read, so the write goes where the validated answer says
 and nowhere else.
 
