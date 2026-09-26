@@ -265,6 +265,12 @@ curl -fsS "$DG_URL/health" > /dev/null
 if [ -z "${DG_TOKEN:-}" ] && [ -f .env ]; then
   DG_TOKEN="$(sed -n 's/^DG_TOKEN=//p' .env | head -1)"
 fi
+# A token in .env may name an instance that no longer exists: wipe the state and the row it
+# was minted against is gone, while the line in .env stays. So it is tried before it is
+# trusted, and a rejected one is replaced the same way a missing one is.
+if [ -n "${DG_TOKEN:-}" ] && ! DG_TOKEN="$DG_TOKEN" uv run dg system info --json > /dev/null 2>&1; then
+  DG_TOKEN=""
+fi
 if [ -z "${DG_TOKEN:-}" ]; then
   DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
     | jq -r 'select(.kind == "token.issued") | .token')"
