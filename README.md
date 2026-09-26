@@ -9,6 +9,14 @@ absent from the step's output, not null**, so a join that counts rows is countin
 This example makes the run settle `completed_with_errors` on purpose, and then names the
 station that never answered.
 
+## This one needs no network
+
+The read is a node, not a call. `playground.generate` takes an `input` and hands it back, and
+its `fail_until` knob makes a step fail on cue -- so the station that is down is a number on an
+element rather than an endpoint somewhere that has to be answering. The document reaches
+nothing: no connection, no URL, no network, no file. Replacing `ask` with an `http.request`
+whose answer the join reads changes that one step and nothing under it.
+
 ## Run it
 
 Everything here runs without a server. `dg run --local` applies and runs the document in a
@@ -23,38 +31,6 @@ uv run dg run --local pipelines/echo-fanout.yaml
 
 `./verify.sh` does exactly that and asserts on the records it gets back.
 
-## Offline
-
-Postman Echo is the one thing here that needs the network, and `local-echo` beside this
-repository is the same service in one file of Python. Start it in another terminal:
-
-```bash
-python3 ../local-echo/echo_server.py
-```
-
-It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
-points at it:
-
-```bash
-uv run dg run --local pipelines/echo-fanout.yaml -p base_url=http://127.0.0.1:8080
-```
-
-```text
-2026-09-17T15:36:06.312+02:00 [info    ] http call                      [log ask[0]] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=28
-2026-09-17T15:36:06.325+02:00 [info    ] http call                      [log ask[2]] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=3
-2026-09-17T15:36:06.318+02:00 [info    ] http call                      [log ask[1]] method=GET url=http://127.0.0.1:8080/status/500 status=500 bytes=15 duration_ms=3
-```
-
-Three calls, three URLs, and that is the whole of the difference: the two stations still
-answer at `/get`, `oslo-blindern` is still answered 500 at `/status/500`, the item still
-fails on its own, and the run still settles `completed_with_errors` with the same summary
-under `report`.
-
-`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
-`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
-leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
-`UV_OFFLINE=1` that keeps `uv` off the network too.
-
 ## What you see
 
 *Printed as it printed, with this project's directory written as `/home/you/echo-fanout` and a
@@ -65,11 +41,11 @@ uv run dg validate pipelines/echo-fanout.yaml
 ```
 
 ```text
-2026-09-17T15:09:25.007+02:00 [info    ] valid                          [validation] code=echo-fanout document=pipelines/echo-fanout.yaml checked="document, offline"
+2026-09-26T12:45:48.060+02:00 [info    ] valid                          [validation] code=echo-fanout document=pipelines/echo-fanout.yaml checked="document, offline"
   each step under the last one it waits for
-    ask  (http.request)
+    ask  (playground.generate)
       report  (transform.jq)
-2026-09-17T15:09:25.011+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:45:48.064+02:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
 
 ```bash
@@ -77,44 +53,52 @@ uv run dg run --local pipelines/echo-fanout.yaml
 ```
 
 ```text
-2026-09-17T15:09:26.394+02:00 [info    ] started                        [run] pipeline=echo-fanout run_id=01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 local=true scratch=file:///tmp/dirigent-local-i6adr05u/artifacts/runs/01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 root=/tmp/dirigent-local-i6adr05u
-2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[0]] block=http.request attempt=1
-2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[1]] block=http.request attempt=1
-2026-09-17T15:09:26.333+02:00 [info    ] queued                         [step ask[2]] block=http.request attempt=1
-2026-09-17T15:09:26.426+02:00 [info    ] running                        [step ask[0]] block=http.request attempt=1
-2026-09-17T15:09:26.465+02:00 [info    ] running                        [step ask[1]] block=http.request attempt=1
-2026-09-17T15:09:26.470+02:00 [info    ] running                        [step ask[2]] block=http.request attempt=1
-2026-09-17T15:09:26.682+02:00 [info    ] http call                      [log ask[2]] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=207
-2026-09-17T15:09:26.683+02:00 [info    ] succeeded                      [step ask[2]] block=http.request attempt=1 duration_ms=213
-2026-09-17T15:09:26.689+02:00 [info    ] http call                      [log ask[0]] method=GET url=https://postman-echo.com/get status=200 bytes=273 duration_ms=252
-2026-09-17T15:09:26.690+02:00 [info    ] succeeded                      [step ask[0]] block=http.request attempt=1 duration_ms=264
-2026-09-17T15:09:26.695+02:00 [info    ] http call                      [log ask[1]] method=GET url=https://postman-echo.com/status/500 status=500 bytes=14 duration_ms=226
-2026-09-17T15:09:26.698+02:00 [info    ] failed                         [step ask[1]] block=http.request attempt=1 duration_ms=233
-2026-09-17T15:09:26.777+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=30
-2026-09-17T15:09:26.779+02:00 [info    ] finished                       [log report] duration_ms=25 output_bytes=109
-2026-09-17T15:09:26.825+02:00 [error   ] completed_with_errors          [run] pipeline=echo-fanout run_id=01a0af7c-7cbe-73c6-9a48-7f41c9343cb9 exit_code=0
-steps                                                                                             
-┏━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step   ┃ block        ┃ outcome   ┃ after ┃ duration ┃ output                                  ┃
-┡━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask[0] │ http.request │ succeeded │ -     │ 0.3s     │ status=200  headers={12 keys}  body={3  │
-│        │              │           │       │          │ keys}  body_bytes=273  duration_ms=252  │
-│ ask[1] │ http.request │ failed    │ -     │ 0.2s     │ -                                       │
-│ ask[2] │ http.request │ succeeded │ -     │ 0.2s     │ status=200  headers={12 keys}  body={3  │
-│        │              │           │       │          │ keys}  body_bytes=273  duration_ms=207  │
-│ report │ transform.jq │ succeeded │ ask   │ 0.0s     │ value={4 keys}                          │
-└────────┴──────────────┴───────────┴───────┴──────────┴─────────────────────────────────────────┘
+2026-09-26T12:45:49.392+02:00 [info    ] started                        [run] pipeline=echo-fanout run_id=01a0dd52-3cc8-7555-a4a3-7d581d8846ae local=true scratch=file:///tmp/dirigent-local-gt5qblom/artifacts/runs/01a0dd52-3cc8-7555-a4a3-7d581d8846ae root=/tmp/dirigent-local-gt5qblom
+2026-09-26T12:45:49.383+02:00 [info    ] queued                         [step ask[0]] block=playground.generate attempt=1
+2026-09-26T12:45:49.383+02:00 [info    ] queued                         [step ask[1]] block=playground.generate attempt=1
+2026-09-26T12:45:49.383+02:00 [info    ] queued                         [step ask[2]] block=playground.generate attempt=1
+2026-09-26T12:45:49.457+02:00 [info    ] playground generated           [log ask[0]] rows=1 seed=852630996 locale=en_US drift=none
+2026-09-26T12:45:49.457+02:00 [info    ] succeeded                      [step ask[0]] block=playground.generate attempt=1 duration_ms=34
+2026-09-26T12:45:49.461+02:00 [info    ] failed                         [step ask[1]] block=playground.generate attempt=1 duration_ms=4
+2026-09-26T12:45:49.461+02:00 [info    ] queued                         [step report] block=transform.jq attempt=1
+2026-09-26T12:45:49.471+02:00 [info    ] playground generated           [log ask[2]] rows=1 seed=491364487 locale=en_US drift=none
+2026-09-26T12:45:49.471+02:00 [info    ] succeeded                      [step ask[2]] block=playground.generate attempt=1 duration_ms=10
+2026-09-26T12:45:49.486+02:00 [error   ] failed                         [log ask[1]] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 1 on purpose, because fail_until is 1; attempt 2 will succeed"
+2026-09-26T12:45:49.551+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=28
+2026-09-26T12:45:49.553+02:00 [info    ] finished                       [log report] duration_ms=25 output_bytes=109
+2026-09-26T12:45:49.659+02:00 [error   ] completed_with_errors          [run] pipeline=echo-fanout run_id=01a0dd52-3cc8-7555-a4a3-7d581d8846ae exit_code=0
+steps
+┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step           ┃ block               ┃ outcome   ┃ after ┃ duration ┃ output                     ┃
+┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ask[0]         │ playground.generate │ succeeded │ -     │ 0.0s     │ records=[1 items]  rows=1  │
+│                │                     │           │       │          │ seed=852630996             │
+│                │                     │           │       │          │ locale=en_US  fields={3    │
+│                │                     │           │       │          │ keys}  drift=none          │
+│                │                     │           │       │          │ delay_ms=0  attempt=1      │
+│                │                     │           │       │          │ fail_until=0  input_rows=1 │
+│ ask[1]  1 warn │ playground.generate │ failed    │ -     │ 0.0s     │ -                          │
+│ ask[2]         │ playground.generate │ succeeded │ -     │ 0.0s     │ records=[1 items]  rows=1  │
+│                │                     │           │       │          │ seed=491364487             │
+│                │                     │           │       │          │ locale=en_US  fields={3    │
+│                │                     │           │       │          │ keys}  drift=none          │
+│                │                     │           │       │          │ delay_ms=0  attempt=1      │
+│                │                     │           │       │          │ fail_until=0  input_rows=1 │
+│ report         │ transform.jq        │ succeeded │ ask   │ 0.0s     │ value={4 keys}             │
+└────────────────┴─────────────────────┴───────────┴───────┴──────────┴────────────────────────────┘
 
-ask failed  http.request, attempt 1, transient
-  GET https://postman-echo.com/status/500 answered 500
+ask failed  playground.generate, attempt 1, transient
+  the playground failed attempt 1 on purpose, because fail_until is 1; attempt 2 will succeed
   last log lines:
-    info: http call
+    error: failed
 warning the run completed with errors; --strict would fail on this
 ```
 
 `ask` is one step in the document and three rows here, one per item, with the item's index in
-the name. Two of them went out at once; the third was answered 500 and is the only red row.
-The step below them still ran, because under `continue` the step counts as succeeded.
+the name. Two of them generated their reading; the third had `fail_until: 1` on its element and
+is the only red row. The step below them still ran, because under `continue` the step counts as
+succeeded. The failure is classified `transient`, which is what a retry budget is for -- there
+is none on this step, so one attempt is all it gets.
 
 `completed_with_errors` is a status of its own rather than a shade of `failed`, and `dg` exits
 0 on it with a warning -- `--strict` is what turns that warning into a failure in CI.
@@ -150,10 +134,15 @@ both lists buys.
 having on a document that ends red on purpose:
 
 ```yaml
-# One read per station, and a station that is down does not take the others with it.
+# One reading per station, and a station that is down does not take the others with it.
 #
-# In:  a list of stations, each with the reading it reports and the endpoint it answers at.
+# In:  a list of stations, each with the reading it reports and how many of its attempts fail.
 # Out: one summary naming the stations that answered and the one that did not.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, and
+# `fail_until` makes it fail on cue -- so this document reaches nothing: no connection, no
+# URL, no network. Replacing `ask` with an http.request whose answer the join reads changes
+# that one step and nothing under it.
 #
 # for_each maps one step over a list, with one run item per element. The grid is expanded
 # when the run is created, so it may read params, run and item -- never another step's
@@ -170,21 +159,6 @@ having on a document that ends red on purpose:
 # the first station that answered rather than the first one asked, and a join that counts
 # rows is counting survivors. That is why the join below is handed the grid as well as the
 # answers, and computes the difference instead of assuming three.
-#
-# Hop by hop:
-#
-#   ask      one http.request per station. Two are asked at /get, which answers with the
-#            query arguments it was given; oslo-blindern is asked at /status/500, standing
-#            in for a station whose service is down.
-#   report   the join. It has no for_each of its own, which is the entire mechanism: one
-#            attempt, and the batch arrives as a JSON array of the items' outputs.
-#
-# EXPECT THIS RUN TO END completed_with_errors, with two succeeded items, one failed item,
-# a succeeded step, and oslo-blindern named under missing.
-#
-#   uv run dg run --local pipelines/echo-fanout.yaml
-#   uv run dg run --local pipelines/echo-fanout.yaml \
-#     -p stations='[{"station":"bergen-florida","reading":"12.4","endpoint":"get"}]'
 ```
 
 Then the lines every document opens with, the tags a reader filters by, and what this one
@@ -195,61 +169,55 @@ rather than failing halfway through a run:
 format: dirigent/v1
 kind: pipeline
 code: echo-fanout
-name: One read per station
+name: One reading per station
 description: |
-  A fan-out over a list of stations, one HTTP read each, tolerating the station whose
-  service is down.
+  A fan-out over a list of stations, one generated reading each, tolerating the station
+  whose service is down.
 
   A failed item is absent from the step's output, so the join is computed from what
   answered rather than from the width that was asked for.
 
-tags: [graph, http, transform, fan-out]
+tags: [graph, playground, transform, fan-out]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 ```
 
 The grid is a parameter, so the same document runs against one station or sixteen without
 being edited. Each element is an object rather than a string, because one station carries
-three facts: what it is called, what it reports, and where it answers. `base_url` above it is
-the same mechanism doing a structural job: every URL here is built on it, so one flag moves
-the whole run to another echo without touching a line of the document:
+three facts: what it is called, what it reports, and whether it is answering:
 
 ```yaml
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at
-    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
-    # runs it against a stand-in on this machine, with no network at all.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
     stations:
       type: array
-      description: One item, one read, per element.
+      description: One item, one reading, per element.
       minItems: 1
       maxItems: 16
       default:
-        - { station: bergen-florida, reading: "12.4", endpoint: get }
-        # Postman Echo answers /status/500 with that status and nothing else, which is how
-        # one element of this grid fails without anything else in the document changing.
-        - { station: oslo-blindern, reading: "3.1", endpoint: status/500 }
-        - { station: tromso-langnes, reading: "-6.8", endpoint: get }
+        - { station: bergen-florida, reading: "12.4", fail_until: 0 }
+        # fail_until above this item's attempt count is how one element of the grid fails
+        # without anything else in the document changing. There is no retry policy here,
+        # so 1 is enough.
+        - { station: oslo-blindern, reading: "3.1", fail_until: 1 }
+        - { station: tromso-langnes, reading: "-6.8", fail_until: 0 }
       items:
         type: object
-        required: [station, reading, endpoint]
+        required: [station, reading, fail_until]
         properties:
           station:
             type: string
             minLength: 1
           reading:
             type: string
-          endpoint:
-            type: string
+          fail_until:
+            type: integer
+            minimum: 0
+            maximum: 9
         additionalProperties: false
 ```
 
@@ -260,15 +228,16 @@ three run items, each with its own attempt, its own error and its own retry budg
 ```yaml
 steps:
   ask:
-    block: http.request
+    block: playground.generate
     # ${item} is the element itself, so an element that is an object is reached into with a
     # dot the same way a step's output is.
     for_each: ${params.stations}
     items: continue
     config:
-      url: ${params.base_url}/${item.endpoint}
-      method: GET
-      query:
+      fail_until: ${item.fail_until}
+      # No fields: are named, so the input travels through untouched and becomes this item's
+      # one record.
+      input:
         station: ${item.station}
         reading: ${item.reading}
 ```
@@ -288,7 +257,7 @@ of the items' outputs -- the ones that succeeded:
         answered: ${steps.ask.output}
       program: |
         (.asked | map(.station)) as $asked
-        | [.answered[].body.args.station] as $answered
+        | [.answered[].records[].station] as $answered
         | {asked: ($asked | length),
            answered: ($answered | length),
            stations: $answered,
@@ -302,7 +271,7 @@ it both ways: that pair is the decision this document is really about.
 ## Where to go next
 
 - [`echo-transform`](../echo-transform/README.md) is what comes next: the three jq verbs, and
-  what each one is allowed to do to a list on its way between a read and a send.
+  what each one is allowed to do to a list on its way past.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples follow: one read, a schema gate on the answer, and a send built from the value
   that passed.

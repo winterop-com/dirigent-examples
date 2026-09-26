@@ -1,7 +1,12 @@
-# One read per station, and a station that is down does not take the others with it.
+# One reading per station, and a station that is down does not take the others with it.
 #
-# In:  a list of stations, each with the reading it reports and the endpoint it answers at.
+# In:  a list of stations, each with the reading it reports and how many of its attempts fail.
 # Out: one summary naming the stations that answered and the one that did not.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, and
+# `fail_until` makes it fail on cue -- so this document reaches nothing: no connection, no
+# URL, no network. Replacing `ask` with an http.request whose answer the join reads changes
+# that one step and nothing under it.
 #
 # for_each maps one step over a list, with one run item per element. The grid is expanded
 # when the run is created, so it may read params, run and item -- never another step's
@@ -21,9 +26,10 @@
 #
 # Hop by hop:
 #
-#   ask      one http.request per station. Two are asked at /get, which answers with the
-#            query arguments it was given; oslo-blindern is asked at /status/500, standing
-#            in for a station whose service is down.
+#   ask      one playground.generate per station, carrying that station's own reading.
+#            fail_until is read off the element, so oslo-blindern fails its one attempt and
+#            the other two do not -- which station is down is visible in the list rather
+#            than hidden in a branch.
 #   report   the join. It has no for_each of its own, which is the entire mechanism: one
 #            attempt, and the batch arrives as a JSON array of the items' outputs.
 #
@@ -32,71 +38,68 @@
 #
 #   uv run dg run --local pipelines/echo-fanout.yaml
 #   uv run dg run --local pipelines/echo-fanout.yaml \
-#     -p stations='[{"station":"bergen-florida","reading":"12.4","endpoint":"get"}]'
+#     -p stations='[{"station":"bergen-florida","reading":"12.4","fail_until":0}]'
 
 format: dirigent/v1
 kind: pipeline
 code: echo-fanout
-name: One read per station
+name: One reading per station
 description: |
-  A fan-out over a list of stations, one HTTP read each, tolerating the station whose
-  service is down.
+  A fan-out over a list of stations, one generated reading each, tolerating the station
+  whose service is down.
 
   A failed item is absent from the step's output, so the join is computed from what
   answered rather than from the width that was asked for.
 
-tags: [graph, http, transform, fan-out]
+tags: [graph, playground, transform, fan-out]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at
-    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
-    # runs it against a stand-in on this machine, with no network at all.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
     stations:
       type: array
-      description: One item, one read, per element.
+      description: One item, one reading, per element.
       minItems: 1
       maxItems: 16
       default:
-        - { station: bergen-florida, reading: "12.4", endpoint: get }
-        # Postman Echo answers /status/500 with that status and nothing else, which is how
-        # one element of this grid fails without anything else in the document changing.
-        - { station: oslo-blindern, reading: "3.1", endpoint: status/500 }
-        - { station: tromso-langnes, reading: "-6.8", endpoint: get }
+        - { station: bergen-florida, reading: "12.4", fail_until: 0 }
+        # fail_until above this item's attempt count is how one element of the grid fails
+        # without anything else in the document changing. There is no retry policy here,
+        # so 1 is enough.
+        - { station: oslo-blindern, reading: "3.1", fail_until: 1 }
+        - { station: tromso-langnes, reading: "-6.8", fail_until: 0 }
       items:
         type: object
-        required: [station, reading, endpoint]
+        required: [station, reading, fail_until]
         properties:
           station:
             type: string
             minLength: 1
           reading:
             type: string
-          endpoint:
-            type: string
+          fail_until:
+            type: integer
+            minimum: 0
+            maximum: 9
         additionalProperties: false
 
 steps:
   ask:
-    block: http.request
+    block: playground.generate
     # ${item} is the element itself, so an element that is an object is reached into with a
     # dot the same way a step's output is.
     for_each: ${params.stations}
     items: continue
     config:
-      url: ${params.base_url}/${item.endpoint}
-      method: GET
-      query:
+      fail_until: ${item.fail_until}
+      # No fields: are named, so the input travels through untouched and becomes this item's
+      # one record.
+      input:
         station: ${item.station}
         reading: ${item.reading}
 
@@ -110,7 +113,7 @@ steps:
         answered: ${steps.ask.output}
       program: |
         (.asked | map(.station)) as $asked
-        | [.answered[].body.args.station] as $answered
+        | [.answered[].records[].station] as $answered
         | {asked: ($asked | length),
            answered: ($answered | length),
            stations: $answered,
