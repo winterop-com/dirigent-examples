@@ -31,7 +31,9 @@ echo-alert's rule `echo-failed` with its sink `echo-sink`, the instance's own pl
 Running it again changes nothing that is already right.
 
 A schedule the walk creates is created paused, as `dg dev --seed` does, except echo-schedule's
-`every-minute`, which is resumed.
+`every-minute`, which is resumed. So is a watch, and both of the corpus's stay paused, so the
+demo does not keep arming runs on its own: `uv run dg watch resume watch-a-sensor follow` sets
+one going and `uv run dg watch pause watch-a-sensor follow` stops it again.
 
 The instance is on 4444 rather than dg's default 3333: `port: 4444` in `dirigent.yaml`, the
 local profile, and every playground address in the documents say so. The other examples beside
@@ -90,7 +92,7 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-190 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at v0.20.0.
+192 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at v0.21.0.
 A document with a required parameter or a `${run.window}` reference says so in its command.
 Three changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`;
 `a-stream-to-read` takes `playground` rather than `instance`; and
@@ -262,6 +264,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
 | [`kafka-consume-then-transform`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-consume-then-transform.yaml) | Wait for messages on a Kafka topic and reshape the batch the sensor handed on. | `uv run dg run kafka-consume-then-transform --watch` |
+| [`kafka-watch-then-transform`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-watch-then-transform.yaml) | A watch on `kafka.consume`: the topic read run after run from where the last batch ended, with no consumer group. | `uv run dg watch resume kafka-watch-then-transform follow`, or once: `uv run dg run kafka-watch-then-transform --watch` |
 | [`kafka-produce-then-consume`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/kafka-produce-then-consume.yaml) | Publish records to a Kafka topic and read the same batch back off it. | `uv run dg run kafka-produce-then-consume --watch` |
 | [`rabbitmq-consume-ack-on-success`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/rabbitmq-consume-ack-on-success.yaml) | Wait for messages on a RabbitMQ queue and reshape the batch, handing a short batch back to the queue. | `uv run dg run rabbitmq-consume-ack-on-success --watch` |
 | [`report-to-kafka`](https://github.com/winterop-com/dirigent/tree/main/examples/queues/report-to-kafka.yaml) | Render a markdown page from a Jinja template and publish it as one record on a Kafka topic. | `uv run dg run report-to-kafka --watch` |
@@ -381,6 +384,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | [`document-nightly`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/document-nightly.yaml) | Schedules and a webhook for a pipeline another document defines. | a triggers document for `managed-and-manual` |
 | [`interval-rolling`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/interval-rolling.yaml) | A pipeline on a rolling hourly interval, refreshing a window rather than hitting a calendar moment. | `uv run dg run interval-rolling --watch` |
 | [`managed-and-manual`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/managed-and-manual.yaml) | Two document-managed schedules and a webhook, and what an apply leaves untouched. | `uv run dg run managed-and-manual --watch` |
+| [`watch-a-sensor`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/watch-a-sensor.yaml) | A watch keeps one run waiting on `playground.arrive` and arms the next the moment a batch arrives, so the runs overlap and the offsets carry on. | `uv run dg watch resume watch-a-sensor follow`, or once: `uv run dg run watch-a-sensor --watch` |
 | [`webhook-trigger`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/webhook-trigger.yaml) | One pipeline started by an inbound webhook that maps a payload onto its parameters. | `uv run dg run webhook-trigger --watch` |
 
 ### validate
@@ -409,7 +413,8 @@ rather than spelling out the port, so a run on another instance is a flag.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance on 4444 alone; validates all 211 documents; applies them; runs the
+it leaves the demo instance on 4444 alone; validates all 213 documents; applies them, and checks
+the corpus's two watches landed paused; runs the
 21 pipelines beside the shelves and the two playground routes on the shelves with their own
 assertions, and the three tutorial documents locally;
 runs every corpus pipeline through `corpus.py`, six at a time and the docker and git shelves

@@ -69,8 +69,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 211 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 211 and all(.invalid == 0)'
+expect "all 213 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 213 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -128,8 +128,14 @@ expect "only the four documents without what they need refused" "$WORK/seed.ndjs
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 206 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 206'
+expect "all 208 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 208'
+# The walk creates a watch paused, as it does a schedule, so nothing arms runs on its own.
+for watched in watch-a-sensor kafka-watch-then-transform; do
+  uv run dg watch show "$watched" follow --json > "$WORK/watch.ndjson"
+  expect "$watched's watch created paused, with nothing waiting" "$WORK/watch.ndjson" \
+    'map(select(.kind == "watch")) | last | .fields | .paused and .waiting_run_id == null'
+done
 
 # The clock started with the apply; its first firing is looked for once everything else has run.
 newest_scheduled() {
@@ -409,7 +415,7 @@ expect "the clock's run to be pinned to oslo-blindern" "$WORK/show.ndjson" '
 passed+=(echo-schedule)
 
 echo
-echo "everything: 206 pipelines applied; the corpus $corpus"
+echo "everything: 208 pipelines applied; the corpus $corpus"
 echo "verified ${#passed[@]} one by one: the 21 beside the shelves, two playground routes on them, and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

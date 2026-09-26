@@ -86,9 +86,10 @@ SKIPPED: dict[str, str] = {
     "kobo-submissions-to-csv": "needs a KoboToolbox account: an asset_uid and a token",
 }
 
-#: Started first: it reads the topic from the latest offset, so it has to be waiting before
+#: Started first: they wait on the topic the producers write to, and
+#: kafka-consume-then-transform reads it from the latest offset, so it has to be waiting before
 #: anything is produced.
-CONSUMERS = ("kafka-consume-then-transform",)
+CONSUMERS = ("kafka-consume-then-transform", "kafka-watch-then-transform")
 
 #: Started once the consumers are waiting: they produce to the topic the consumers read.
 PRODUCERS = ("report-to-kafka", "kafka-produce-then-consume")
