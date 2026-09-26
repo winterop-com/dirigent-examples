@@ -1,0 +1,85 @@
+# The same wait as echo-stream-wait.yaml, on a real Kafka topic.
+#
+# In:  four readings, carried in this document.
+# Out: the batch read back off the topic, summarised exactly as echo-stream-wait.yaml does.
+#
+# NEEDS A BROKER. The `readings` connection names a Kafka cluster, and README.md starts one in
+# a container: a single Redpanda node, which speaks the Kafka protocol, with a topic called
+# `readings` on it. A local run is handed the connection in connections.yaml; an instance holds
+# it as a record of its own.
+#
+# The step after the wait is echo-stream-wait.yaml's, word for word. kafka.consume hands over
+# `messages`, each with an `offset` and a `value`, and a `count`: the shape playground.arrive
+# was built to imitate. Swapping the playground sensor for a real topic touches the wait and
+# nothing downstream of it.
+#
+# Hop by hop:
+#
+#   publish    kafka.produce, four readings onto the topic, keyed by station.
+#   wait       kafka.consume, a sensor like playground.arrive: it takes a batch of exactly four,
+#              in the consumer group `echo-stream`, so each run reads the four the run before it
+#              left behind it and no more.
+#   summarise  the same program as echo-stream-wait.yaml's, over .messages[].value.
+#
+# EXPECT THIS RUN TO SUCCEED in a few seconds, with four messages and their four stations.
+#
+#   uv run dg run --local pipelines/echo-stream-topic.yaml --connections connections.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: echo-stream-topic
+name: A batch off a real topic
+description: |
+  Four readings produced to a Kafka topic and consumed back as one batch, read downstream as
+  .messages[].value -- the same step as echo-stream-wait's, over a real broker.
+
+tags: [queues, kafka, sensor, transform, streaming]
+
+requires:
+  blocks:
+    - kafka.produce
+    - kafka.consume
+    - transform.jq
+  connections:
+    - readings
+
+steps:
+  publish:
+    block: kafka.produce
+    config:
+      connection: readings
+      topic: readings
+      # Each record's key is this field of its value, so one station's readings share a
+      # partition and keep their order.
+      key: station
+      records:
+        - {station: bergen-florida, reading: 12.4}
+        - {station: oslo-blindern, reading: 3.1}
+        - {station: tromso-langnes, reading: -6.8}
+        - {station: trondheim-voll, reading: 1.2}
+
+  wait:
+    block: kafka.consume
+    depends_on: [publish]
+    poll: 2s
+    deadline: 2m
+    config:
+      connection: readings
+      topic: readings
+      # The group's committed offsets are where a run starts reading. earliest applies only to
+      # a group that has committed nothing yet, which is the first run against a new topic.
+      group_id: echo-stream
+      start: earliest
+      min_messages: 4
+      max_messages: 4
+      poll_timeout: 5s
+      key_format: text
+      value_format: json
+
+  summarise:
+    block: transform.jq
+    depends_on: [wait]
+    config:
+      input: ${steps.wait.output}
+      program: >-
+        {count: .count, stations: [.messages[].value.station]}

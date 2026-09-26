@@ -1,0 +1,13 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so the broker's address is handed to it here.
+#
+# This names the Redpanda container README.md starts on port 9092, which is unprotected and
+# carries no credential. A cluster that authenticates keeps its password in a connection the
+# server holds, encrypted under its key, and never in a file beside the documents.
+
+connections:
+  readings:
+    kind: kafka
+    config:
+      bootstrap_servers:
+        - 127.0.0.1:9092
