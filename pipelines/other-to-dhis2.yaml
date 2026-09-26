@@ -6,10 +6,10 @@
 # DHIS2 requires -- no shortName, no uid, a date rather than a timestamp -- and the document
 # is where the difference is made up, in public, where a reviewer can see what was invented.
 #
-#   fixture  value.const. Three facilities in the other system's own shape.
-#   fetch    http.request. Asking the other system for them. Postman Echo answers with the
-#            request it was given, so the fixture comes back under .body.json exactly as a
-#            real register would answer a query -- this stands in for a GET on that system.
+#   fetch    playground.generate. The register's three facilities, in the other system's own
+#            shape. THE READ IS A NODE, NOT A CALL: the node takes an `input` and hands it
+#            back, so nothing pretends to fetch what this document already carries, and the
+#            step stands exactly where a GET on that system would.
 #   shape    transform.jq. The register's record turned into DHIS2 metadata.
 #   check    validate.schema. The gate, on the payload rather than on the read: this is the
 #            end where the shape is not under your control and the next hop writes.
@@ -51,6 +51,7 @@ tags: [dhis2, metadata, validate, transform, http, sync]
 
 requires:
   blocks:
+    - playground.generate
     - value.const
     - http.request
     - transform.jq
@@ -78,20 +79,19 @@ params:
       enum: [VALIDATE, COMMIT]
       default: VALIDATE
       description: VALIDATE rehearses the import and writes nothing. COMMIT performs it, and belongs against your own instance and never against a shared demo.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The system the register is read from.
 
 steps:
-  fixture:
-    block: value.const
+  fetch:
+    block: playground.generate
     config:
       # The other system's own shape: a code, a name, the code of the parent, and a day.
       # No uid, no shortName, no timestamp -- which is the whole problem this document
       # solves. These three codes are real chiefdoms on the play demo, so the rehearsal
       # below reports what a genuine update reports.
-      value:
+      #
+      # No fields: are named, so the register travels through untouched and is this step's
+      # one record.
+      input:
         facilities:
           - code: OU_539
             name: Badjia
@@ -106,20 +106,12 @@ steps:
             parent_code: ${params.parent_code}
             opened: "1970-01-01"
 
-  fetch:
-    block: http.request
-    depends_on: [fixture]
-    config:
-      url: ${params.base_url}/post
-      method: POST
-      body: ${steps.fixture.output.value}
-
   shape:
     block: transform.jq
     depends_on: [fetch]
     config:
-      # .body.json is what the echo answered with, which is the register as it arrived.
-      input: ${steps.fetch.output.body.json}
+      # The node's one record, which is the register as it arrived.
+      input: ${steps.fetch.output.records.0}
       # Three decisions, and each one is a choice a reviewer should be able to argue with:
       #
       #   shortName    DHIS2 requires it and the register has none, so the name is used,

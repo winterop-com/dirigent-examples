@@ -53,9 +53,12 @@ uv run dg run --local pipelines/dhis2-to-dhis2.yaml \
 ```
 
 The same three `--schema` flags run the other two documents, so they are worth a shell
-variable. `pipelines/dhis2-to-other.yaml` and `pipelines/other-to-dhis2.yaml` both take a
-`base_url` parameter naming the system on the other side, which defaults to Postman Echo and
-points just as happily at the stand-in in `../local-echo`, with no network at all:
+variable. `pipelines/other-to-dhis2.yaml` needs nothing further: the register it reads is a
+`playground.generate` node carrying this document's own rows, so it reaches only the target
+demo. `pipelines/dhis2-to-other.yaml` posts to a system that is not DHIS2, and the stand-in
+for that system is the **playground** an instance serves itself under `/api/v1/playground` --
+so `dg dev` has to be running before it, even for a local run, because a local run mounts no
+API of its own:
 
 ```bash
 uv run dg run --local pipelines/dhis2-to-other.yaml \
@@ -63,7 +66,7 @@ uv run dg run --local pipelines/dhis2-to-other.yaml \
   --schema schemas/org-unit-sync-source.json \
   --schema schemas/org-unit-sync-import.json \
   --schema schemas/org-unit-sync-verdict.json \
-  -p base_url=http://127.0.0.1:8080
+  -p playground=http://127.0.0.1:3333/api/v1/playground
 ```
 
 Then the instance. A DHIS2 connection carries a password, and a connection secret is encrypted
@@ -159,13 +162,14 @@ And the failure worth seeing on purpose, which is safe because it is a rehearsal
 uv run dg run other-to-dhis2 --watch -p parent_code=OU_NOT_THERE
 ```
 
-`./verify.sh` does all of it unattended -- validate, three local runs against both echoes, the
-refusal above, an instance on a free port of its own, the three schemas, both connections, the
-apply and the three runs -- and asserts on the records rather than on anything rendered. It
+`./verify.sh` does all of it unattended -- validate, an instance on a free port of its own,
+three local runs, the refusal above, the three schemas, both connections, the apply and the
+three runs -- and asserts on the records rather than on anything rendered. It starts the
+instance before the local runs, because that instance is what `dhis2-to-other` posts to. It
 keeps the key on that same `.env` line, and writes the schemas and the connections only when
 the instance does not already hold them, so its second run inherits the state its first run
-left. It stops the instance it started by pid on the way out. `VERIFY_OFFLINE=1` leaves out the
-online echo leg and nothing else: both DHIS2 instances are on the internet and have no stand-in.
+left. It stops the instance it started by pid on the way out. Both DHIS2 demos are on the
+internet and have no stand-in, so this needs the network either way.
 
 ### If the key was lost
 
@@ -194,7 +198,7 @@ uv run dg connection create dhis2 source \
 `uv run dg validate`, with no argument, which is the project's own documents:
 
 ```text
-2026-09-17T16:04:49.046+02:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document, offline"
+2026-09-26T13:17:50.664+02:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document, offline"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -204,7 +208,7 @@ uv run dg connection create dhis2 source \
               say  (log.write)
                 verdict  (validate.schema)
     mode  (value.const)
-2026-09-17T16:04:49.050+02:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document, offline"
+2026-09-26T13:17:50.668+02:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document, offline"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -212,18 +216,17 @@ uv run dg connection create dhis2 source \
           batch  (transform.jq)
             send  (http.request)
               say  (log.write)
-2026-09-17T16:04:49.051+02:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document, offline"
+2026-09-26T13:17:50.669+02:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document, offline"
   each step under the last one it waits for
-    fixture  (value.const)
-      fetch  (http.request)
-        shape  (transform.jq)
-          check  (validate.schema)
-            send  (http.request)  also after mode
-              report  (transform.jq)
-                say  (log.write)
-                  verdict  (validate.schema)
+    fetch  (playground.generate)
+      shape  (transform.jq)
+        check  (validate.schema)
+          send  (http.request)  also after mode
+            report  (transform.jq)
+              say  (log.write)
+                verdict  (validate.schema)
     mode  (value.const)
-2026-09-17T16:04:49.052+02:00 [info    ] valid                          [validated] documents=3 invalid=0
+2026-09-26T13:17:50.670+02:00 [info    ] valid                          [validated] documents=3 invalid=0
 ```
 
 Nothing has run and nothing has been contacted: those trees are the graphs the documents
@@ -281,30 +284,30 @@ the same database: this is a rehearsal of a sync that has already happened.
 `uv run dg run --local pipelines/dhis2-to-other.yaml ...`:
 
 ```text
-2026-09-17T16:04:55.904+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1148
-2026-09-17T16:04:55.906+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1159
-2026-09-17T16:04:55.917+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T16:04:55.920+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=2609
-2026-09-17T16:04:56.007+02:00 [info    ] succeeded                      [step records] block=map.jq attempt=1 duration_ms=38
-2026-09-17T16:04:56.010+02:00 [info    ] finished                       [log records] duration_ms=31 output_bytes=1209
-2026-09-17T16:04:56.050+02:00 [info    ] succeeded                      [step batch] block=transform.jq attempt=1 duration_ms=9
-2026-09-17T16:04:56.052+02:00 [info    ] finished                       [log batch] duration_ms=4 output_bytes=1265
-2026-09-17T16:04:56.362+02:00 [info    ] http call                      [log send] method=POST url=https://postman-echo.com/post status=200 bytes=2800 duration_ms=256
-2026-09-17T16:04:56.366+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=265
-2026-09-17T16:04:56.397+02:00 [info    ] the register took 15 facilities from dhis2-play-2-43-1, first OU_539 under OU_264 [log say]
-2026-09-17T16:04:56.397+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=8
-2026-09-17T16:04:56.552+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-other run_id=01a0afaf-4633-7636-9087-4d09ebff9c72 exit_code=0
+2026-09-26T13:15:54.439+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1084
+2026-09-26T13:15:54.440+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1095
+2026-09-26T13:15:54.493+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
+2026-09-26T13:15:54.495+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=2609
+2026-09-26T13:15:54.530+02:00 [info    ] succeeded                      [step records] block=map.jq attempt=1 duration_ms=37
+2026-09-26T13:15:54.533+02:00 [info    ] finished                       [log records] duration_ms=29 output_bytes=1209
+2026-09-26T13:15:54.570+02:00 [info    ] succeeded                      [step batch] block=transform.jq attempt=1 duration_ms=8
+2026-09-26T13:15:54.571+02:00 [info    ] finished                       [log batch] duration_ms=4 output_bytes=1265
+2026-09-26T13:15:54.630+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=1700 duration_ms=6
+2026-09-26T13:15:54.631+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=11
+2026-09-26T13:15:54.684+02:00 [info    ] the register took 15 facilities from dhis2-play-2-43-1, first OU_539 under OU_264 [log say]
+2026-09-26T13:15:54.684+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
+2026-09-26T13:15:54.936+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-other run_id=01a0dd6d-c358-778a-9908-adb3361f9195 exit_code=0
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block           ┃ outcome   ┃ after   ┃ duration ┃ output                              ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read    │ dhis2.metadata  │ succeeded │ -       │ 1.2s     │ body={1 keys}  duration_ms=1148     │
+│ read    │ dhis2.metadata  │ succeeded │ -       │ 1.1s     │ body={1 keys}  duration_ms=1084     │
 │ check   │ validate.schema │ succeeded │ read    │ 0.0s     │ value={1 keys}                      │
 │ records │ map.jq          │ succeeded │ check   │ 0.0s     │ value=[15 items]                    │
 │ batch   │ transform.jq    │ succeeded │ records │ 0.0s     │ value={3 keys}                      │
-│ send    │ http.request    │ succeeded │ batch   │ 0.3s     │ status=200  headers={12 keys}       │
-│         │                 │           │         │          │ body={7 keys}  body_bytes=2800      │
-│         │                 │           │         │          │ duration_ms=256                     │
+│ send    │ http.request    │ succeeded │ batch   │ 0.0s     │ status=200  headers={5 keys}        │
+│         │                 │           │         │          │ body={3 keys}  body_bytes=1700      │
+│         │                 │           │         │          │ duration_ms=6                       │
 │ say     │ log.write       │ succeeded │ send    │ 0.0s     │ -                                   │
 └─────────┴─────────────────┴───────────┴─────────┴──────────┴─────────────────────────────────────┘
 ```
@@ -316,20 +319,21 @@ transform is one program over one whole value.
 `uv run dg run --local pipelines/other-to-dhis2.yaml ...`:
 
 ```text
-2026-09-17T16:04:59.063+02:00 [info    ] http call                      [log fetch] method=POST url=https://postman-echo.com/post status=200 bytes=793 duration_ms=213
-2026-09-17T16:04:59.066+02:00 [info    ] succeeded                      [step fetch] block=http.request attempt=1 duration_ms=221
-2026-09-17T16:04:59.145+02:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=49
-2026-09-17T16:04:59.147+02:00 [info    ] finished                       [log shape] duration_ms=40 output_bytes=358
-2026-09-17T16:04:59.179+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T16:04:59.183+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=358
-2026-09-17T16:04:59.545+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=342 duration_ms=308
-2026-09-17T16:04:59.549+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=317
-2026-09-17T16:04:59.608+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=26
-2026-09-17T16:04:59.612+02:00 [info    ] finished                       [log report] duration_ms=13 output_bytes=134
-2026-09-17T16:04:59.672+02:00 [info    ] VALIDATE on the target by code: OK, 0 created, 3 updated, 0 ignored, of 3 units -- no conflicts [log say]
-2026-09-17T16:04:59.672+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=11
-2026-09-17T16:04:59.742+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=15
-2026-09-17T16:04:59.814+02:00 [info    ] succeeded                      [run] pipeline=other-to-dhis2 run_id=01a0afaf-5610-72ca-8156-53057be8e995 exit_code=0
+2026-09-26T13:15:57.256+02:00 [info    ] playground generated           [log fetch] rows=1 seed=1659356566 locale=en_US drift=none
+2026-09-26T13:15:57.256+02:00 [info    ] succeeded                      [step fetch] block=playground.generate attempt=1 duration_ms=32
+2026-09-26T13:15:57.262+02:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=4
+2026-09-26T13:15:57.302+02:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=40
+2026-09-26T13:15:57.308+02:00 [info    ] finished                       [log shape] duration_ms=29 output_bytes=358
+2026-09-26T13:15:57.339+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
+2026-09-26T13:15:57.343+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=358
+2026-09-26T13:15:57.715+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=342 duration_ms=319
+2026-09-26T13:15:57.716+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=325
+2026-09-26T13:15:57.752+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=8
+2026-09-26T13:15:57.754+02:00 [info    ] finished                       [log report] duration_ms=3 output_bytes=134
+2026-09-26T13:15:57.807+02:00 [info    ] VALIDATE on the target by code: OK, 0 created, 3 updated, 0 ignored, of 3 units -- no conflicts [log say]
+2026-09-26T13:15:57.807+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
+2026-09-26T13:15:57.864+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=5
+2026-09-26T13:15:57.952+02:00 [info    ] succeeded                      [run] pipeline=other-to-dhis2 run_id=01a0dd6d-d27f-71d4-b05f-a9fe2f89f4bc exit_code=0
 ```
 
 Three facilities, matched on their codes rather than their uids, and the target says it would
@@ -782,10 +786,11 @@ failure.
 
 The same read and the same gate, and then a translation instead of an import.
 
-**`params.base_url`** is the receiving system. It defaults to Postman Echo, which answers with
-the request it was given -- so the batch comes back and `say` at the bottom reads what *arrived*
-rather than what was sent, which is what makes that line a receipt. The stand-in in
-`../local-echo` answers the same shapes offline.
+**`params.playground`** is the receiving system. It defaults to the playground an instance
+serves under `/api/v1/playground`, which answers with the request it was given -- so the batch
+comes back under `.body.request.body` and `say` at the bottom reads what *arrived* rather than
+what was sent, which is what makes that line a receipt. Nothing on the public internet takes
+the batch, and pointing this at the real receiver is one flag.
 
 **Hop three, `records`.** `map.jq` runs its program once per element and keeps what the program
 returns, so the list is exactly as long as the one that went in.
@@ -842,14 +847,14 @@ have been cannot be audited on the far side. What arrives, three of its fifteen 
 
 **Hop five, `send`.** An absolute `url:` built from the parameter rather than a connection,
 because this receiver needs no credential and because one flag then moves the whole document to
-another echo. A real receiver gets a connection, like the two DHIS2 instances do.
+the real system. A real receiver gets a connection, like the two DHIS2 instances do.
 
 ```yaml
   send:
     block: http.request
     depends_on: [batch]
     config:
-      url: ${params.base_url}/post
+      url: ${params.playground}/request
       method: POST
       body: ${steps.batch.output.value}
 ```
@@ -861,16 +866,17 @@ reshape only ever drops fields. Inbound, the register hands over *less* than DHI
 no shortName, no uid, a day rather than a timestamp -- and the document is where the difference
 is made up, in public.
 
-**Hops one and two, `fixture` and `fetch`.** Three facilities in the other system's own shape,
-POSTed to the echo so they come back under `.body.json` the way a real register would answer a
-query. That stands in for a `GET` on that system; point `base_url` at the real one and `fetch`
-becomes that read.
+**Hop one, `fetch`.** Three facilities in the other system's own shape. The read is a node,
+not a call: `playground.generate` takes an `input` and hands it back as its one record, so
+nothing pretends to fetch what this document already carries and the step stands exactly where
+a `GET` on that system would. Replace it with an `http.request` against the real register and
+nothing under it moves.
 
 ```yaml
-  fixture:
-    block: value.const
+  fetch:
+    block: playground.generate
     config:
-      value:
+      input:
         facilities:
           - code: OU_539
             name: Badjia

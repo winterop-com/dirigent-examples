@@ -15,14 +15,19 @@
 #   send     http.request. POST to the other system.
 #   say      log.write. What the other system answered, read back out of its own reply.
 #
-# The receiver here is Postman Echo, which answers with the request it was given: the batch
-# comes back under .body.json, so `say` below is reading what arrived rather than what was
-# sent. base_url is a parameter, so pointing this at the stand-in in ../local-echo, or at the
-# real system, is a flag on the run rather than an edit.
+# The receiver here is the playground, the request-and-response service every dirigent
+# instance serves itself under /api/v1/playground: it answers with the request it was given,
+# so the batch comes back under .body.request.body and `say` below is reading what arrived
+# rather than what was sent. Pointing this at the real system is a flag on the run rather
+# than an edit.
+#
+# THE RECEIVER IS AN INSTANCE, so `dg dev` has to be running before either command below --
+# `dg run --local` builds a throwaway database and mounts no API of its own, and reaches the
+# playground over the network like anything else.
 #
 #   uv run dg run --local pipelines/dhis2-to-other.yaml \
 #     --connections connections.yaml --schema schemas/org-unit-sync-source.json
-#   uv run dg run dhis2-to-other --watch -p base_url=http://127.0.0.1:8080
+#   uv run dg run dhis2-to-other --watch -p playground=http://127.0.0.1:3333/api/v1/playground
 
 format: dirigent/v1
 kind: pipeline
@@ -59,12 +64,12 @@ params:
       format: dhis2-uid
       default: O6uvpzGd5pu
       description: The uid of the parent whose children are synchronised. Bo district by default, which has fifteen chiefdoms under it.
-    base_url:
+    playground:
       type: string
-      default: https://postman-echo.com
-      # The receiving system. The stand-in in ../local-echo answers the same shapes with no
-      # network at all: -p base_url=http://127.0.0.1:8080.
-      description: The system the batch is posted to.
+      default: http://127.0.0.1:3333/api/v1/playground
+      # The receiving system, standing in for the register next door. `dg dev` serves these
+      # routes on this machine, so nothing on the public internet takes the batch.
+      description: The playground routes the batch is posted to.
 
 steps:
   read:
@@ -118,16 +123,16 @@ steps:
     depends_on: [batch]
     config:
       # An absolute URL rather than a connection: the receiver here needs no credential, and
-      # building it from a parameter is what lets one flag move the whole document to
-      # another echo. A real receiver gets a connection, like the two DHIS2 instances do.
-      url: ${params.base_url}/post
+      # building it from a parameter is what lets one flag move the whole document to the
+      # real system. A real receiver gets a connection, like the two DHIS2 instances do.
+      url: ${params.playground}/request
       method: POST
       body: ${steps.batch.output.value}
 
   say:
     block: log.write
     depends_on: [send]
-    # Postman Echo answers with the request it was given, so .body.json is the batch as it
-    # arrived. Reading the answer rather than the payload is what makes this line a receipt.
+    # The playground answers with the request it was given, so .body.request.body is the
+    # batch as it arrived. Reading the answer rather than the payload makes this a receipt.
     config:
-      message: "the register took ${steps.send.output.body.json.synced} facilities from ${steps.send.output.body.json.source}, first ${steps.send.output.body.json.facilities.0.code} under ${steps.send.output.body.json.facilities.0.parent_code}"
+      message: "the register took ${steps.send.output.body.request.body.synced} facilities from ${steps.send.output.body.request.body.source}, first ${steps.send.output.body.request.body.facilities.0.code} under ${steps.send.output.body.request.body.facilities.0.parent_code}"

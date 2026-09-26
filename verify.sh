@@ -5,11 +5,10 @@
 # Every assertion below reads records rather than rendered text: --json asks for the records
 # even at a terminal, and a table is only a rendering of one.
 #
-# The two documents that talk to a system other than DHIS2 carry a base_url parameter, so
-# each of them is run once against the real Postman Echo and once against the stand-in in
-# ../local-echo when it is there. VERIFY_OFFLINE=1 leaves out the online echo leg and nothing
-# else: both DHIS2 instances are on the internet and have no stand-in, so this script needs
-# the network either way.
+# dhis2-to-other posts to a system that is not DHIS2, and the stand-in for it is the
+# playground this script's own instance serves under /api/v1/playground -- which is why the
+# instance is started before the local runs rather than after them. Both DHIS2 demos are on
+# the internet and have no stand-in, so this script needs the network either way.
 set -euo pipefail
 
 cd "$(dirname "$0")"
@@ -22,7 +21,6 @@ SCHEMAS=(org-unit-sync-source org-unit-sync-import org-unit-sync-verdict)
 WORK="$(mktemp -d)"
 
 DEV_PID=""
-ECHO_PID=""
 
 # Nothing this script started may still be listening when it returns: a dg dev that outlived
 # its wrapper shares .dirigent/state with the next run, claims its steps and fails them.
@@ -38,20 +36,15 @@ port_clear() {
 }
 
 cleanup() {
-  # Stop whatever this script started, by the pid this script holds. Never by pattern: a
-  # pattern matches this shell too. The instance's wrapper has its children taken first:
-  # killing `uv run` alone leaves the dg dev under it on the port.
-  for pid in "$DEV_PID" "$ECHO_PID"; do
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
-      if [ "$pid" = "$DEV_PID" ]; then
-        pkill -TERM -P "$pid" 2>/dev/null || true
-      fi
-      kill -TERM "$pid" 2>/dev/null || true
-      wait "$pid" 2>/dev/null || true
-    fi
-  done
+  # Stop the instance this script started, by the pid this script holds. Never by pattern: a
+  # pattern matches this shell too. Its wrapper has its children taken first: killing
+  # `uv run` alone leaves the dg dev under it on the port.
+  if [ -n "$DEV_PID" ] && kill -0 "$DEV_PID" 2>/dev/null; then
+    pkill -TERM -P "$DEV_PID" 2>/dev/null || true
+    kill -TERM "$DEV_PID" 2>/dev/null || true
+    wait "$DEV_PID" 2>/dev/null || true
+  fi
   port_clear "${PORT:-}"
-  port_clear "${ECHO_PORT:-}"
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -103,7 +96,7 @@ assert_delivered() {
     map(select(.kind == "run")) | last | .steps
     | (map(select(.step == "check")) | last | .output.value.organisationUnits | length) as $units
     | (map(select(.step == "batch")) | last | .output.value) as $batch
-    | (map(select(.step == "send")) | last | .output.body.json) as $echoed
+    | (map(select(.step == "send")) | last | .output.body.request.body) as $echoed
     | if $units < 1 then error("\($what): the gate passed no organisation units")
       elif $batch.synced != $units then error("\($what): \($units) units gated, \($batch.synced) sent")
       elif $echoed != $batch then error("\($what): the receiver answered with something other than the batch")
@@ -122,77 +115,6 @@ jq -se '
   map(select(.kind == "validated")) | last
   | if .invalid == 0 then true else error("\(.invalid) document(s) refused") end
 ' "$WORK/validate.ndjson" > /dev/null
-
-# The receivers the two outbound-ish documents are run against. The empty base is each
-# document's own default, which is the real service.
-ECHO_SERVER=../local-echo/echo_server.py
-BASES=()
-LEGS=
-if [ -z "${VERIFY_OFFLINE:-}" ]; then
-  BASES+=("")
-  LEGS="postman-echo.com"
-fi
-if [ -f "$ECHO_SERVER" ]; then
-  ECHO_PORT="$(free_port)"
-  python3 "$ECHO_SERVER" --port "$ECHO_PORT" > /dev/null 2>&1 &
-  ECHO_PID=$!
-  if ! curl -fs --retry 60 --retry-delay 1 --retry-connrefused --retry-all-errors \
-       "http://127.0.0.1:$ECHO_PORT/get" > /dev/null; then
-    echo "local-echo on port $ECHO_PORT never answered /get" >&2
-    exit 1
-  fi
-  BASES+=("http://127.0.0.1:$ECHO_PORT")
-  LEGS="${LEGS:+$LEGS and }local-echo"
-fi
-if [ "${#BASES[@]}" -eq 0 ]; then
-  echo "VERIFY_OFFLINE=1 needs $ECHO_SERVER, and it is not there" >&2
-  exit 1
-fi
-
-# A local run starts on a throwaway instance holding nothing, so it is handed the connections
-# and the schemas the documents name.
-LOCAL=(--connections connections.yaml)
-for schema in "${SCHEMAS[@]}"; do
-  LOCAL+=(--schema "schemas/$schema.json")
-done
-
-say "dhis2-to-dhis2, run locally against both demos"
-uv run dg run --local pipelines/dhis2-to-dhis2.yaml "${LOCAL[@]}" --json > "$WORK/local-1.ndjson"
-assert_run_succeeded "$WORK/local-1.ndjson" "the local dhis2-to-dhis2 run"
-assert_rehearsed "$WORK/local-1.ndjson" "the local dhis2-to-dhis2 run" UID
-
-say "dhis2-to-other, run locally against $LEGS"
-for base in "${BASES[@]}"; do
-  flags=("${LOCAL[@]}" --json)
-  [ -n "$base" ] && flags+=(-p "base_url=$base")
-  uv run dg run --local pipelines/dhis2-to-other.yaml "${flags[@]}" > "$WORK/local-2.ndjson"
-  assert_run_succeeded "$WORK/local-2.ndjson" "the local dhis2-to-other run"
-  assert_delivered "$WORK/local-2.ndjson" "the local dhis2-to-other run"
-done
-
-say "other-to-dhis2, run locally against $LEGS"
-for base in "${BASES[@]}"; do
-  flags=("${LOCAL[@]}" --json)
-  [ -n "$base" ] && flags+=(-p "base_url=$base")
-  uv run dg run --local pipelines/other-to-dhis2.yaml "${flags[@]}" > "$WORK/local-3.ndjson"
-  assert_run_succeeded "$WORK/local-3.ndjson" "the local other-to-dhis2 run"
-  assert_rehearsed "$WORK/local-3.ndjson" "the local other-to-dhis2 run" CODE
-done
-
-say "a parent the target does not hold, which must still fail"
-# The one failure this repository shows on purpose. It is safe because it is a rehearsal: the
-# target resolves the reference, refuses it, and writes nothing either way.
-uv run dg run --local pipelines/other-to-dhis2.yaml "${LOCAL[@]}" \
-  -p parent_code=OU_NOT_THERE --json > "$WORK/orphan.ndjson" || true
-jq -se '
-  map(select(.kind == "run")) | last | .steps
-  | (map(select(.step == "report")) | last | .output.value) as $report
-  | (map(select(.step == "verdict")) | last) as $verdict
-  | if $report.status != "ERROR" then error("the target accepted a parent it does not hold")
-    elif ($report.conflicts | map(select(.code == "E5002")) | length) < 1 then error("the target refused it without naming the reference")
-    elif $verdict.status != "failed" then error("the run was allowed to succeed on a refused import")
-    else true end
-' "$WORK/orphan.ndjson" > /dev/null
 
 # The instance seals a connection's secret with this key, so the key has to exist before the
 # connection does. It is minted once into .env, which is not in the repository and already
@@ -226,6 +148,48 @@ DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
   | jq -r 'select(.kind == "token.issued") | .token')"
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]
+
+# The playground dhis2-to-other posts to, on the port this script chose. A local run mounts
+# no API of its own, so it reaches this instance the same way anything else does.
+PLAYGROUND="$DG_URL/api/v1/playground"
+
+# A local run starts on a throwaway instance holding nothing, so it is handed the connections
+# and the schemas the documents name.
+LOCAL=(--connections connections.yaml)
+for schema in "${SCHEMAS[@]}"; do
+  LOCAL+=(--schema "schemas/$schema.json")
+done
+
+say "dhis2-to-dhis2, run locally against both demos"
+uv run dg run --local pipelines/dhis2-to-dhis2.yaml "${LOCAL[@]}" --json > "$WORK/local-1.ndjson"
+assert_run_succeeded "$WORK/local-1.ndjson" "the local dhis2-to-dhis2 run"
+assert_rehearsed "$WORK/local-1.ndjson" "the local dhis2-to-dhis2 run" UID
+
+say "dhis2-to-other, run locally against this instance's playground"
+uv run dg run --local pipelines/dhis2-to-other.yaml "${LOCAL[@]}" --json \
+  -p "playground=$PLAYGROUND" > "$WORK/local-2.ndjson"
+assert_run_succeeded "$WORK/local-2.ndjson" "the local dhis2-to-other run"
+assert_delivered "$WORK/local-2.ndjson" "the local dhis2-to-other run"
+
+say "other-to-dhis2, run locally"
+uv run dg run --local pipelines/other-to-dhis2.yaml "${LOCAL[@]}" --json > "$WORK/local-3.ndjson"
+assert_run_succeeded "$WORK/local-3.ndjson" "the local other-to-dhis2 run"
+assert_rehearsed "$WORK/local-3.ndjson" "the local other-to-dhis2 run" CODE
+
+say "a parent the target does not hold, which must still fail"
+# The one failure this repository shows on purpose. It is safe because it is a rehearsal: the
+# target resolves the reference, refuses it, and writes nothing either way.
+uv run dg run --local pipelines/other-to-dhis2.yaml "${LOCAL[@]}" \
+  -p parent_code=OU_NOT_THERE --json > "$WORK/orphan.ndjson" || true
+jq -se '
+  map(select(.kind == "run")) | last | .steps
+  | (map(select(.step == "report")) | last | .output.value) as $report
+  | (map(select(.step == "verdict")) | last) as $verdict
+  | if $report.status != "ERROR" then error("the target accepted a parent it does not hold")
+    elif ($report.conflicts | map(select(.code == "E5002")) | length) < 1 then error("the target refused it without naming the reference")
+    elif $verdict.status != "failed" then error("the run was allowed to succeed on a refused import")
+    else true end
+' "$WORK/orphan.ndjson" > /dev/null
 
 say "the shapes the instance holds"
 # A listing writes one record per row, with the row itself under fields.
@@ -296,17 +260,12 @@ uv run dg run dhis2-to-dhis2 --watch --json > "$WORK/run-1.ndjson"
 assert_run_succeeded "$WORK/run-1.ndjson" "the dhis2-to-dhis2 run"
 assert_rehearsed "$WORK/run-1.ndjson" "the dhis2-to-dhis2 run" UID
 
-for base in "${BASES[@]}"; do
-  flags=(--watch --json)
-  [ -n "$base" ] && flags+=(-p "base_url=$base")
+uv run dg run dhis2-to-other --watch --json -p "playground=$PLAYGROUND" > "$WORK/run-2.ndjson"
+assert_run_succeeded "$WORK/run-2.ndjson" "the dhis2-to-other run"
+assert_delivered "$WORK/run-2.ndjson" "the dhis2-to-other run"
 
-  uv run dg run dhis2-to-other "${flags[@]}" > "$WORK/run-2.ndjson"
-  assert_run_succeeded "$WORK/run-2.ndjson" "the dhis2-to-other run"
-  assert_delivered "$WORK/run-2.ndjson" "the dhis2-to-other run"
+uv run dg run other-to-dhis2 --watch --json > "$WORK/run-3.ndjson"
+assert_run_succeeded "$WORK/run-3.ndjson" "the other-to-dhis2 run"
+assert_rehearsed "$WORK/run-3.ndjson" "the other-to-dhis2 run" CODE
 
-  uv run dg run other-to-dhis2 "${flags[@]}" > "$WORK/run-3.ndjson"
-  assert_run_succeeded "$WORK/run-3.ndjson" "the other-to-dhis2 run"
-  assert_rehearsed "$WORK/run-3.ndjson" "the other-to-dhis2 run" CODE
-done
-
-say "ok: $(cat "$WORK/source-version.json" | tr -d '"') to $(cat "$WORK/target-version.json" | tr -d '"'), rehearsed and written to nothing, against $LEGS"
+say "ok: $(cat "$WORK/source-version.json" | tr -d '"') to $(cat "$WORK/target-version.json" | tr -d '"'), rehearsed and written to nothing"
