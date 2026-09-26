@@ -1,7 +1,14 @@
-# The three jq verbs, in the order a reshape usually wants them, between a read and a send.
+# The three jq verbs, in the order a reshape usually wants them, between a source and a sink.
 #
-# In:  a batch of station readings, POSTed to Postman Echo and read back out of its answer.
-# Out: a summary POSTed onward, and the echo of that send as the proof of what was sent.
+# In:  a batch of station readings, carried in this document and handed over by the node.
+# Out: one summary, written onto the run's own timeline.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
+# the batch below is this document's own data arriving as a step's output rather than a round
+# trip that pretends to fetch what it just sent. Nothing here reaches a connection, a URL, a
+# network or a file. Replace `readings` with an http.request whose body the filter reads, or
+# `say` with an http.request that POSTs the summary onward, and the three verbs between them
+# do not move.
 #
 # One jq program could do all of this in a line. Three steps say what happened instead, and
 # each verb has a contract the others do not:
@@ -21,14 +28,16 @@
 #
 # Hop by hop:
 #
-#   ask          POST the batch to /post, which answers with the body it was given under
-#                json. This stands in for the read: the list arrives from somewhere else.
+#   readings     the batch, as the node's records. This stands in for the read: the list
+#                arrives from somewhere else.
 #   active       keep the stations still reporting. Four in, three out.
 #   fahrenheit   convert each survivor. Three in, three out, by the verb's contract.
 #   summary      one program over the whole list: a count, the regions, the warmest.
-#   send         POST the summary onward, built from the value the transform produced.
+#   say          the sink. log.write puts the summary on the run's own timeline and hands
+#                it on unchanged, so the last step is a real destination and not a POST to
+#                somewhere that has to be answering.
 #
-# EXPECT THIS RUN TO SUCCEED in about a second, with send's answer echoing the summary.
+# EXPECT THIS RUN TO SUCCEED in well under a second, with the summary in the run's log.
 #
 #   uv run dg run --local pipelines/echo-transform.yaml
 #   uv run dg run --local pipelines/echo-transform.yaml -p keep=retired
@@ -36,58 +45,49 @@
 format: dirigent/v1
 kind: pipeline
 code: echo-transform
-name: Filter, map, transform, send
+name: Filter, map, transform
 description: |
-  A batch read back out of Postman Echo's answer, narrowed with `filter.jq`, converted
-  element by element with `map.jq`, reduced with `transform.jq`, and POSTed onward.
+  A batch narrowed with `filter.jq`, converted element by element with `map.jq`, reduced
+  with `transform.jq`, and written onto the run's timeline.
 
   Each verb carries its own contract: a filter cannot modify, a map cannot change the
   length, and only the transform reshapes the whole value.
 
-tags: [transform, http, filter, map, jq]
+tags: [transform, playground, filter, map, jq]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - filter.jq
     - map.jq
     - transform.jq
+    - log.write
 
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at
-    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
-    # runs it against a stand-in on this machine, with no network at all.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
     keep:
       type: string
       default: active
       description: The status the filter keeps. Set it to retired to narrow to the other one.
 
 steps:
-  ask:
-    block: http.request
+  readings:
+    block: playground.generate
     config:
-      url: ${params.base_url}/post
-      method: POST
-      # /post answers with the body it was given, so the batch below comes back under
-      # .body.json and every step after this one reads the answer rather than the literal.
-      body:
-        readings:
-          - { station: bergen-florida, region: west, status: active, celsius: 12.4 }
-          - { station: oslo-blindern, region: east, status: active, celsius: 3.1 }
-          - { station: tromso-langnes, region: north, status: retired, celsius: -6.8 }
-          - { station: trondheim-voll, region: north, status: active, celsius: 1.2 }
+      # No fields: are named, so the list travels through untouched and each element is one
+      # of the node's records.
+      input:
+        - { station: bergen-florida, region: west, status: active, celsius: 12.4 }
+        - { station: oslo-blindern, region: east, status: active, celsius: 3.1 }
+        - { station: tromso-langnes, region: north, status: retired, celsius: -6.8 }
+        - { station: trondheim-voll, region: north, status: active, celsius: 1.2 }
 
   active:
     block: filter.jq
-    depends_on: [ask]
+    depends_on: [readings]
     config:
-      input: ${steps.ask.output.body.json.readings}
+      input: ${steps.readings.output.records}
       # The program's answer is the verdict and nothing else. The element that comes out is
       # the element that went in, which is why a filter can never quietly edit a row.
       program: |
@@ -115,12 +115,11 @@ steps:
          warmest: (max_by(.fahrenheit) | .station),
          mean_fahrenheit: ((map(.fahrenheit) | add) / length | round)}
 
-  send:
-    block: http.request
+  say:
+    block: log.write
     depends_on: [summary]
     config:
-      url: ${params.base_url}/post
-      method: POST
-      # Built from the transform's output rather than from the read's, so the send carries
+      message: the three verbs are done
+      # Built from the transform's output rather than from the source, so what lands carries
       # what the three verbs made and nothing that skipped them.
-      body: ${steps.summary.output.value}
+      value: ${steps.summary.output.value}
