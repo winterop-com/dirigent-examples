@@ -4,9 +4,10 @@
 #
 # It starts its own instance, which serves the playground the stream is read from, and its own
 # Redpanda in a container, with the topic the third document produces to and consumes from. Each
-# document is run twice -- once with no server of its own and once against the instance -- and
-# everything it started is stopped on the way out: the instance by the pid this script holds,
-# the container by the name this script gave it.
+# document is run twice -- once with no server of its own and once against the instance, where
+# the fourth one's watch is resumed, left to arm a few runs, and paused -- and everything it
+# started is stopped on the way out: the instance by the pid this script holds, the container by
+# the name this script gave it.
 #
 # Needs docker and one image, the one dirigent's own infra/compose.queues.yaml uses:
 #   redpandadata/redpanda:v24.2.18
@@ -83,6 +84,9 @@ read_whole='
     and $step.lines.output.value.lines == 7
     and $step.lines.output.value.kinds == {"stream": 1, "stream.message": 5, "stream.closed": 1}
     and $step.lines.output.value.closed == true'
+watch_once='
+  | $run.message == "succeeded"
+    and $step.summarise.output.value == {count: 3, first_offset: 0, last_offset: 2, next_offset: 3}'
 topic_read='
   | $run.message == "succeeded"
     and $step.publish.output.produced == 4
@@ -96,7 +100,7 @@ say "every document, checked offline"
 uv run dg validate --json > "$WORK/validate.ndjson"
 jq -se '
   map(select(.kind == "validated")) | last
-  | if .invalid == 0 and .documents == 3 then true else error("\(.invalid) document(s) refused") end
+  | if .invalid == 0 and .documents == 4 then true else error("\(.invalid) document(s) refused") end
 ' "$WORK/validate.ndjson" > /dev/null
 
 # --- the instance, which serves the playground ------------------------------------------------
@@ -172,6 +176,11 @@ say "echo-stream-read, run locally against the instance's playground"
 uv run dg run --local pipelines/echo-stream-read.yaml --json -p "playground=$playground" > "$WORK/r.ndjson"
 expect "the envelope, five messages and the close, all at once" "$WORK/r.ndjson" "$step_map$read_whole"
 
+# A local run has no watch behind it, so its batch starts from zero.
+say "echo-stream-watch, run locally, once"
+uv run dg run --local pipelines/echo-stream-watch.yaml --json > "$WORK/r.ndjson"
+expect "one batch of three, offsets 0 to 2" "$WORK/r.ndjson" "$step_map$watch_once"
+
 # The committed connections.yaml names port 9092, which is where the README has you start the
 # broker by hand. This script picked its own port, so it writes that port into a copy.
 say "echo-stream-topic, run locally against $KAFKA_NAME"
@@ -226,4 +235,80 @@ expect "four readings produced and read back" "$WORK/r.ndjson" "$step_map$topic_
 expect "the second batch on the topic, offsets 4 to 7" "$WORK/r.ndjson" "$step_map"'
   | [$step.wait.output.messages[].offset] == [4, 5, 6, 7]'
 
-say "ok: a batch that arrived, a stream read whole, and the same batch off a real topic"
+# --- the watch ---------------------------------------------------------------------------------
+#
+# The state is kept between runs of this script, and so is the watch's cursor: this run's first
+# batch starts wherever the last run's pause left it, which is the point.
+watch_record='map(select(.kind == "watch")) | last | .fields'
+runs_since() {
+  uv run dg runs list --pipeline echo-stream-watch --limit 100 --json \
+    | jq -c --slurpfile before "$WORK/before.json" \
+        'select(.kind == "run") | .fields | select(.id as $id | $before[0] | index($id) | not)'
+}
+
+say "echo-stream-watch, its watch as the apply left it"
+uv run dg watch show echo-stream-watch follow --json > "$WORK/w.ndjson"
+# A run of this script that was cut short can leave the watch going; pausing it first makes the
+# resume below the one that arms.
+if ! jq -e -s "$watch_record | .paused" "$WORK/w.ndjson" > /dev/null; then
+  uv run dg watch pause echo-stream-watch follow --json > /dev/null
+  uv run dg watch show echo-stream-watch follow --json > "$WORK/w.ndjson"
+fi
+expect "the watch paused, with nothing waiting" "$WORK/w.ndjson" "$watch_record"' | .paused and .waiting_run_id == null'
+start="$(jq -s "$watch_record | .cursor.offset // 0" "$WORK/w.ndjson")"
+
+uv run dg runs list --pipeline echo-stream-watch --limit 100 --json \
+  | jq -s '[.[] | select(.kind == "run") | .fields.id]' > "$WORK/before.json"
+
+say "echo-stream-watch, resumed from offset $start"
+uv run dg watch resume echo-stream-watch follow --json > "$WORK/resumed.ndjson"
+expect "a run armed by the resume" "$WORK/resumed.ndjson" \
+  'map(select(.kind == "watch.resumed")) | last | .waiting_run_id != null'
+
+for _ in $(seq 1 60); do
+  done_runs="$(runs_since | jq -s '[.[] | select(.status == "succeeded")] | length')"
+  [ "$done_runs" -ge 3 ] && break
+  sleep 1
+done
+
+say "echo-stream-watch, paused after $done_runs runs"
+uv run dg watch pause echo-stream-watch follow --json > "$WORK/paused.ndjson"
+
+# The pause cancels the run that was waiting; the runs already working a batch finish it.
+for _ in $(seq 1 30); do
+  runs_since > "$WORK/runs.ndjson"
+  jq -e -s 'all(.status | IN("succeeded", "failed", "cancelled"))' "$WORK/runs.ndjson" > /dev/null && break
+  sleep 1
+done
+# And nothing arms again: a paused watch stays paused.
+sleep 3
+runs_since > "$WORK/runs.ndjson"
+
+# What each run's summarise read, oldest run first.
+: > "$WORK/batches.ndjson"
+for id in $(jq -r -s 'sort_by(.created_at) | .[] | select(.status == "succeeded") | .id' "$WORK/runs.ndjson"); do
+  uv run dg runs show "$id" --json | jq -c --arg id "$id" '
+    select(.kind == "run.detail") | .fields as $f
+    | {run: $id, started_at: $f.run.started_at, finished_at: $f.run.finished_at,
+       batch: ($f.attempts[] | select(.step_name == "summarise") | .output.value)}' \
+    >> "$WORK/batches.ndjson"
+done
+
+expect "at least three batches of three" "$WORK/batches.ndjson" \
+  'length >= 3 and all(.batch.count == 3 and .batch.last_offset == .batch.first_offset + 2)'
+expect "the first batch starting where the last pause left the cursor" "$WORK/batches.ndjson" \
+  --argjson start "$start" '.[0].batch.first_offset == $start'
+expect "each batch starting where the one before it ended" "$WORK/batches.ndjson" \
+  '[range(1; length) as $i | .[$i].batch.first_offset == .[$i - 1].batch.next_offset] | all'
+expect "a run waiting while the run before it was still working" "$WORK/batches.ndjson" \
+  '[range(1; length) as $i | .[$i].started_at < .[$i - 1].finished_at] | any'
+expect "one run cancelled by the pause, and every other one succeeded" "$WORK/runs.ndjson" \
+  '([.[] | select(.status == "cancelled")] | length) == 1
+   and ([.[] | select(.status == "cancelled")][0].error == "its watch was paused")
+   and all(.status | IN("succeeded", "cancelled"))
+   and all(.triggered_by_kind == "watch")'
+expect "the paused watch keeping the cursor the last batch handed on" "$WORK/paused.ndjson" \
+  --argjson next "$(jq -s 'last | .batch.next_offset' "$WORK/batches.ndjson")" \
+  'map(select(.kind == "watch.paused")) | last | .cursor == {offset: $next}'
+
+say "ok: a batch that arrived, a stream read whole, the same batch off a real topic, and a batch that kept arriving"

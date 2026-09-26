@@ -1,8 +1,9 @@
 # echo-stream
 
-Data that turns up over time, three ways, reading forward from the simplest. A **sensor** that
+Data that turns up over time, four ways, reading forward from the simplest. A **sensor** that
 waits for a batch and is handed it when it arrives; a **stream** read by an ordinary HTTP step;
-and the same wait against a **real Kafka topic**. The first and the third are the point of the
+the same wait against a **real Kafka topic**; and the first wait again under a **watch**, which
+keeps a run always waiting on it, so batch after batch arrives in runs that overlap. The first and the third are the point of the
 repository: `playground.arrive` hands over its batch in exactly the shape `kafka.consume` does --
 `messages`, each with an `offset` and a `value`, and a `count` -- so the step that reads it is
 the same text in both documents. Swapping the playground for a real topic changes the wait and
@@ -13,6 +14,7 @@ nothing downstream of it.
 | `pipelines/echo-stream-wait.yaml` | `playground.arrive` parks for three pokes, then hands over a batch of four; `summarise` reads `.messages[].value`. |
 | `pipelines/echo-stream-read.yaml` | `http.request` against `/api/v1/playground/stream`, and `transform.jq` splitting the NDJSON lines back into records. |
 | `pipelines/echo-stream-topic.yaml` | `kafka.produce` four readings onto a Redpanda topic, `kafka.consume` them back as one batch, and the same `summarise`. |
+| `pipelines/echo-stream-watch.yaml` | A watch on `playground.arrive`: one run always waiting, the next armed the moment a batch arrives, the offsets carried on from run to run, steered with `dg watch`. |
 
 ## What it needs
 
@@ -55,6 +57,7 @@ uv run dg validate
 uv run dg run --local pipelines/echo-stream-wait.yaml
 uv run dg run --local pipelines/echo-stream-read.yaml
 uv run dg run --local pipelines/echo-stream-topic.yaml --connections connections.yaml
+uv run dg run --local pipelines/echo-stream-watch.yaml
 ```
 
 Then on the instance, with the export line pasted:
@@ -64,12 +67,19 @@ uv run dg apply
 uv run dg run echo-stream-wait --watch
 uv run dg run echo-stream-read --watch
 uv run dg run echo-stream-topic --watch
+uv run dg watch resume echo-stream-watch follow
+uv run dg runs list --pipeline echo-stream-watch
+uv run dg watch pause echo-stream-watch follow
 ```
+
+`dg run --watch` follows one run; `dg watch` is the trigger of the same name, a different thing.
 
 `./verify.sh` does all of it non-interactively: its own instance on a free port, its own
 Redpanda container on another, the topic made from this machine, every document run locally
-and then on the instance, and assertions on the records each run writes. It stops what it
-started.
+and then on the instance, the watch resumed until three runs have succeeded and then paused, and
+assertions on the records each run writes: every batch starting where the one before it ended,
+a run waiting while the one before it was still working, one run cancelled by the pause, and the
+paused watch holding the cursor the last batch handed on. It stops what it started.
 
 ## What you see
 
@@ -243,8 +253,148 @@ The same program as `echo-stream-wait`'s, over the same shape. `kafka.consume` r
 consumer group `echo-stream`, which commits the offsets it read when its poke succeeds, so the
 next run reads the four readings its own publish wrote and not the ones before them.
 
+### A batch that keeps arriving
+
+`uv run dg run --local pipelines/echo-stream-watch.yaml` runs the pipeline once, as an ordinary
+run: a local run has no watch behind it, so its offsets start at zero.
+
+```text
+2026-09-27T00:44:29.247+02:00 [info    ] started                        [run] pipeline=echo-stream-watch run_id=01a0dfe4-31bb-74d6-a520-c0aecb41999e local=true scratch=file:///tmp/dirigent-local-qg6zuwqm/artifacts/runs/01a0dfe4-31bb-74d6-a520-c0aecb41999e root=/tmp/dirigent-local-qg6zuwqm
+2026-09-27T00:44:29.243+02:00 [info    ] queued                         [step wait] block=playground.arrive attempt=1
+2026-09-27T00:44:29.288+02:00 [info    ] 1991ms of the wait left        [log wait]
+2026-09-27T00:44:29.275+02:00 [info    ] waiting                        [step wait] block=playground.arrive attempt=1
+2026-09-27T00:44:31.338+02:00 [info    ] a batch arrived                [log wait] count=3 pokes=2 seed=7
+2026-09-27T00:44:31.338+02:00 [info    ] succeeded                      [step wait] block=playground.arrive attempt=1 duration_ms=2063
+2026-09-27T00:44:31.338+02:00 [info    ] running                        [step work] block=playground.generate attempt=1
+2026-09-27T00:44:34.356+02:00 [info    ] playground generated           [log work] rows=3 seed=187413175 locale=en_US drift=none
+2026-09-27T00:44:34.357+02:00 [info    ] succeeded                      [step work] block=playground.generate attempt=1 duration_ms=3019
+2026-09-27T00:44:34.420+02:00 [info    ] succeeded                      [step summarise] block=transform.jq attempt=1 duration_ms=39
+2026-09-27T00:44:34.423+02:00 [info    ] finished                       [log summarise] duration_ms=35 output_bytes=70
+2026-09-27T00:44:34.683+02:00 [info    ] succeeded                      [run] pipeline=echo-stream-watch run_id=01a0dfe4-31bb-74d6-a520-c0aecb41999e exit_code=0
+steps
+┏━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step      ┃ block               ┃ outcome   ┃ after ┃ duration ┃ output                          ┃
+┡━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ wait      │ playground.arrive   │ succeeded │ -     │ 2.1s     │ messages=[3 items]  count=3     │
+│           │                     │           │       │          │ next_offset=3  pokes=2          │
+│           │                     │           │       │          │ waited_ms=2035  seed=7          │
+│           │                     │           │       │          │ locale=en_US  fields={2 keys}   │
+│           │                     │           │       │          │ drift=none                      │
+│ work      │ playground.generate │ succeeded │ wait  │ 3.0s     │ records=[3 items]  rows=3       │
+│           │                     │           │       │          │ seed=187413175  locale=en_US    │
+│           │                     │           │       │          │ fields={3 keys}  drift=none     │
+│           │                     │           │       │          │ delay_ms=3000  attempt=1        │
+│           │                     │           │       │          │ fail_until=0  fail_as=transient │
+│           │                     │           │       │          │ input_rows=3                    │
+│ summarise │ transform.jq        │ succeeded │ work  │ 0.0s     │ value={4 keys}                  │
+└───────────┴─────────────────────┴───────────┴───────┴──────────┴─────────────────────────────────┘
+```
+
+On the instance, the apply creates the watch paused, because the document says `paused: true`,
+and nothing is waiting yet:
+
+```bash
+uv run dg watch show echo-stream-watch follow --json | jq -c '.fields | {paused, cursor, waiting_run_id}'
+```
+
+```json
+{"paused":true,"cursor":null,"waiting_run_id":null}
+```
+
+`uv run dg watch resume echo-stream-watch follow` arms the first run, on no cursor at all:
+
+```text
+2026-09-27T00:43:30.159+02:00 [info    ] resumed                        [watch.resumed] code=follow pipeline=echo-stream-watch waiting_run_id="01a0dfe3-4ae4-7059-b853-731217906b60"
+```
+
+Ten seconds later, `uv run dg runs list --pipeline echo-stream-watch`:
+
+```text
+runs
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ run             ┃ pipeline        ┃ status    ┃ triggered by ┃ started         ┃ finished        ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ 01a0dfe3-70fe-… │ echo-stream-wa… │ running   │ watch follow │ 2026-09-27      │ -               │
+│                 │                 │           │              │ 00:43:40        │                 │
+│ 01a0dfe3-66ff-… │ echo-stream-wa… │ running   │ watch follow │ 2026-09-27      │ -               │
+│                 │                 │           │              │ 00:43:37        │                 │
+│ 01a0dfe3-5cea-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:35        │ 00:43:40        │
+│ 01a0dfe3-54df-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:32        │ 00:43:38        │
+│ 01a0dfe3-4ae4-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:30        │ 00:43:35        │
+└─────────────────┴─────────────────┴───────────┴──────────────┴─────────────────┴─────────────────┘
+```
+
+A new run starts every two to three seconds, each one the moment the run before it has its
+batch, and each run takes about five seconds, two waiting and three working, so the runs
+overlap. Of the two at the top, both `running`, the older one is working the batch it was handed
+and the newer one is already waiting for its own. The run list fills the way a consumed topic
+does.
+
+`uv run dg watch pause echo-stream-watch follow` cancels the run that was waiting, and keeps
+where the last batch ended:
+
+```text
+2026-09-27T00:43:42.614+02:00 [info    ] paused                         [watch.paused] code=follow pipeline=echo-stream-watch cursor={"offset":15}
+```
+
+The runs already working their batch finish it, and nothing is armed after the pause.
+`uv run dg runs list --pipeline echo-stream-watch` a few seconds later:
+
+```text
+runs
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┓
+┃ run             ┃ pipeline        ┃ status    ┃ triggered by ┃ started         ┃ finished        ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━┩
+│ 01a0dfe3-7aef-… │ echo-stream-wa… │ cancelled │ watch follow │ -               │ 2026-09-27      │
+│                 │                 │           │              │                 │ 00:43:42        │
+│ 01a0dfe3-70fe-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:40        │ 00:43:46        │
+│ 01a0dfe3-66ff-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:37        │ 00:43:43        │
+│ 01a0dfe3-5cea-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:35        │ 00:43:40        │
+│ 01a0dfe3-54df-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:32        │ 00:43:38        │
+│ 01a0dfe3-4ae4-… │ echo-stream-wa… │ succeeded │ watch follow │ 2026-09-27      │ 2026-09-27      │
+│                 │                 │           │              │ 00:43:30        │ 00:43:35        │
+└─────────────────┴─────────────────┴───────────┴──────────────┴─────────────────┴─────────────────┘
+```
+
+What each run's `summarise` read, oldest run first, from `uv run dg runs show <run id> --json`:
+
+```json
+{"count":3,"first_offset":0,"last_offset":2,"next_offset":3}
+{"count":3,"first_offset":3,"last_offset":5,"next_offset":6}
+{"count":3,"first_offset":6,"last_offset":8,"next_offset":9}
+{"count":3,"first_offset":9,"last_offset":11,"next_offset":12}
+{"count":3,"first_offset":12,"last_offset":14,"next_offset":15}
+```
+
+Each batch starts where the one before it ended. `playground.arrive` says where its batch ended
+in `next_offset`, the watch stores that as its cursor, and the next run's first poke starts from
+it. The watch holds it while it is paused:
+
+```json
+{"paused":true,"cursor":{"offset":15},"waiting_run_id":null}
+```
+
+So a resume reads on rather than starting over, and the run it arms starts at 15:
+
+```text
+2026-09-27T00:44:08.352+02:00 [info    ] resumed                        [watch.resumed] code=follow pipeline=echo-stream-watch waiting_run_id="01a0dfe3-e01b-734b-8ec1-6533938ac84b" cursor={"offset":15}
+2026-09-27T00:44:12.673+02:00 [info    ] paused                         [watch.paused] code=follow pipeline=echo-stream-watch cursor={"offset":18}
+```
+
+```json
+{"count":3,"first_offset":15,"last_offset":17,"next_offset":18}
+```
+
 ## What this is not
 
 These are batches and polls: a sensor asks on a cadence and a step gets a whole batch, or a
-whole body, once it is there. Nothing here is a stream flowing through the DAG record by record;
-that is a separate design round.
+whole body, once it is there. The watch makes that continuous -- one run after another, each with
+its batch -- but each run still carries a whole batch through the DAG. Nothing here is a stream
+flowing through the DAG record by record; that is a separate design round.
