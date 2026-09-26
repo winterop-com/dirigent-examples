@@ -33,6 +33,7 @@ trap cleanup EXIT
 
 say() { printf '\n== %s\n' "$1"; }
 passed=()
+skipped=()
 
 # Every assertion goes through this: the jq program is run over the file of records, and a
 # refusal prints what it wanted and what the stream's run record said.
@@ -63,7 +64,7 @@ uv sync --quiet
 say "every document, checked offline"
 uv run dg validate --json > "$WORK/validate.ndjson"
 expect "every document under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'map(select(.kind == "validated")) | last | .invalid == 0 and .documents == 18'
+  'map(select(.kind == "validated")) | last | .invalid == 0 and .documents == 23'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -81,13 +82,14 @@ S3_NAME="everything-s3-verify-$S3_PORT"
 say "the S3 server, as $S3_NAME on port $S3_PORT"
 s3_start "$S3_NAME" "$S3_PORT"
 
+PORT="$(free_port)"
+export DG_URL="http://127.0.0.1:$PORT"
+playground="$DG_URL/api/v1/playground"
+
 say "the connections, and the bucket"
 seal_connections "$S3_PORT"
 make_bucket
 
-PORT="$(free_port)"
-export DG_URL="http://127.0.0.1:$PORT"
-playground="$DG_URL/api/v1/playground"
 say "the instance, on port $PORT"
 uv run dg dev --port "$PORT" > "$WORK/dev.ndjson" 2>&1 &
 DEV_PID=$!
@@ -105,8 +107,8 @@ ensure_schemas
 uv run dg apply --json > "$WORK/apply.ndjson"
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 18 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 18'
+expect "all 23 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 23'
 
 # The clock started with the apply; its first firing is looked for once everything else has run.
 newest_scheduled() {
@@ -231,6 +233,48 @@ expect "the reading to go through the bucket" "$WORK/r.ndjson" "$step_map"'
     and $step.back.output.value.station == "bergen-florida"'
 passed+=(echo-s3)
 
+# --- the playground's routes -----------------------------------------------------------------
+say "http-follow-redirects"
+run http-follow-redirects "$WORK/r.ndjson" -p "playground=$playground"
+expect "the 302 kept, and the same call followed to the destination" "$WORK/r.ndjson" --arg pg "$playground" "$step_map"'
+  | $run.message == "succeeded"
+    and $step.compare.output.value.unfollowed.status == 302
+    and ($step.compare.output.value.unfollowed.location | length) > 0
+    and $step.compare.output.value.followed.status == 200
+    and ($step.compare.output.value.followed.url | startswith($pg + "/request"))'
+passed+=(http-follow-redirects)
+
+# /playground/stream arrives in the dirigent after 0.19.0, so on the pinned 0.19 the route is
+# a 404: the document is validated and applied, and its run is skipped.
+say "SKIPPED: a-stream-to-read, whose /playground/stream route is not in dirigent 0.19"
+skipped+=(a-stream-to-read)
+
+say "playground-unreliable"
+run playground-unreliable "$WORK/r.ndjson" -p "playground=$playground"
+expect "two 503s and a 200, kept as rows" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and $step.tally.output.value == [
+          {attempt: 1, status: 503, outcome: "failed"},
+          {attempt: 2, status: 503, outcome: "failed"},
+          {attempt: 3, status: 200, outcome: "succeeded"}]'
+passed+=(playground-unreliable)
+
+say "playground-response-headers"
+run playground-response-headers "$WORK/r.ndjson" -p "playground=$playground"
+expect "the chosen headers read back, and a text/csv body arrived as text" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and ($step.ask.output.headers["content-type"] | startswith("text/csv"))
+    and $step.read.output.value.station == "bergen-florida"
+    and $step.read.output.value.body_arrived_as == "string"'
+passed+=(playground-response-headers)
+
+say "playground-auth"
+run playground-auth "$WORK/r.ndjson" -p "playground=$playground"
+expect "a 401 without the credential and a 200 through the connection" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and $step.compare.output.value == {anonymous: 401, signed_in: 200, scheme: "basic"}'
+passed+=(playground-auth)
+
 # --- the dhis2-* pipelines --------------------------------------------------------------------
 say "dhis2-read-gate-send"
 run dhis2-read-gate-send "$WORK/r.ndjson"
@@ -329,5 +373,6 @@ expect "the clock's run to be pinned to oslo-blindern" "$WORK/show.ndjson" '
 passed+=(echo-schedule)
 
 echo
-echo "everything: 18 pipelines applied; verified ${#passed[@]} of 19 (the 18 and tutorial/):"
+echo "everything: 23 pipelines applied; verified ${#passed[@]} of 24 (the 23 and tutorial/):"
 echo "  ${passed[*]}"
+echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

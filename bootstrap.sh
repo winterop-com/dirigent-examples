@@ -68,7 +68,8 @@ s3_start() {
   return 1
 }
 
-# The database, and every connection the documents name, written straight to it.
+# The database, and every connection the documents name, written straight to it. DG_URL has
+# to name the instance first: playground-auth addresses its playground.
 seal_connections() {
   local s3_port=$1 code url
   uv run dg db upgrade --json > /dev/null
@@ -91,6 +92,14 @@ seal_connections() {
     --set "access_key_id=$S3_ACCESS_KEY" \
     --set "secret_access_key=$S3_SECRET_KEY" \
     --set path_style=true \
+    --json > /dev/null
+  # The playground's own documented pair, on the instance DG_URL names.
+  uv run dg connection ensure http playground-auth \
+    --name "The playground's auth route" \
+    --set "base_url=$DG_URL/api/v1/playground" \
+    --set basic_username=playground \
+    --set basic_password=playground \
+    --set health_path=/request \
     --json > /dev/null
 }
 
@@ -163,7 +172,7 @@ ensure_alert() {
 # Every connection the documents name, asked whether it answers.
 check_connections() {
   local code
-  for code in play source target artifacts; do
+  for code in play source target artifacts playground-auth; do
     uv run dg connection check "$code" --json \
       | jq -se --arg code "$code" '
           map(select(.kind == "connection.checked")) | last

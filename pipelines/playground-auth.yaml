@@ -1,0 +1,87 @@
+# A route that wants a credential, called with one a connection holds and once without.
+#
+# In:  nothing but parameters.
+# Out: the 401 the route answers a bare call with, and the 200 it answers the connection's.
+#
+# NEEDS AN INSTANCE TO CALL, and a connection on it. /playground/auth is served by a dirigent
+# instance under /api/v1/playground, and accepts the basic pair playground / playground or the
+# bearer token playground-token: public constants that guard nothing. The connection that
+# carries the pair is the instance's, never this document's:
+#
+#   uv run dg connection create http playground-auth \
+#     --set base_url=http://127.0.0.1:3333/api/v1/playground \
+#     --set basic_username=playground --set basic_password=playground \
+#     --set health_path=/request
+#
+# setup.sh seals it, and connections.yaml hands it to a local run:
+#
+#   uv run dg run --local pipelines/playground-auth.yaml --connections connections.yaml
+#
+# The connection contributes the base URL and the Authorization header, so the step names a
+# path and nothing in the document spells out `Basic ...`. Swapping basic_username and
+# basic_password for bearer_token=playground-token changes the connection and not a line here.
+#
+# Hop by hop:
+#
+#   anonymous  the same route by absolute URL, with no connection and so no credential. It
+#              answers 401, and success_status lists 401, so the refusal is kept as an answer
+#              and the run goes on.
+#   signed_in  the route through the connection. It answers 200, with the scheme it accepted.
+#   compare    the two statuses side by side, and which scheme the route saw.
+#
+# EXPECT THIS RUN TO SUCCEED, with anonymous 401 and signed_in 200 over basic.
+#
+#   uv run dg run playground-auth --watch
+
+format: dirigent/v1
+kind: pipeline
+code: playground-auth
+name: A credential from a connection
+description: |
+  The playground's auth route, called bare and refused with a 401, then called through the
+  playground-auth connection, which holds the credential, and answered 200.
+
+tags: [playground, http, connections]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+  connections:
+    - playground-auth
+
+params:
+  type: object
+  properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes the bare call reaches; `dg dev` serves them here.
+
+steps:
+  anonymous:
+    block: http.request
+    config:
+      url: ${params.playground}/auth
+      method: GET
+      # A 401 is not a 2xx, so the refusal this step is here to show has to be listed.
+      success_status: [401]
+
+  signed_in:
+    block: http.request
+    config:
+      # The connection's base URL is the playground, so the path is the route alone.
+      connection: playground-auth
+      path: /auth
+      method: GET
+
+  compare:
+    block: transform.jq
+    depends_on: [anonymous, signed_in]
+    config:
+      input:
+        anonymous: ${steps.anonymous.output.status}
+        signed_in: ${steps.signed_in.output.status}
+        scheme: ${steps.signed_in.output.body.scheme}
+      program: |
+        {anonymous, signed_in, scheme}

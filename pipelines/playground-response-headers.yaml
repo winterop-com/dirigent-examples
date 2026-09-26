@@ -1,0 +1,85 @@
+# Response headers the caller chose, and read back out of the step's output.
+#
+# In:  a content type and a station, as parameters.
+# Out: the headers the service answered with, and the body as the content type made it.
+#
+# NEEDS AN INSTANCE TO CALL. /playground/response-headers is served by a dirigent instance
+# under /api/v1/playground, unauthenticated. Start one first, in this directory:
+#
+#   uv run dg dev
+#
+# The route sets every query argument as a response header, content-type included, and still
+# answers with the playground's JSON envelope. So the header decides how http.request reads a
+# body that did not change: the block parses the body as JSON only when content-type says
+# json, and hands anything else on as text. A service that labels JSON text/csv is a service
+# whose answer arrives as a string.
+#
+# http.request keys its output headers by lowercase name, whatever case the service sent, so
+# a reference into them is always ${steps.<name>.output.headers.<lowercase-name>}.
+#
+# Hop by hop:
+#
+#   ask     one GET whose query names two headers: content-type, and x-station.
+#   read    the two headers out of the output, and what kind of value the body became.
+#
+# EXPECT THIS RUN TO SUCCEED, with content-type text/csv, x-station bergen-florida, and the
+# body arrived as a string.
+#
+#   uv run dg run playground-response-headers --watch
+#   uv run dg run playground-response-headers --watch -p content_type=application/json   # the body arrives parsed
+
+format: dirigent/v1
+kind: pipeline
+code: playground-response-headers
+name: Headers the caller chose
+description: |
+  The playground's response-headers route, told to answer with a content-type and a custom
+  header; both are read back out of the step's output, and the content-type decides whether
+  the body arrives as JSON or as text.
+
+tags: [playground, http, transform]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    content_type:
+      type: string
+      default: text/csv
+      description: The content-type the service is told to answer with.
+    station:
+      type: string
+      default: bergen-florida
+      description: The value of the x-station header the service is told to set.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/response-headers
+      method: GET
+      # Every pair here comes back as a response header. status and delay would be read as
+      # knobs instead, and set-cookie is refused with a 422.
+      query:
+        content-type: ${params.content_type}
+        x-station: ${params.station}
+
+  read:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input:
+        headers: ${steps.ask.output.headers}
+        body: ${steps.ask.output.body}
+      program: |
+        {content_type: .headers["content-type"],
+         station: .headers["x-station"],
+         body_arrived_as: (.body | type)}

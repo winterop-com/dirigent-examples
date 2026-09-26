@@ -39,3 +39,12 @@ connections:
       access_key_id: everything-s3-key
       secret_access_key: everything-s3-secret
       path_style: true
+
+  # The playground's own documented pair, a public constant that guards nothing.
+  playground-auth:
+    kind: http
+    config:
+      base_url: http://127.0.0.1:3333/api/v1/playground
+      basic_username: playground
+      basic_password: playground
+      health_path: /request

@@ -12,7 +12,7 @@ explained.
 ```
 
 On a fresh clone that makes `.env` with the instance key, starts rustfs as `everything-s3` on
-port 9000, writes the connections `play`, `source`, `target` and `artifacts` into
+port 9000, writes the connections `play`, `source`, `target`, `artifacts` and `playground-auth` into
 `.dirigent/state`, creates the bucket `echo-s3`, starts `dg dev` on http://127.0.0.1:3333 in the
 background, logs in as `dev` / `dirigent-dev` and keeps the token in `.env`, creates the seven
 schemas, applies `pipelines/`, and writes echo-alert's rule `echo-failed` with its sink
@@ -46,6 +46,11 @@ In this directory `dg` reads the token from `.env`, so a shell still exporting a
 | `echo-transform` | [echo-transform](../echo-transform) | The three jq verbs between a source and a sink. | `uv run dg run echo-transform --watch` |
 | `echo-schedule` | [echo-schedule](../echo-schedule) | A one-minute schedule and an inbound webhook, firing on their own. | `uv run dg run echo-schedule --watch` |
 | `echo-alert` | [echo-alert](../echo-alert) | A failure, and the `run_failed` alert it raises. Fails by design. | `uv run dg run echo-alert --watch` |
+| `http-follow-redirects` | [dirigent examples](https://github.com/winterop-com/dirigent/tree/main/examples/recipes/http-follow-redirects.yaml) | The playground's `/redirect`, returned as a 302 and then followed. | `uv run dg run http-follow-redirects --watch` |
+| `a-stream-to-read` | [dirigent examples](https://github.com/winterop-com/dirigent/tree/main/examples/playground/a-stream-to-read.yaml) | The playground's `/stream`, read whole and split back into its NDJSON lines. Needs a dirigent after 0.19: on 0.19 the route answers 404. | `uv run dg run a-stream-to-read --watch` |
+| `playground-unreliable` | this project | The playground's `/unreliable`: two 503s and a 200, kept as rows by `success_status`. | `uv run dg run playground-unreliable --watch` |
+| `playground-response-headers` | this project | The playground's `/response-headers`: a content-type and a header chosen, read back. | `uv run dg run playground-response-headers --watch` |
+| `playground-auth` | this project | The playground's `/auth`: a 401 bare, a 200 through the `playground-auth` connection. | `uv run dg run playground-auth --watch` |
 | `echo-storage` | [echo-storage](../echo-storage) | A round trip through storage, and a run report. | `uv run dg run echo-storage --watch` |
 | `echo-s3` | [echo-s3](../echo-s3) | The same through `s3://`, into the rustfs bucket. | `uv run dg run echo-s3 --watch` |
 | `dhis2-read-gate-send` | [dhis2-read-gate-send](../dhis2-read-gate-send) | Read, gate and a dry-run import on the play demo. | `uv run dg run dhis2-read-gate-send --watch` |
