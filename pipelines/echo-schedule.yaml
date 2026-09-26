@@ -1,0 +1,121 @@
+# The two things that start a run without anybody typing a command: a clock, and a POST.
+#
+# In:  a station and its reading, from a parameter, a schedule, or a webhook's payload.
+# Out: the reading, with the run it arrived in beside it.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
+# this document reaches nothing: no connection, no URL, no network. That matters more here
+# than anywhere else, because a trigger cannot be handed anything after it was applied -- a
+# schedule's parameters are pinned in this document and a webhook's come out of the payload,
+# so a document with an address in it is a document whose triggered runs are stuck with the
+# address it was written with.
+#
+# Both triggers travel with the document, so one file is one deployable unit and `dg apply`
+# materialises the clock and mints the hook's token. What stays behind on the instance is
+# the operational half -- whether a schedule is paused, when it last fired, what the token
+# is, and every delivery a hook took -- and none of that belongs in git, so none of it is
+# here.
+#
+# A trigger only fires on an instance this document has been applied to. The pipeline runs
+# anywhere: `dg run --local` needs neither.
+#
+# Hop by hop:
+#
+#   ask     the reading for this run's station, as the node's one record.
+#   record  that record, with the run's own id beside it, so a run says out loud what it
+#           was asked for.
+#
+# EXPECT THIS RUN TO SUCCEED in under a second, whichever of the three started it.
+#
+#   uv run dg run --local pipelines/echo-schedule.yaml
+#   uv run dg apply && uv run dg run echo-schedule --watch -p station=oslo-blindern
+
+format: dirigent/v1
+kind: pipeline
+code: echo-schedule
+name: Started by a clock, and by a POST
+description: |
+  One reading, carrying both trigger kinds: a rolling one-minute schedule, and an inbound
+  webhook that maps a payload onto the pipeline's parameters.
+
+  The document declares them; the instance holds the token, the pause flag and the history.
+
+tags: [triggers, playground, transform, webhook, schedule]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      minLength: 1
+      description: The station the reading is for.
+    reading:
+      type: string
+      default: "12.4"
+      description: The reading reported for it.
+
+steps:
+  ask:
+    block: playground.generate
+    config:
+      # No fields: are named, so the input travels through untouched and becomes this run's
+      # one record.
+      input:
+        station: ${params.station}
+        reading: ${params.reading}
+
+  record:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input:
+        reported: ${steps.ask.output.records.0}
+        # run exposes exactly four names -- run.id, run.scratch, run.window.start and
+        # run.window.end -- and what started the run is not one of them. Which trigger
+        # fired is the instance's fact about the run, read back with `dg runs list`, not
+        # something a step can reach for.
+        run: ${run.id}
+      program: |
+        {station: .reported.station, reading: .reported.reading, run: .run}
+
+triggers:
+  schedules:
+    # An interval is a cadence: every minute from whenever it was declared, with no
+    # calendar moment anybody downstream is waiting for. A cron is the other clock, for
+    # "at 05:00 Oslo" -- write each as what it is and neither has to fake the other.
+    #
+    # A duration is the same length in every zone, so an interval never consults the
+    # calendar and the zone here is read by nothing. cron and at are the clocks that need
+    # one.
+    - code: every-minute
+      name: Every minute
+      description: A cadence fast enough to watch, which is the only reason it is a minute.
+      interval: 1m
+      timezone: UTC
+      # Parameters pinned here override the pipeline's defaults for this schedule's firings
+      # only, which is what makes a second schedule a schedule rather than a second
+      # pipeline.
+      params:
+        station: oslo-blindern
+        reading: "3.1"
+
+  webhooks:
+    # The mapping is the whole declaration: each parameter names a JSONPath into the
+    # payload. Anything the payload carries that is not named here is ignored, and what is
+    # named is validated against params above like any other run's -- so a caller cannot
+    # reach a parameter this mapping does not mention, whatever it POSTs.
+    #
+    # Applying this refuses a mapping that could never fire: a path that does not parse, a
+    # name params does not declare, or a required parameter with no default that nothing
+    # maps. Both parameters here carry defaults, so neither is required.
+    - code: upstream-reading
+      name: Upstream reading
+      params_from_payload:
+        station: "$.station.code"
+        reading: "$.station.reading"

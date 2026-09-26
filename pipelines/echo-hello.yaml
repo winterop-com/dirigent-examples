@@ -1,0 +1,40 @@
+# The smallest document worth writing: one step makes a value, the next one reads it.
+#
+# value.const emits its configured value and touches nothing at all, so this document needs no
+# network, no credential and no instance. log.write writes one line into the run's log, and the
+# line it writes is built from what the step before it produced -- which is the whole point of
+# the document. The edge between the two steps is what makes this a pipeline rather than two
+# commands in a shell.
+#
+#   dg run --local pipelines/echo-hello.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: echo-hello
+name: Echo hello
+description: One step emits a value, and the step after it writes that value into the run's log.
+
+tags: [references]
+
+# What this document needs of an instance. An instance missing a block named here refuses the
+# document at apply rather than failing halfway through a run.
+requires:
+  blocks:
+    - value.const
+    - log.write
+
+steps:
+  # Each key under steps: is a step's name, and the name is how everything else refers to it.
+  make:
+    block: value.const
+    config:
+      value: hello from dirigent
+
+  say:
+    block: log.write
+    # depends_on names the steps this one waits for, and those edges are the graph.
+    depends_on: [make]
+    config:
+      # ${steps.make.output.value} is resolved the moment say is about to run, against what
+      # make actually produced.
+      message: "the step before me said: ${steps.make.output.value}"

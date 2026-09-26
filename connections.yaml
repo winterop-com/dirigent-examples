@@ -1,0 +1,41 @@
+# The connections a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so every connection a document here names is handed to it here.
+#
+# The DHIS2 credentials are the play demos' own, published so that anyone may try them. The
+# s3 credential is the local rustfs container's, made up by setup.sh and thrown away with the
+# container. A real credential belongs in a connection the server holds, encrypted under its
+# key, and never in a file beside the documents.
+
+connections:
+  play:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  source:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-43-1
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  target:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/stable-2-42-6
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  artifacts:
+    kind: s3
+    config:
+      endpoint_url: http://127.0.0.1:9000
+      bucket: echo-s3
+      access_key_id: everything-s3-key
+      secret_access_key: everything-s3-secret
+      path_style: true

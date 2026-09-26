@@ -1,0 +1,91 @@
+# A run that fails on purpose, so there is something for an alert rule to be about.
+#
+# In:  one station's reading.
+# Out: nothing. The step that would publish it fails every attempt and the run ends failed.
+#
+# NOTHING HERE IS CALLED. playground.generate takes an `input` and hands it back, and its
+# `fail_until` knob fails that many attempts before succeeding -- so a failure on cue is a
+# number in this document rather than an endpoint somewhere that has to be answering. No
+# connection, no URL, no network.
+#
+# The alerting half of this example is not in this document and cannot be: a rule binds an
+# event to a notifier and a notifier delivers through a connection, and both are records the
+# INSTANCE holds, minted with `dg connection create` and `dg alerts rules create`. A
+# document that carried either would be a document that carried a credential, which is the
+# one thing a portable document must never do. So this file is only the failure, and
+# README.md is the rule.
+#
+# Hop by hop:
+#
+#   ask      the reading for this run's station, as the node's one record.
+#   publish  the send. fail_until is above the budget below, so every attempt fails and the
+#            step is out of tries. The failure is classed transient, which is the class a
+#            budget is for; echo-retry is where the other class sits beside it.
+#   note     never runs. Its edge is the default all_success, and the step it waits for did
+#            not succeed, so it is skipped rather than failed.
+#
+# EXPECT THIS RUN TO FAIL in about a second, with publish out of attempts and note skipped
+# behind it.
+#
+#   uv run dg run --local pipelines/echo-alert.yaml     # fails, by design
+#   uv run dg run --local pipelines/echo-alert.yaml -p fail_until=0   # succeeds
+
+format: dirigent/v1
+kind: pipeline
+code: echo-alert
+name: A failure worth alerting on
+description: |
+  A read that works followed by a publish that fails every attempt, so the run ends `failed`
+  and an alert rule on `run_failed` has something to fire on.
+
+  The rule and the connection it delivers through are the instance's, never the document's.
+
+tags: [playground, failure]
+
+requires:
+  blocks:
+    - playground.generate
+    - log.write
+
+params:
+  type: object
+  properties:
+    station:
+      type: string
+      default: bergen-florida
+      minLength: 1
+      description: The station the reading is for.
+    fail_until:
+      type: integer
+      default: 3
+      minimum: 0
+      maximum: 9
+      description: How many of the publish's attempts fail. Above its budget of 2, all of them do.
+
+steps:
+  ask:
+    block: playground.generate
+    config:
+      # No fields: are named, so the input travels through untouched and becomes this run's
+      # one record.
+      input:
+        station: ${params.station}
+        reading: "12.4"
+
+  publish:
+    block: playground.generate
+    depends_on: [ask]
+    # Two attempts allowed, and a transient failure spends both. Where the alert itself is
+    # delivered is not here: that is the sink connection's url, on the instance.
+    retry:
+      max_attempts: 2
+      backoff: 1s
+    config:
+      fail_until: ${params.fail_until}
+      input: ${steps.ask.output.records.0}
+
+  note:
+    block: log.write
+    depends_on: [publish]
+    config:
+      message: "published the reading for ${params.station}"

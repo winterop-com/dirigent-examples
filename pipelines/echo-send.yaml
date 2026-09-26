@@ -1,0 +1,78 @@
+# Read, gate, send: the three moves, with the send built out of what the gate passed.
+#
+# validate.schema hands its input on unchanged as value, which makes the gate a waypoint: the send
+# does not read the request's answer again, it reads the gate's output, and every step past the
+# gate provably received the shape. That is also why send is skipped rather than failed when the
+# gate refuses -- it never ran, because the step it waits for did not succeed.
+#
+# The playground answers a POST with the body it was given, under request.body, so the send's own
+# answer is the proof of what was sent.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is a request-and-response service every dirigent
+# instance serves itself under /api/v1/playground, unauthenticated, so a document teaching HTTP
+# calls its own instance and nothing on the public internet. `dg dev` is what serves it.
+#
+#   dg schema create schemas/playground-answer.json
+#   dg apply
+#   dg run echo-send --watch
+#   dg run echo-send --watch -p station=          # the gate refuses, and send is skipped
+
+format: dirigent/v1
+kind: pipeline
+code: echo-send
+name: Echo send
+description: Ask the playground for one station's reading, hold the answer to a shape, and send the validated values back.
+
+tags: [http, validate, references]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+  schemas:
+    - playground-answer
+
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/request
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      # The envelope's `request` is the part this pipeline is about, so that is what the gate is
+      # given and what every step past it reads.
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer
+
+  send:
+    block: http.request
+    depends_on: [check]
+    config:
+      url: ${params.playground}/request
+      method: POST
+      # Read out of the gate rather than out of the read: every step past a gate provably
+      # received the shape. Neither value is written twice in this document.
+      body:
+        station: ${steps.check.output.value.args.station}
+        reading: ${steps.check.output.value.args.reading}

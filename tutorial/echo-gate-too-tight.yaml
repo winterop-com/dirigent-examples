@@ -1,0 +1,80 @@
+# The gate, tightened one line too far -- this one fails on purpose.
+#
+# reading is declared a number here, because a reading surely is one. It is not: there are no
+# numbers in a query string, so a value that travelled as a query argument is text at the far end
+# however numeric it looks. The gate says so in one line with the path in it, and the run ends at
+# the step the wrong value arrived in.
+#
+# The schema is carried in the document's own schemas: section, which a local run seeds and a
+# server refuses -- see echo-gate-carried.yaml for that half of the lesson. This document lives at
+# the project root rather than in pipelines/, so dg apply never sends it.
+#
+# NEEDS AN INSTANCE TO CALL. The playground this calls is served by a dirigent instance under
+# /api/v1/playground; start one with `dg dev`.
+#
+#   dg run --local echo-gate-too-tight.yaml    # failed, at the gate
+
+format: dirigent/v1
+kind: pipeline
+code: echo-gate-too-tight
+name: The gate, too tight
+description: A reading declared a number, refused by the gate because a query argument is text.
+
+tags: [http, validate, failure]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/request
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer
+
+schemas:
+  playground-answer:
+    title: The reading, as the playground answers it
+    type: object
+    required: [args, url]
+    properties:
+      args:
+        type: object
+        required: [station, reading]
+        properties:
+          station:
+            type: string
+            minLength: 1
+          # The one wrong line. The playground answers 200 and the read succeeds; the answer is
+          # simply not the answer this schema was written against.
+          reading:
+            type: number
+        additionalProperties: false
+      url:
+        type: string

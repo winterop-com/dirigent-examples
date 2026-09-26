@@ -1,0 +1,125 @@
+# The three jq verbs, in the order a reshape usually wants them, between a source and a sink.
+#
+# In:  a batch of station readings, carried in this document and handed over by the node.
+# Out: one summary, written onto the run's own timeline.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
+# the batch below is this document's own data arriving as a step's output rather than a round
+# trip that pretends to fetch what it just sent. Nothing here reaches a connection, a URL, a
+# network or a file. Replace `readings` with an http.request whose body the filter reads, or
+# `say` with an http.request that POSTs the summary onward, and the three verbs between them
+# do not move.
+#
+# One jq program could do all of this in a line. Three steps say what happened instead, and
+# each verb has a contract the others do not:
+#
+#   filter.jq     runs its program once per element and keeps the elements it answers true
+#                 for. The frame keeps the element, so nothing is modified and the list can
+#                 only get shorter. jq's truthiness is not applied: a program answering 0 or
+#                 "" is refused rather than read as false, so "has readings" is .count > 0.
+#   map.jq        runs its program once per element and keeps what the program returns. One
+#                 output per element, so the list is exactly as long as the one that went
+#                 in; a program emitting nothing, or two things, for one element is refused.
+#   transform.jq  runs one program over one whole value. This is the verb for a change of
+#                 shape rather than an element-wise edit.
+#
+# Every program is compiled when the document is applied, so a syntax error is refused at
+# steps.<name>.config rather than at three in the morning.
+#
+# Hop by hop:
+#
+#   readings     the batch, as the node's records. This stands in for the read: the list
+#                arrives from somewhere else.
+#   active       keep the stations still reporting. Four in, three out.
+#   fahrenheit   convert each survivor. Three in, three out, by the verb's contract.
+#   summary      one program over the whole list: a count, the regions, the warmest.
+#   say          the sink. log.write puts the summary on the run's own timeline and hands
+#                it on unchanged, so the last step is a real destination and not a POST to
+#                somewhere that has to be answering.
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, with the summary in the run's log.
+#
+#   uv run dg run --local pipelines/echo-transform.yaml
+#   uv run dg run --local pipelines/echo-transform.yaml -p keep=retired
+
+format: dirigent/v1
+kind: pipeline
+code: echo-transform
+name: Filter, map, transform
+description: |
+  A batch narrowed with `filter.jq`, converted element by element with `map.jq`, reduced
+  with `transform.jq`, and written onto the run's timeline.
+
+  Each verb carries its own contract: a filter cannot modify, a map cannot change the
+  length, and only the transform reshapes the whole value.
+
+tags: [transform, playground, filter, map, jq]
+
+requires:
+  blocks:
+    - playground.generate
+    - filter.jq
+    - map.jq
+    - transform.jq
+    - log.write
+
+params:
+  type: object
+  properties:
+    keep:
+      type: string
+      default: active
+      description: The status the filter keeps. Set it to retired to narrow to the other one.
+
+steps:
+  readings:
+    block: playground.generate
+    config:
+      # No fields: are named, so the list travels through untouched and each element is one
+      # of the node's records.
+      input:
+        - { station: bergen-florida, region: west, status: active, celsius: 12.4 }
+        - { station: oslo-blindern, region: east, status: active, celsius: 3.1 }
+        - { station: tromso-langnes, region: north, status: retired, celsius: -6.8 }
+        - { station: trondheim-voll, region: north, status: active, celsius: 1.2 }
+
+  active:
+    block: filter.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.records}
+      # The program's answer is the verdict and nothing else. The element that comes out is
+      # the element that went in, which is why a filter can never quietly edit a row.
+      program: |
+        .status == "${params.keep}"
+
+  fahrenheit:
+    block: map.jq
+    depends_on: [active]
+    config:
+      input: ${steps.active.output.value}
+      # One output per element, so this list is exactly as long as the one above it.
+      program: |
+        {station, region, fahrenheit: (.celsius * 9 / 5 + 32 | round)}
+
+  summary:
+    block: transform.jq
+    depends_on: [fahrenheit]
+    config:
+      input: ${steps.fahrenheit.output.value}
+      # A whole-value reshape: the list goes in and one object comes out, which is the one
+      # thing neither of the other two verbs can do.
+      program: |
+        {stations: length,
+         regions: (map(.region) | unique),
+         warmest: (max_by(.fahrenheit) | .station),
+         mean_fahrenheit: ((map(.fahrenheit) | add) / length | round)}
+
+  say:
+    block: log.write
+    depends_on: [summary]
+    config:
+      message: the three verbs are done
+      # Built from the transform's output rather than from the source, so what lands carries
+      # what the three verbs made and nothing that skipped them.
+      value: ${steps.summary.output.value}

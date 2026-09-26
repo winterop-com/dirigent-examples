@@ -1,0 +1,138 @@
+# The outbound half of a sync: DHIS2 on one side, something that is not DHIS2 on the other.
+#
+# The hierarchy is the spine every other DHIS2 payload hangs off -- a data value names an
+# orgUnit, an enrollment names an orgUnit -- so the system next door usually needs its own
+# copy of it, refreshed on a clock. That system has never heard of a uid, a shortName or a
+# path. It has a facility register with a code, a name, a parent and a date, and the document
+# is where DHIS2's vocabulary is translated into its.
+#
+#   read     dhis2.metadata on `source`. The same subtree the other two documents move.
+#   check    validate.schema. The gate on the read, against the shape the instance holds.
+#   records  map.jq. One foreign record per organisation unit: same length, smaller
+#            elements, which is the verb's contract.
+#   batch    transform.jq. One program over the whole list: the envelope the receiver is
+#            handed, with the count beside the rows.
+#   send     http.request. POST to the other system.
+#   say      log.write. What the other system answered, read back out of its own reply.
+#
+# The receiver here is the playground, the request-and-response service every dirigent
+# instance serves itself under /api/v1/playground: it answers with the request it was given,
+# so the batch comes back under .body.request.body and `say` below is reading what arrived
+# rather than what was sent. Pointing this at the real system is a flag on the run rather
+# than an edit.
+#
+# THE RECEIVER IS AN INSTANCE, so `dg dev` has to be running before either command below --
+# `dg run --local` builds a throwaway database and mounts no API of its own, and reaches the
+# playground over the network like anything else.
+#
+#   uv run dg run --local pipelines/dhis2-to-other.yaml \
+#     --connections connections.yaml --schema schemas/org-unit-sync-source.json
+#   uv run dg run dhis2-to-other --watch -p playground=http://127.0.0.1:3333/api/v1/playground
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-to-other
+name: Organisation units, DHIS2 to another system
+description: |
+  Read a subtree of organisation units from DHIS2, gate it, reshape it into a flat register
+  of `{code, name, parent_code, opened}` records, and POST the batch to the system next door.
+
+  The projection is where a sync decides what the other system's record actually is. A uid
+  is DHIS2's own key and means nothing outside it, so the code travels and the uid stays
+  home.
+
+tags: [dhis2, metadata, validate, transform, http, sync]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - map.jq
+    - transform.jq
+    - http.request
+    - log.write
+  connections:
+    - source
+  schemas:
+    - org-unit-sync-source
+
+params:
+  type: object
+  properties:
+    parent:
+      type: string
+      format: dhis2-uid
+      default: O6uvpzGd5pu
+      description: The uid of the parent whose children are synchronised. Bo district by default, which has fifteen chiefdoms under it.
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      # The receiving system, standing in for the register next door. `dg dev` serves these
+      # routes on this machine, so nothing on the public internet takes the batch.
+      description: The playground routes the batch is posted to.
+
+steps:
+  read:
+    block: dhis2.metadata
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: source
+      resource: organisationUnits
+      fields: "id,code,name,shortName,openingDate,level,parent[id,code]"
+      filter: "parent.id:eq:${params.parent}"
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: org-unit-sync-source
+
+  records:
+    block: map.jq
+    depends_on: [check]
+    config:
+      input: ${steps.check.output.value.organisationUnits}
+      # The code is the key that travels: a uid is DHIS2's own and means nothing on the other
+      # side, while a code is what both systems were configured with. The parent is named by
+      # code for the same reason, which is what makes the register rebuildable into a tree.
+      # DHIS2 writes an opening date as a timestamp; a register wants the day.
+      program: |
+        {code: .code,
+         name: .name,
+         parent_code: .parent.code,
+         opened: (.openingDate | split("T")[0])}
+
+  batch:
+    block: transform.jq
+    depends_on: [records]
+    config:
+      input: ${steps.records.output.value}
+      # The count rides with the rows. A sync that ships records without saying how many
+      # there should have been cannot be audited on the far side.
+      program: |
+        {source: "dhis2-play-2-43-1",
+         synced: length,
+         facilities: .}
+
+  send:
+    block: http.request
+    depends_on: [batch]
+    config:
+      # An absolute URL rather than a connection: the receiver here needs no credential, and
+      # building it from a parameter is what lets one flag move the whole document to the
+      # real system. A real receiver gets a connection, like the two DHIS2 instances do.
+      url: ${params.playground}/request
+      method: POST
+      body: ${steps.batch.output.value}
+
+  say:
+    block: log.write
+    depends_on: [send]
+    # The playground answers with the request it was given, so .body.request.body is the
+    # batch as it arrived. Reading the answer rather than the payload makes this a receipt.
+    config:
+      message: "the register took ${steps.send.output.body.request.body.synced} facilities from ${steps.send.output.body.request.body.source}, first ${steps.send.output.body.request.body.facilities.0.code} under ${steps.send.output.body.request.body.facilities.0.parent_code}"

@@ -1,0 +1,65 @@
+# Ask the playground for one station's reading.
+#
+# http.request is the generic HTTP call, and url: is an absolute address -- which is all a one-off
+# call needs. The alternative is a connection: a coded record the instance holds, carrying a base
+# URL, its credential, its TLS setting and its timeout, which a step names with connection: and a
+# path:. That is what you reach for the moment two steps call the same host, or the host wants a
+# password. This one calls a single endpoint once, so it needs neither.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is a request-and-response service every dirigent
+# instance serves itself under /api/v1/playground, unauthenticated, so a document teaching HTTP
+# calls its own instance and nothing on the public internet. Start one first, in this directory:
+#
+#   uv run dg dev
+#
+# `dg run --local` builds a throwaway database and mounts no API of its own, so it reaches the
+# playground the same way anything else does: over the network, at the URL below.
+#
+#   dg run --local pipelines/echo-read.yaml
+#   dg run --local pipelines/echo-read.yaml -p station=oslo-blindern
+
+format: dirigent/v1
+kind: pipeline
+code: echo-read
+name: Echo read
+description: Ask the playground for one station's reading, and read what it answers.
+
+tags: [http, params]
+
+requires:
+  blocks:
+    - http.request
+
+# A JSON Schema over the run's parameters. A parameter with a default may be left out; one
+# without must be given, and a value the schema refuses stops the run before a single call is
+# made.
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+    reading:
+      type: string
+      default: "12.4"
+      description: The reading to send along with it.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/request
+      method: GET
+      # query: is the ?station=...&reading=... of the request, and ${params.<name>} reads the
+      # run's parameter. The playground answers with the request it was given, so what comes
+      # back under body.request.args is the proof of what was asked.
+      query:
+        station: ${params.station}
+        reading: ${params.reading}

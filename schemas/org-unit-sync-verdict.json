@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "org-unit-sync-verdict",
+  "title": "An import report the sync is willing to call a success",
+  "description": "The flattened /api/metadata report. A DHIS2 metadata import answers a refusal with 200 or 409 and a report either way, so the status code is not the verdict -- this shape is. OK, nothing ignored and nothing refused; anything else fails the step it is checked in.",
+  "type": "object",
+  "required": ["status", "created", "updated", "deleted", "ignored", "total", "refused", "conflicts"],
+  "properties": {
+    "status": { "const": "OK" },
+    "created": { "type": "integer", "minimum": 0 },
+    "updated": { "type": "integer", "minimum": 0 },
+    "deleted": { "type": "integer", "minimum": 0 },
+    "ignored": { "type": "integer", "maximum": 0 },
+    "total": { "type": "integer", "minimum": 1 },
+    "refused": { "type": "integer", "maximum": 0 },
+    "conflicts": { "type": "array", "maxItems": 0 },
+    "detail": { "type": "string" }
+  }
+}
