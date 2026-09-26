@@ -10,6 +10,13 @@ when it settles, written by the engine rather than by a step -- which is the poi
 the run whose worker died has no step left to write anything and is the run whose account is
 worth the most.
 
+## This one needs no network
+
+The read is a node, not a call. `playground.generate` takes an `input` and hands it back, so
+the batch is this document's own data arriving as a step's output. Nothing here reaches a
+connection, a URL or a network -- only the run's own storage. Replacing `readings` with an
+`http.request` whose body the write reads changes that one step and nothing under it.
+
 ## Run it
 
 The storage round trip runs anywhere:
@@ -49,42 +56,6 @@ and that the rendered page carries the table the template wrote. It picks a free
 own, mints its token with `dg auth login --username dev --password dirigent-dev`, and stops
 the instance it started by pid.
 
-## Offline
-
-Postman Echo is the one thing here that needs the network, and `local-echo` beside this
-repository is the same service in one file of Python. Start it in another terminal:
-
-```bash
-python3 ../local-echo/echo_server.py
-```
-
-It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
-points at it:
-
-```bash
-uv run dg run --local pipelines/echo-storage.yaml -p base_url=http://127.0.0.1:8080
-```
-
-```text
-2026-09-17T15:41:56.142+02:00 [info    ] http call                      [log ask] method=POST url=http://127.0.0.1:8080/post status=200 bytes=761 duration_ms=27
-2026-09-17T15:41:56.205+02:00 [info    ] wrote                          [log save] uri=readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-17T15:41:56.276+02:00 [info    ] read                           [log back] uri=readings-2026-01-01.json bytes_read=206 content_type=application/json
-```
-
-The answer is a different size, 761 bytes against 701, because the two echoes report a
-slightly different set of request headers back -- and `bytes_written` is 206 either way.
-What is stored is the batch, not the answer that carried it, so the round trip does not
-notice which echo it came from. An instance takes the same flag:
-
-```bash
-uv run dg run echo-storage --watch -p base_url=http://127.0.0.1:8080
-```
-
-`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
-`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
-leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
-`UV_OFFLINE=1` that keeps `uv` off the network too.
-
 ## What you see
 
 *Printed as it printed, with this project's directory written as `/home/you/echo-storage` and
@@ -95,13 +66,13 @@ uv run dg validate pipelines/echo-storage.yaml
 ```
 
 ```text
-2026-09-17T15:19:43.364+02:00 [info    ] valid                          [validation] code=echo-storage document=pipelines/echo-storage.yaml checked="document, offline"
+2026-09-26T12:51:00.531+02:00 [info    ] valid                          [validation] code=echo-storage document=pipelines/echo-storage.yaml checked="document, offline"
   each step under the last one it waits for
-    ask  (http.request)
+    readings  (playground.generate)
       save  (storage.write)
         back  (storage.read)
           summary  (transform.jq)
-2026-09-17T15:19:43.366+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:51:00.535+02:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
 
 ```bash
@@ -109,38 +80,42 @@ uv run dg run --local pipelines/echo-storage.yaml
 ```
 
 ```text
-2026-09-17T15:19:44.618+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0af85-ebe6-71db-959c-6addd6f78a80 local=true scratch=file:///tmp/dirigent-local-btz4qu7f/artifacts/runs/01a0af85-ebe6-71db-959c-6addd6f78a80 root=/tmp/dirigent-local-btz4qu7f
-2026-09-17T15:19:44.611+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T15:19:44.687+02:00 [info    ] running                        [step ask] block=http.request attempt=1
-2026-09-17T15:19:44.956+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=257
-2026-09-17T15:19:44.959+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=271
-2026-09-17T15:19:45.008+02:00 [info    ] wrote                          [log save] uri=readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-17T15:19:45.010+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=16
-2026-09-17T15:19:45.073+02:00 [info    ] read                           [log back] uri=readings-2026-01-01.json bytes_read=206 content_type=application/json
-2026-09-17T15:19:45.074+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=15
-2026-09-17T15:19:45.074+02:00 [info    ] queued                         [step summary] block=transform.jq attempt=1
-2026-09-17T15:19:45.168+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=43
-2026-09-17T15:19:45.173+02:00 [info    ] finished                       [log summary] duration_ms=33 output_bytes=85
-2026-09-17T15:19:45.220+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0af85-ebe6-71db-959c-6addd6f78a80 exit_code=0
-steps                                                                                             
-┏━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step    ┃ block         ┃ outcome   ┃ after ┃ duration ┃ output                                ┃
-┡━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ http.request  │ succeeded │ -     │ 0.3s     │ status=200  headers={12 keys}         │
-│         │               │           │       │          │ body={7 keys}  body_bytes=701         │
-│         │               │           │       │          │ duration_ms=257                       │
-│ save    │ storage.write │ succeeded │ ask   │ 0.0s     │ uri=readings-2026-01-01.json          │
-│         │               │           │       │          │ bytes_written=206                     │
-│         │               │           │       │          │ content_type=application/json         │
-│ back    │ storage.read  │ succeeded │ save  │ 0.0s     │ content_type=application/json         │
-│         │               │           │       │          │ value={2 keys}  bytes_read=206        │
-│ summary │ transform.jq  │ succeeded │ back  │ 0.0s     │ value={4 keys}                        │
-└─────────┴───────────────┴───────────┴───────┴──────────┴───────────────────────────────────────┘
+2026-09-26T12:51:01.942+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0dd57-01b2-7256-9a91-4855087fcbbd local=true scratch=file:///tmp/dirigent-local-li3nb4cx/artifacts/runs/01a0dd57-01b2-7256-9a91-4855087fcbbd root=/tmp/dirigent-local-li3nb4cx
+2026-09-26T12:51:01.935+02:00 [info    ] queued                         [step readings] block=playground.generate attempt=1
+2026-09-26T12:51:02.006+02:00 [info    ] playground generated           [log readings] rows=4 seed=1556702461 locale=en_US drift=none
+2026-09-26T12:51:02.006+02:00 [info    ] succeeded                      [step readings] block=playground.generate attempt=1 duration_ms=35
+2026-09-26T12:51:02.068+02:00 [info    ] wrote                          [log save] uri=readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-09-26T12:51:02.069+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=10
+2026-09-26T12:51:02.069+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
+2026-09-26T12:51:02.130+02:00 [info    ] read                           [log back] uri=readings-2026-01-01.json bytes_read=206 content_type=application/json
+2026-09-26T12:51:02.132+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=13
+2026-09-26T12:51:02.132+02:00 [info    ] queued                         [step summary] block=transform.jq attempt=1
+2026-09-26T12:51:02.218+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=37
+2026-09-26T12:51:02.223+02:00 [info    ] finished                       [log summary] duration_ms=31 output_bytes=85
+2026-09-26T12:51:02.315+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0dd57-01b2-7256-9a91-4855087fcbbd exit_code=0
+steps
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step     ┃ block               ┃ outcome   ┃ after    ┃ duration ┃ output                        ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ readings │ playground.generate │ succeeded │ -        │ 0.0s     │ records=[4 items]  rows=4     │
+│          │                     │           │          │          │ seed=1556702461  locale=en_US │
+│          │                     │           │          │          │ fields={3 keys}  drift=none   │
+│          │                     │           │          │          │ delay_ms=0  attempt=1         │
+│          │                     │           │          │          │ fail_until=0  input_rows=4    │
+│ save     │ storage.write       │ succeeded │ readings │ 0.0s     │ uri=readings-2026-01-01.json  │
+│          │                     │           │          │          │ bytes_written=206             │
+│          │                     │           │          │          │ content_type=application/json │
+│ back     │ storage.read        │ succeeded │ save     │ 0.0s     │ content_type=application/json │
+│          │                     │           │          │          │ value={2 keys}                │
+│          │                     │           │          │          │ bytes_read=206                │
+│ summary  │ transform.jq        │ succeeded │ back     │ 0.0s     │ value={4 keys}                │
+└──────────┴─────────────────────┴───────────┴──────────┴──────────┴───────────────────────────────┘
 ```
 
 `bytes_written=206` and `bytes_read=206`: a value is written as canonical JSON -- sorted keys,
 no spaces -- so the same value writes the same bytes every run, and what comes back is what
-went out.
+went out. The node's own seed is in its output and changes from run to run; it decided nothing
+here, because the records came from the `input` rather than from a provider.
 
 On an instance the same document writes into the artifact root instead of a temporary
 directory, and nothing in the document changed to make that happen:
@@ -150,8 +125,7 @@ uv run dg apply
 ```
 
 ```text
-create echo-storage  version 1 
-(/home/you/echo-storage/pipelines/echo-storage.yaml)
+create echo-storage  version 1 (/home/you/echo-storage/pipelines/echo-storage.yaml)
 ```
 
 ```bash
@@ -159,46 +133,47 @@ uv run dg run echo-storage --watch
 ```
 
 ```text
-2026-09-17T23:27:40.683+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0b144-a387-7528-808e-3a32aac37406 local=false
-2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
-2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
-2026-09-17T23:27:41.002+02:00 [info    ] http call                      [log ask] method=POST url=https://postman-echo.com/post status=200 bytes=701 duration_ms=272
-2026-09-17T23:27:41.011+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=307
-2026-09-17T23:27:40.681+02:00 [info    ] queued                         [step summary] block=transform.jq attempt=1
-2026-09-17T23:27:41.271+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-17T23:27:41.273+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=27
-2026-09-17T23:27:41.810+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json bytes_read=206 content_type=application/json
-2026-09-17T23:27:41.813+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=41
-2026-09-17T23:27:42.379+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=66
-2026-09-17T23:27:42.385+02:00 [info    ] finished                       [log summary] duration_ms=44 output_bytes=85
-2026-09-17T23:27:43.195+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0b144-a387-7528-808e-3a32aac37406 pipeline_version=1 triggered_by="dev (token dev)" duration_ms=1676 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0b144-a387-7528-808e-3a32aac37406
-pipeline      echo-storage (version 1)  
-status        succeeded                 
-triggered by  dev (token dev)           
-duration      1.7s                      
-items         -                         
+2026-09-26T12:51:04.853+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0dd57-0d10-709e-ba58-fba77ef6170e local=false
+2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step readings] block=playground.generate attempt=1
+2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
+2026-09-26T12:51:05.367+02:00 [info    ] playground generated           [log readings] rows=4 seed=274114847 locale=en_US drift=none
+2026-09-26T12:51:05.367+02:00 [info    ] succeeded                      [step readings] block=playground.generate attempt=1 duration_ms=38
+2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
+2026-09-26T12:51:05.886+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-09-26T12:51:05.888+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=18
+2026-09-26T12:51:06.397+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json bytes_read=206 content_type=application/json
+2026-09-26T12:51:06.399+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=12
+2026-09-26T12:51:06.941+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=41
+2026-09-26T12:51:06.947+02:00 [info    ] finished                       [log summary] duration_ms=31 output_bytes=85
+2026-09-26T12:51:07.315+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0dd57-0d10-709e-ba58-fba77ef6170e pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1612 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a0dd57-0d10-709e-ba58-fba77ef6170e
+pipeline      echo-storage (version 1)
+status        succeeded
+triggered by  dev (token cli-dev)
+duration      1.6s
+items         -
 
-steps                                                                        
-┏━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
-┃ step    ┃ block         ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
-┡━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ ask     │ http.request  │ succeeded │ -     │ 1        │ 0.3s     │ -     │
-│ save    │ storage.write │ succeeded │ ask   │ 1        │ 0.0s     │ -     │
-│ back    │ storage.read  │ succeeded │ save  │ 1        │ 0.0s     │ -     │
-│ summary │ transform.jq  │ succeeded │ back  │ 1        │ 0.1s     │ -     │
-└─────────┴───────────────┴───────────┴───────┴──────────┴──────────┴───────┘
+steps
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ step     ┃ block               ┃ outcome   ┃ after    ┃ attempts ┃ duration ┃ error ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ readings │ playground.generate │ succeeded │ -        │ 1        │ 0.0s     │ -     │
+│ save     │ storage.write       │ succeeded │ readings │ 1        │ 0.0s     │ -     │
+│ back     │ storage.read        │ succeeded │ save     │ 1        │ 0.0s     │ -     │
+│ summary  │ transform.jq        │ succeeded │ back     │ 1        │ 0.0s     │ -     │
+└──────────┴─────────────────────┴───────────┴──────────┴──────────┴──────────┴───────┘
 
-outputs                                                                                           
-┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step    ┃ output                                                                               ┃
-┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask     │ status=200  headers={12 keys}  body={7 keys}  body_bytes=701  duration_ms=272        │
-│ save    │ uri=file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/re… │
-│         │ bytes_written=206  content_type=application/json                                     │
-│ back    │ content_type=application/json  value={2 keys}  bytes_read=206                        │
-│ summary │ value={4 keys}                                                                       │
-└─────────┴──────────────────────────────────────────────────────────────────────────────────────┘
+outputs
+┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step     ┃ output                                                                                ┃
+┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ readings │ records=[4 items]  rows=4  seed=274114847  locale=en_US  fields={3 keys}  drift=none  │
+│          │ delay_ms=0  attempt=1  fail_until=0  input_rows=4                                     │
+│ save     │ uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/rea… │
+│          │ bytes_written=206  content_type=application/json                                      │
+│ back     │ content_type=application/json  value={2 keys}  bytes_read=206                         │
+│ summary  │ value={4 keys}                                                                        │
+└──────────┴───────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Nobody asked for the report and it is already written: the engine rendered it in the
@@ -207,28 +182,29 @@ transaction that settled the run. Into a pipe `dg runs report --markdown` is one
 as text; at a terminal the same command writes that page as-is, to go into a file or a ticket.
 
 ```bash
-uv run dg runs report 01a0b144-a387-7528-808e-3a32aac37406 --markdown | jq -r .document
+uv run dg runs report 01a0dd57-0d10-709e-ba58-fba77ef6170e --markdown | jq -r .document
 ```
 
 ```text
-# echo-storage on 2026-09-17T21:27:40.703694+00:00
+# echo-storage on 2026-09-26T10:51:05.328851+00:00
 
-**succeeded** in 1s676ms, started by dev (token dev).
+**succeeded** in 1s612ms, started by dev (token cli-dev).
 
-The batch landed at `file://./.dirigent/state/artifacts/runs/01a0b144-a387-7528-808e-3a32aac37406/readings-2026-01-01.json`, 206b of canonical JSON.
+The batch landed at `file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json`, 206b of canonical JSON.
 
 | Day | Rows | Coldest | Mean |
 | --- | --- | --- | --- |
 | 2026-01-01 | 4 | tromso-langnes | 2.5 |
 
-- **ask** (http.request) succeeded after 1 attempt(s), 307ms
-- **save** (storage.write) succeeded after 1 attempt(s), 27ms
-- **back** (storage.read) succeeded after 1 attempt(s), 41ms
-- **summary** (transform.jq) succeeded after 1 attempt(s), 66ms
+- **readings** (playground.generate) succeeded after 1 attempt(s), 38ms
+- **save** (storage.write) succeeded after 1 attempt(s), 18ms
+- **back** (storage.read) succeeded after 1 attempt(s), 12ms
+- **summary** (transform.jq) succeeded after 1 attempt(s), 41ms
 ```
 
-`1s676ms` and `206b` are the `duration` and `bytes` filters: the template was handed
+`1s612ms` and `206b` are the `duration` and `bytes` filters: the template was handed
 milliseconds and bytes and asked for them the way a person reads them.
+
 
 ## The document, hop by hop
 
@@ -238,9 +214,14 @@ bytes land:
 ```yaml
 # A payload out of a run and back into it, and a run that writes its own account of itself.
 #
-# In:  a batch of readings, POSTed to Postman Echo and read back out of its answer.
+# In:  a batch of readings, carried in this document and handed over by the node.
 # Out: one file in the run's scratch space, the batch read back off it, a summary, and a
 #      report document the engine renders when the run settles.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
+# the batch is this document's own data arriving as a step's output. Nothing here reaches a
+# connection, a URL or a network -- only the run's own storage. Replacing `readings` with an
+# http.request whose body the write reads changes that one step and nothing under it.
 #
 # A value travels between steps as a step's output. storage.write is the only way one
 # leaves the run and storage.read the only way one comes back in, which is how a payload
@@ -268,13 +249,14 @@ bytes land:
 #
 # Hop by hop:
 #
-#   ask      POST the batch to /post, which answers with the body it was given.
-#   save     write the echoed batch to one file under the run's scratch prefix.
-#   back     read that file again, at the uri the write reported rather than the same path
-#            typed twice.
-#   summary  reduce the rows as they came off storage, not as they were held upstream.
+#   readings  the batch, as the node's records. This stands in for the read: the rows
+#             arrive from somewhere else.
+#   save      write the day and the rows to one file under the run's scratch prefix.
+#   back      read that file again, at the uri the write reported rather than the same path
+#             typed twice.
+#   summary   reduce the rows as they came off storage, not as they were held upstream.
 #
-# EXPECT THIS RUN TO SUCCEED in about a second, with four rows written and read back.
+# EXPECT THIS RUN TO SUCCEED in well under a second, with four rows written and read back.
 #
 #   uv run dg run --local pipelines/echo-storage.yaml
 #   uv run dg apply && uv run dg run echo-storage --watch && uv run dg runs report RUN_ID --markdown
@@ -288,16 +270,16 @@ kind: pipeline
 code: echo-storage
 name: Through storage, with a report
 description: |
-  The answer to one read written to storage, read back, and reduced -- and a `report:`
-  section, so every run of it renders its own markdown account when it settles.
+  A batch written to storage, read back, and reduced -- and a `report:` section, so every
+  run of it renders its own markdown account when it settles.
 
   The document names a scheme-agnostic prefix; where the bytes land is an instance setting.
 
-tags: [recipes, http, storage, transform, report]
+tags: [recipes, playground, storage, transform, report]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - storage.write
     - storage.read
     - transform.jq
@@ -305,13 +287,6 @@ requires:
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at
-    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
-    # runs it against a stand-in on this machine, with no network at all.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
     day:
       type: string
       format: date
@@ -319,39 +294,36 @@ params:
       description: The day the written file is named for.
 ```
 
-`base_url` is a parameter doing a structural job: the read below is built on it, so one flag
-on the run moves the whole document to another echo without touching a line of it.
-
-**`ask`** is the read. The batch is written into the request so the example needs nothing
-standing up, and Postman Echo hands it straight back under `json`:
+**`readings`** is the source. The batch is written into the node's `input`, and because no
+`fields:` are named it travels through untouched and becomes the node's records:
 
 ```yaml
 steps:
-  ask:
-    block: http.request
+  readings:
+    block: playground.generate
     config:
-      url: ${params.base_url}/post
-      method: POST
-      body:
-        day: ${params.day}
-        readings:
-          - { station: bergen-florida, celsius: 12.4 }
-          - { station: oslo-blindern, celsius: 3.1 }
-          - { station: tromso-langnes, celsius: -6.8 }
-          - { station: trondheim-voll, celsius: 1.2 }
+      # No fields: are named, so the list travels through untouched and each element is one
+      # of the node's records.
+      input:
+        - { station: bergen-florida, celsius: 12.4 }
+        - { station: oslo-blindern, celsius: 3.1 }
+        - { station: tromso-langnes, celsius: -6.8 }
+        - { station: trondheim-voll, celsius: 1.2 }
 ```
 
-**`save`** writes it out. `${run.scratch}` is a prefix rather than a path: the same line lands
-in a temporary directory locally, in the artifact root on this instance, and in a bucket on
-one with object storage configured:
+**`save`** writes it out, composing the file out of the day and the rows. `${run.scratch}` is a
+prefix rather than a path: the same line lands in a temporary directory locally, in the
+artifact root on this instance, and in a bucket on one with object storage configured:
 
 ```yaml
   save:
     block: storage.write
-    depends_on: [ask]
+    depends_on: [readings]
     config:
       target: ${run.scratch}/readings-${params.day}.json
-      value: ${steps.ask.output.body.json}
+      value:
+        day: ${params.day}
+        readings: ${steps.readings.output.records}
 ```
 
 **`back`** reads it in again, at the URI the write reported. One place decides where a file
@@ -397,7 +369,7 @@ depending on how it ended, which is why the two steps read into below are guarde
 #
 # A name the facts do not have renders as empty rather than failing, because half a run's
 # facts are legitimately null depending on how it ended -- which is why the two steps below
-# are guarded: a run that failed at `ask` has no `save` output to read into.
+# are guarded: a run that failed at `readings` has no `save` output to read into.
 report:
   template: |
     # {{ pipeline.code }} on {{ run.started_at | iso }}
