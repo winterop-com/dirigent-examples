@@ -1,15 +1,20 @@
 # The gate with its shape handed to the instance: the document names a code, and nothing else.
 #
-# schemas/echo-answer.json is the same shape echo-gate-carried.yaml carries, lifted out of the
-# document and stored on the instance with `dg schema create`. The check step does not change at
-# all: it named the schema by code all along, and the code now resolves to the one the instance
+# schemas/playground-answer.json is the same shape echo-gate-carried.yaml carries, lifted out of
+# the document and stored on the instance with `dg schema create`. The check step does not change
+# at all: it named the schema by code all along, and the code now resolves to the one the instance
 # holds. What changes is who owns the shape -- every pipeline on this instance gating on
-# echo-answer is gating on the same echo-answer.
+# playground-answer is gating on the same playground-answer.
 #
 # requires.schemas is what makes a missing shape a refusal at apply rather than a failure at the
-# step: an instance that does not hold echo-answer will not take this document.
+# step: an instance that does not hold playground-answer will not take this document.
 #
-#   dg schema create schemas/echo-answer.json
+# NEEDS AN INSTANCE TO CALL, and not only to store the shape. The playground is a
+# request-and-response service every dirigent instance serves itself under /api/v1/playground,
+# unauthenticated, so a document teaching HTTP calls its own instance and nothing on the public
+# internet. `dg dev` is what serves it.
+#
+#   dg schema create schemas/playground-answer.json
 #   dg apply
 #   dg run echo-gate --watch
 #   dg run echo-gate --watch -p station=          # failed: the gate refuses an empty station
@@ -18,7 +23,7 @@ format: dirigent/v1
 kind: pipeline
 code: echo-gate
 name: Echo gate
-description: Ask Postman Echo for a reading and hold the answer to a shape the instance holds.
+description: Ask the playground for a reading and hold the answer to a shape the instance holds.
 
 tags: [http, validate]
 
@@ -27,18 +32,17 @@ requires:
     - http.request
     - validate.schema
   schemas:
-    - echo-answer
+    - playground-answer
 
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at another
-    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
-    # against a stand-in on this machine, with no network at all.
-    base_url:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
       type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     station:
       type: string
       default: bergen-florida
@@ -48,7 +52,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: ${params.base_url}/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -58,7 +62,8 @@ steps:
     block: validate.schema
     depends_on: [ask]
     config:
-      # The whole answer goes in, and the gate hands it on unchanged as value: a step past the
-      # gate reads ${steps.check.output.value} and provably received the shape.
-      input: ${steps.ask.output.body}
-      schema: echo-answer
+      # The envelope's `request` is the part this pipeline is about, so that is what the gate is
+      # given and what every step past it reads. The gate hands its input on unchanged as value,
+      # so a step past the gate reads ${steps.check.output.value} and provably received the shape.
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer

@@ -11,6 +11,9 @@
 # schema is still worth having, because a local run seeds what the document brought, and a local
 # run is the fast loop.
 #
+# NEEDS AN INSTANCE TO CALL. A local run seeds the schema but mounts no API, and the playground
+# this calls is served by a dirigent instance under /api/v1/playground. Start one with `dg dev`.
+#
 #   dg run --local echo-gate-carried.yaml      # succeeded
 #   dg apply echo-gate-carried.yaml            # refused, 422
 
@@ -30,13 +33,12 @@ requires:
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at another
-    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
-    # against a stand-in on this machine, with no network at all.
-    base_url:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
       type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
     station:
       type: string
       default: bergen-florida
@@ -46,7 +48,7 @@ steps:
   ask:
     block: http.request
     config:
-      url: ${params.base_url}/get
+      url: ${params.playground}/request
       method: GET
       query:
         station: ${params.station}
@@ -56,12 +58,12 @@ steps:
     block: validate.schema
     depends_on: [ask]
     config:
-      input: ${steps.ask.output.body}
-      schema: echo-answer
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer
 
 schemas:
-  echo-answer:
-    title: The answer, as Postman Echo gives it
+  playground-answer:
+    title: The reading, as the playground answers it
     type: object
     required: [args, url]
     properties:
