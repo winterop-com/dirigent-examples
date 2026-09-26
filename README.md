@@ -90,13 +90,12 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-190 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at f6a69199.
+190 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at v0.20.0.
 A document with a required parameter or a `${run.window}` reference says so in its command.
 Three changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`;
 `a-stream-to-read` takes `playground` rather than `instance`; and
 `connections-referenced-vs-carried` builds its absolute URL from a `playground` parameter
-rather than spelling out the port, so a run on another instance is a flag. `a-stream-to-read`
-needs the dirigent after 0.19: on 0.19 its route answers 404.
+rather than spelling out the port, so a run on another instance is a flag.
 
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
@@ -250,7 +249,7 @@ needs the dirigent after 0.19: on 0.19 its route answers 404.
 | [`generated-rows`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/generated-rows.yaml) | A first step that needs no input: a field map of Faker providers, a row count and a seed. | `uv run dg run generated-rows --watch` |
 | [`in-the-middle-of-a-flow`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/in-the-middle-of-a-flow.yaml) | A list from upstream, enriched with generated columns, then handed to the node again as the document's last step. | `uv run dg run in-the-middle-of-a-flow --watch` |
 | [`retry-that-really-retries`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/retry-that-really-retries.yaml) | A step that fails its first two attempts and succeeds on the third, on purpose. | `uv run dg run retry-that-really-retries --watch` |
-| [`waiting-for-a-batch`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/waiting-for-a-batch.yaml) | A sensor that answers "not yet" for a few pokes and then hands over a generated batch. | not applied: its block playground.arrive is not in dirigent 0.19 |
+| [`waiting-for-a-batch`](https://github.com/winterop-com/dirigent/tree/main/examples/playground/waiting-for-a-batch.yaml) | A sensor that answers "not yet" for a few pokes and then hands over a generated batch. | `uv run dg run waiting-for-a-batch --watch` |
 
 ### preview
 
@@ -398,7 +397,6 @@ needs the dirigent after 0.19: on 0.19 its route answers 404.
 | `docker/docker-build-push` | Needs `ghcr`, a registry connection with a push credential. |
 | `docker/docker-remote-daemon` | Needs `build-daemon`, a remote Docker daemon over TCP and TLS. |
 | `open-data/odk-central-submissions` | Needs `odk-central`, an ODK Central server and an account on it. |
-| `playground/waiting-for-a-batch` | Its block `playground.arrive` arrives in the dirigent after 0.19. |
 | `preview/s3-parquet-to-ingestion` | A preview: it needs an adapter pack's `modelling-api` and `ops-webhook`. |
 
 `triggers/document-nightly` is applied as what it is, a triggers document for
@@ -411,13 +409,15 @@ needs the dirigent after 0.19: on 0.19 its route answers 404.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance on 4444 alone; validates all 211 documents; applies them; runs the 21
-pipelines beside the shelves and the two playground routes on the shelves with their own assertions and the three tutorial documents locally;
-runs every corpus pipeline through `corpus.py`, six at a time, each judged on its last run
+it leaves the demo instance on 4444 alone; validates all 211 documents; applies them; runs the
+21 pipelines beside the shelves and the two playground routes on the shelves with their own
+assertions, and the three tutorial documents locally;
+runs every corpus pipeline through `corpus.py`, six at a time and the docker and git shelves
+one at a time after them, each judged on its last run
 record against the outcome it is meant to end with; waits for echo-schedule's webhook and its
 clock; and stops what it started. Expect about ten minutes. It does not run:
 
 | Pipeline | Why |
 | --- | --- |
 | `kobo-submissions-to-csv` | Needs a KoboToolbox account: an `asset_uid` and a token. |
-| the five above | They are not applied. |
+| the four above | They are not applied. |

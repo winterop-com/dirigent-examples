@@ -76,14 +76,13 @@ NOT_APPLIED: dict[str, str] = {
     "docker-build-push": "needs ghcr, a registry connection with a push credential",
     "docker-remote-daemon": "needs build-daemon, a remote Docker daemon over TCP and TLS",
     "odk-central-submissions": "needs odk-central, an ODK Central server and an account on it",
-    "waiting-for-a-batch": "its block playground.arrive is not in dirigent 0.19",
     "s3-parquet-to-ingestion": "a preview: needs an adapter pack's modelling-api and ops-webhook",
 }
 
 #: Pipelines verify.sh runs itself, or that are not run here, and why.
 SKIPPED: dict[str, str] = {
-    "a-stream-to-read": "its /playground/stream route is not in dirigent 0.19",
     "http-follow-redirects": "verify.sh runs it with the other playground routes",
+    "a-stream-to-read": "verify.sh runs it with the other playground routes",
     "kobo-submissions-to-csv": "needs a KoboToolbox account: an asset_uid and a token",
 }
 
@@ -93,6 +92,10 @@ CONSUMERS = ("kafka-consume-then-transform",)
 
 #: Started once the consumers are waiting: they produce to the topic the consumers read.
 PRODUCERS = ("report-to-kafka", "kafka-produce-then-consume")
+
+#: Shelves whose pipelines bring containers up on this machine's daemon, run one at a time
+#: after the rest: two stacks starting at once contend for the daemon and its host ports.
+SERIAL_SHELVES = ("docker", "git")
 
 #: How long the consumers are given to take their first poke.
 CONSUMER_HEAD_START_SECONDS = 20
@@ -149,7 +152,7 @@ def run(code: str, flags: list[str], expected: str) -> dict[str, Any]:
     fields = {"code": code, "expected": expected, "got": last.get("message"), "run_id": last.get("run_id")}
     if last.get("message") == expected:
         return {"kind": "corpus.passed", **fields}
-    failures = [f"{f.get('step')}: {str(f.get('error'))[:200]}" for f in last.get("failures") or []]
+    failures = [f"{f.get('step')}: {str(f.get('error'))[-600:]}" for f in last.get("failures") or []]
     return {"kind": "corpus.failed", **fields, "failures": failures[:3]}
 
 
@@ -158,7 +161,7 @@ def main() -> int:
     now = datetime.now(UTC).replace(microsecond=0)
     window = f"{(now - timedelta(days=1)).isoformat()}..{now.isoformat()}"
     counts = {"passed": 0, "failed": 0, "skipped": 0}
-    planned: list[tuple[str, list[str], str]] = []
+    planned: list[tuple[str, list[str], str, str]] = []
     for code, path, raw in documents():
         reason = NOT_APPLIED.get(code) or SKIPPED.get(code)
         flags = flags_for(raw, path.read_text(), instance, window) if reason is None else reason
@@ -166,15 +169,17 @@ def main() -> int:
             counts["skipped"] += 1
             emit("corpus.skipped", code=code, path=str(path), reason=flags)
             continue
-        planned.append((code, flags, EXPECTED.get(code, "succeeded")))
+        planned.append((code, flags, EXPECTED.get(code, "succeeded"), path.parent.name))
 
     def settle(result: dict[str, Any]) -> None:
         counts[result["kind"].split(".")[1]] += 1
         print(json.dumps(result), flush=True)
 
-    consumers = [one for one in planned if one[0] in CONSUMERS]
-    producers = [one for one in planned if one[0] in PRODUCERS]
-    rest = [one for one in planned if one[0] not in CONSUMERS and one[0] not in PRODUCERS]
+    serial = [one[:3] for one in planned if one[3] in SERIAL_SHELVES]
+    parallel = [one[:3] for one in planned if one[3] not in SERIAL_SHELVES]
+    consumers = [one for one in parallel if one[0] in CONSUMERS]
+    producers = [one for one in parallel if one[0] in PRODUCERS]
+    rest = [one for one in parallel if one[0] not in CONSUMERS and one[0] not in PRODUCERS]
     with ThreadPoolExecutor(max_workers=len(consumers) or 1) as waiting:
         pending = [waiting.submit(run, *one) for one in consumers]
         time.sleep(CONSUMER_HEAD_START_SECONDS if consumers else 0)
@@ -183,6 +188,8 @@ def main() -> int:
                 settle(result)
         for future in pending:
             settle(future.result())
+    for one in serial:
+        settle(run(*one))
     emit("corpus.done", **counts)
     return 0 if counts["failed"] == 0 else 1
 

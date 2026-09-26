@@ -12,6 +12,7 @@
 #
 # Needs docker, uv, jq, curl, and the network for the DHIS2 play demos and the open-data APIs.
 set -euo pipefail
+trap 'echo "verify.sh: failed at line $LINENO: $BASH_COMMAND" >&2' ERR
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 # shellcheck source=bootstrap.sh
@@ -120,15 +121,15 @@ check_connections
 say "the schemas, the documents, and echo-alert's rule"
 ensure_schemas
 apply_all "$WORK/seed.ndjson"
-# The five documents this project cannot give what they need, and nothing else, are refused.
-expect "only the five documents without what they need refused" "$WORK/seed.ndjson" '
+# The four documents this project cannot give what they need, and nothing else, are refused.
+expect "only the four documents without what they need refused" "$WORK/seed.ndjson" '
   map(select(.kind == "seed.refused" and .pass == 2) | .document | split("/") | last)
   | sort == ["docker-build-push.yaml", "docker-remote-daemon.yaml", "odk-central-submissions.yaml",
-             "s3-parquet-to-ingestion.yaml", "waiting-for-a-batch.yaml"]'
+             "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 205 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 205'
+expect "all 206 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 206'
 
 # The clock started with the apply; its first firing is looked for once everything else has run.
 newest_scheduled() {
@@ -264,10 +265,15 @@ expect "the 302 kept, and the same call followed to the destination" "$WORK/r.nd
     and ($step.compare.output.value.followed.url | startswith($pg + "/request"))'
 passed+=(http-follow-redirects)
 
-# /playground/stream arrives in the dirigent after 0.19.0, so on the pinned 0.19 the route is
-# a 404: the document is validated and applied, and its run is skipped.
-say "SKIPPED: a-stream-to-read, whose /playground/stream route is not in dirigent 0.19"
-skipped+=(a-stream-to-read)
+say "a-stream-to-read"
+run a-stream-to-read "$WORK/r.ndjson" -p "playground=$playground"
+expect "the envelope, five messages and the close, split back into lines" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and $step.count_lines.output.value.lines == 7
+    and $step.count_lines.output.value.ended == true
+    and ($step.count_lines.output.value.kinds | map({key: .kind, value: .count}) | from_entries)
+        == {"stream": 1, "stream.message": 5, "stream.closed": 1}'
+passed+=(a-stream-to-read)
 
 say "playground-unreliable"
 run playground-unreliable "$WORK/r.ndjson" -p "playground=$playground"
@@ -403,7 +409,7 @@ expect "the clock's run to be pinned to oslo-blindern" "$WORK/show.ndjson" '
 passed+=(echo-schedule)
 
 echo
-echo "everything: 205 pipelines applied; the corpus $corpus"
-echo "verified ${#passed[@]} of the 23 beside it and tutorial/:"
+echo "everything: 206 pipelines applied; the corpus $corpus"
+echo "verified ${#passed[@]} one by one: the 21 beside the shelves, two playground routes on them, and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"
