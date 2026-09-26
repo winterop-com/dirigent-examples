@@ -7,18 +7,14 @@ here are identical -- it is in what the service said, and classifying that is th
 is the example that fails on purpose: both of its steps fail, the run ends `failed`, and that is
 the whole point of looking at it.
 
-## Run it
+## What it calls
 
-From a fresh clone, with nothing running:
-
-```bash
-uv sync
-uv run dg validate pipelines/echo-retry.yaml
-uv run dg run --local pipelines/echo-retry.yaml    # fails, by design
-```
-
-That run takes the better part of ten seconds, because the retried step waits two and then four
-before giving up.
+The **playground** is a request-and-response service every dirigent instance serves itself under
+`/api/v1/playground`, unauthenticated, and it answers with whatever status it is asked for. That is
+what lets one document show both classes of failure without calling anything on the public
+internet: `?status=404` is the thing not being there, `?status=503` is the service being unwell.
+An instance has to be running before any of the runs below, `--local` included, because a local run
+builds a throwaway database and mounts no API of its own.
 
 In a second terminal, in this directory:
 
@@ -31,10 +27,24 @@ under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
 its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
-`.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
-the CLI where it went.
+`.dirigent/profiles.yaml` holds and the address the document's `playground` parameter defaults to;
+`dg dev --port` moves the instance, `DG_URL` is how you tell the CLI where it went, and
+`-p playground=...` is how you tell the document.
 
-Back in the first terminal, with that line pasted:
+## Run it
+
+From a fresh clone, with that instance running:
+
+```bash
+uv sync
+uv run dg validate pipelines/echo-retry.yaml
+uv run dg run --local pipelines/echo-retry.yaml    # fails, by design
+```
+
+That run takes the better part of six seconds, because the retried step waits two and then four
+before giving up.
+
+Back in the first terminal, with the export line pasted:
 
 ```bash
 uv run dg apply
@@ -46,51 +56,9 @@ The contrast is worth seeing on an instance as well as locally, because there ev
 row of its own with its own resolved config and its own logs -- which is what makes a retry
 auditable rather than a counter.
 
-`./verify.sh` does all of it non-interactively, on a free port of its own, and asserts that the
-refusal took one attempt of the three it was allowed and the outage took all three.
-
-## Offline
-
-Postman Echo is the one thing here that needs the network, and `local-echo` beside this
-repository is the same service in one file of Python. Start it in another terminal:
-
-```bash
-python3 ../local-echo/echo_server.py
-```
-
-It answers `/status/<code>` the way the real service does -- that status, and a body with nothing
-in it but the number -- so `/status/404` is still the thing not being there and `/status/503` is
-still the service being unwell. The `base_url` parameter is the whole of the switch:
-
-```bash
-uv run dg run --local pipelines/echo-retry.yaml -p base_url=http://127.0.0.1:8080
-uv run dg run echo-retry --watch -p base_url=http://127.0.0.1:8080
-```
-
-```text
-2026-09-17T15:35:36.284+02:00 [info    ] http call                      [log refused] method=GET url=http://127.0.0.1:8080/status/404 status=404 bytes=15 duration_ms=29
-2026-09-17T15:35:36.289+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=3
-2026-09-17T15:35:37.962+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=10
-2026-09-17T15:35:42.599+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:8080/status/503 status=503 bytes=15 duration_ms=3
-```
-
-Four calls, as against the real service: one for `refused`, three for `unlucky`, with the same
-waits between the attempts. The address differs, and the body is a byte longer. The classes, which
-are what this example is about, do not differ at all:
-
-```bash
-uv run dg run --local pipelines/echo-retry.yaml -p base_url=http://127.0.0.1:8080 --json \
-  | jq -c -s 'map(select(.kind == "run")) | last | [.failures[] | {step, attempt, class: .error_class}]'
-```
-
-```json
-[{"step":"refused","attempt":1,"class":"rejected"},{"step":"unlucky","attempt":1,"class":"transient"},{"step":"unlucky","attempt":2,"class":"transient"},{"step":"unlucky","attempt":3,"class":"transient"}]
-```
-
-`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
-`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online leg
-out. `OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1`
-that keeps `uv` off the network too.
+`./verify.sh` does all of it non-interactively, on a free port of its own, points both runs at that
+instance's playground, and asserts that the refusal took one attempt of the three it was allowed
+and the outage took all three.
 
 ## What you see
 
@@ -102,50 +70,47 @@ uv run dg run --local pipelines/echo-retry.yaml
 ```
 
 ```text
-2026-09-17T15:12:16.790+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0af7f-1690-7074-9062-ef7945f0390e local=true scratch=file:///tmp/dirigent-local-fg87qehm/artifacts/runs/01a0af7f-1690-7074-9062-ef7945f0390e root=/tmp/dirigent-local-fg87qehm
-2026-09-17T15:12:16.784+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
-2026-09-17T15:12:16.784+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
-2026-09-17T15:12:16.868+02:00 [info    ] running                        [step refused] block=http.request attempt=1
-2026-09-17T15:12:16.979+02:00 [info    ] running                        [step unlucky] block=http.request attempt=1
-2026-09-17T15:12:17.470+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=484
-2026-09-17T15:12:17.473+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=494
-2026-09-17T15:12:19.776+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
-2026-09-17T15:12:19.781+02:00 [info    ] running                        [step unlucky] block=http.request attempt=2
-2026-09-17T15:12:21.511+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=1726
-2026-09-17T15:12:21.512+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=1732
-2026-09-17T15:12:25.433+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
-2026-09-17T15:12:22.524+02:00 [info    ] http call                      [log refused] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=5647
-2026-09-17T15:12:22.526+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=5659
-2026-09-17T15:12:25.707+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=238
-2026-09-17T15:12:25.708+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=249
-2026-09-17T15:12:25.975+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0af7f-1690-7074-9062-ef7945f0390e exit_code=1
+2026-09-26T12:42:38.406+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0dd4f-52c1-70b8-8c32-a57f8729e4e1 local=true scratch=file:///tmp/dirigent-local-2p7q2x62/artifacts/runs/01a0dd4f-52c1-70b8-8c32-a57f8729e4e1 root=/tmp/dirigent-local-2p7q2x62
+2026-09-26T12:42:38.401+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
+2026-09-26T12:42:38.401+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
+2026-09-26T12:42:38.475+02:00 [info    ] http call                      [log refused] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=404 bytes=398 duration_ms=30
+2026-09-26T12:42:38.480+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=46
+2026-09-26T12:42:38.482+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
+2026-09-26T12:42:38.487+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=16
+2026-09-26T12:42:40.167+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
+2026-09-26T12:42:40.180+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
+2026-09-26T12:42:40.181+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=8
+2026-09-26T12:42:43.595+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
+2026-09-26T12:42:43.632+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=3
+2026-09-26T12:42:43.633+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=9
+2026-09-26T12:42:43.834+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0dd4f-52c1-70b8-8c32-a57f8729e4e1 exit_code=1
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome ┃ after ┃ duration ┃ output ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━┩
-│ refused │ http.request │ failed  │ -     │ 5.7s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.5s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 1.7s     │ -      │
-│ unlucky │ http.request │ failed  │ -     │ 0.2s     │ -      │
+│ refused │ http.request │ failed  │ -     │ 0.0s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
+│ unlucky │ http.request │ failed  │ -     │ 0.0s     │ -      │
 └─────────┴──────────────┴─────────┴───────┴──────────┴────────┘
 
 refused failed  http.request, attempt 1, rejected
-  GET https://postman-echo.com/status/404 answered 404
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 404
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 1, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 2, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 3, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
 ```
@@ -157,7 +122,8 @@ given the same three and spent every one, because 503 is `transient`.
 Read the timestamps rather than the durations: the second attempt starts about two seconds after
 the first failed, and the third about four after that. The delay between attempts is data rather
 than a sleep -- each failure writes the next attempt's time into the future and the worker moves
-on, so nothing holds a worker slot for the backoff.
+on, so nothing holds a worker slot for the backoff. The call itself takes single-digit
+milliseconds, because the service answering is the instance on this machine.
 
 Now the same document on the instance:
 
@@ -167,67 +133,66 @@ uv run dg run echo-retry --watch
 ```
 
 ```text
-2026-09-17T23:26:49.742+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0b143-dc8a-736d-83e6-8bd24584d94a local=false
-2026-09-17T23:26:49.740+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
-2026-09-17T23:26:49.740+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
-2026-09-17T23:26:50.208+02:00 [info    ] http call                      [log refused] method=GET url=https://postman-echo.com/status/404 status=404 bytes=14 duration_ms=233
-2026-09-17T23:26:50.210+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=241
-2026-09-17T23:26:50.253+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=260
-2026-09-17T23:26:50.254+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=265
-2026-09-17T23:26:50.256+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
-2026-09-17T23:26:52.857+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=318
-2026-09-17T23:26:52.861+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=332
-2026-09-17T23:26:52.866+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
-2026-09-17T23:26:57.909+02:00 [info    ] http call                      [log unlucky] method=GET url=https://postman-echo.com/status/503 status=503 bytes=14 duration_ms=306
-2026-09-17T23:26:57.915+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=318
-2026-09-17T23:27:00.295+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0b143-dc8a-736d-83e6-8bd24584d94a pipeline_version=1 triggered_by="dev (token dev)" duration_ms=7946 items_total=0 items_failed=0 exit_code=1 priority=normal
-run
-01a0b143-dc8a-736d-83e6-8bd24584d94a
+2026-09-26T12:42:46.250+02:00 [info    ] started                        [run] pipeline=echo-retry run_id=01a0dd4f-7165-72f5-8ad8-41544b361d1f local=false
+2026-09-26T12:42:46.247+02:00 [info    ] queued                         [step refused] block=http.request attempt=1
+2026-09-26T12:42:46.247+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=1
+2026-09-26T12:42:46.464+02:00 [info    ] http call                      [log refused] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=404 bytes=398 duration_ms=17
+2026-09-26T12:42:46.470+02:00 [info    ] failed                         [step refused] block=http.request attempt=1 duration_ms=30
+2026-09-26T12:42:46.470+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
+2026-09-26T12:42:46.475+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=1 duration_ms=14
+2026-09-26T12:42:46.476+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=2
+2026-09-26T12:42:48.511+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
+2026-09-26T12:42:48.511+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=2 duration_ms=10
+2026-09-26T12:42:48.513+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
+2026-09-26T12:42:53.570+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
+2026-09-26T12:42:53.571+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=15
+2026-09-26T12:42:56.765+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0dd4f-7165-72f5-8ad8-41544b361d1f pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=7131 items_total=0 items_failed=0 exit_code=1 priority=normal
+run 01a0dd4f-7165-72f5-8ad8-41544b361d1f
 pipeline      echo-retry (version 1)
 status        failed
-triggered by  dev (token dev)
-duration      7.9s
+triggered by  dev (token cli-dev)
+duration      7.1s
 items         -
 
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block        ┃ outcome ┃ after ┃ attempts ┃ duration ┃ error                           ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ refused │ http.request │ failed  │ -     │ 1        │ 0.2s     │ GET                             │
-│         │              │         │       │          │          │ https://postman-echo.com/statu… │
+│ refused │ http.request │ failed  │ -     │ 1        │ 0.0s     │ GET                             │
+│         │              │         │       │          │          │ http://127.0.0.1:3333/api/v1/p… │
 │         │              │         │       │          │          │ answered 404                    │
-│ unlucky │ http.request │ failed  │ -     │ 1        │ 0.3s     │ GET                             │
-│         │              │         │       │          │          │ https://postman-echo.com/statu… │
+│ unlucky │ http.request │ failed  │ -     │ 1        │ 0.0s     │ GET                             │
+│         │              │         │       │          │          │ http://127.0.0.1:3333/api/v1/p… │
 │         │              │         │       │          │          │ answered 503                    │
-│ unlucky │ http.request │ failed  │ -     │ 2        │ 0.3s     │ GET                             │
-│         │              │         │       │          │          │ https://postman-echo.com/statu… │
+│ unlucky │ http.request │ failed  │ -     │ 2        │ 0.0s     │ GET                             │
+│         │              │         │       │          │          │ http://127.0.0.1:3333/api/v1/p… │
 │         │              │         │       │          │          │ answered 503                    │
-│ unlucky │ http.request │ failed  │ -     │ 3        │ 0.3s     │ GET                             │
-│         │              │         │       │          │          │ https://postman-echo.com/statu… │
+│ unlucky │ http.request │ failed  │ -     │ 3        │ 0.0s     │ GET                             │
+│         │              │         │       │          │          │ http://127.0.0.1:3333/api/v1/p… │
 │         │              │         │       │          │          │ answered 503                    │
 └─────────┴──────────────┴─────────┴───────┴──────────┴──────────┴─────────────────────────────────┘
 
 refused failed  http.request, attempt 1, rejected
-  GET https://postman-echo.com/status/404 answered 404
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 404
   last log lines:
     info: http call
 
 unlucky failed  http.request, attempt 1, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
     info: http call
     info: http call
 
 unlucky failed  http.request, attempt 2, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
     info: http call
     info: http call
 
 unlucky failed  http.request, attempt 3, transient
-  GET https://postman-echo.com/status/503 answered 503
+  GET http://127.0.0.1:3333/api/v1/playground/request answered 503
   last log lines:
     info: http call
     info: http call
@@ -240,7 +205,7 @@ failed with nothing tolerating it. The error column is narrowed to the terminal'
 failure detail under the table carries each message whole.
 
 ```bash
-uv run dg runs show 01a0b143-dc8a-736d-83e6-8bd24584d94a --json \
+uv run dg runs show 01a0dd4f-7165-72f5-8ad8-41544b361d1f --json \
   | jq -c '[.fields.attempts[] | {step: .step_name, attempt: .attempt, class: .error_class}]'
 ```
 
@@ -275,20 +240,6 @@ simply wrong.
 `pipelines/echo-retry.yaml`:
 
 ```yaml
-# Two failures with the same retry budget, to show what the budget is actually for.
-#
-# Neither step depends on the other, so both run in the same run and the run's table puts them side
-# by side: one row against three, under identical retry: blocks. The difference is not the policy,
-# it is what the service said. A rejected failure spends no budget, because the service will answer
-# the same way in two seconds and in two hours; a transient one spends all of it.
-#
-# The delay between attempts is data rather than a sleep: each failure writes the next attempt's
-# time into the future and the worker moves on, so nothing holds a worker slot for the backoff.
-#
-# This run is meant to fail. Both steps fail, so the run ends failed with exit code 1.
-#
-#   dg run --local pipelines/echo-retry.yaml     # failed, by design
-
 format: dirigent/v1
 kind: pipeline
 code: echo-retry
@@ -304,13 +255,10 @@ requires:
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at another
-    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
-    # against a stand-in on this machine, with no network at all.
-    base_url:
+    playground:
       type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
 
 steps:
   refused:
@@ -321,8 +269,10 @@ steps:
     config:
       # 404 is the service saying the thing is not there. Asking again cannot change that, so the
       # block classifies it rejected and the budget above is never touched.
-      url: ${params.base_url}/status/404
+      url: ${params.playground}/request
       method: GET
+      query:
+        status: 404
 
   unlucky:
     block: http.request
@@ -332,8 +282,10 @@ steps:
     config:
       # 503 is the service saying it is unwell right now, which is a different sentence: the block
       # classifies it transient and every attempt in the budget is spent.
-      url: ${params.base_url}/status/503
+      url: ${params.playground}/request
       method: GET
+      query:
+        status: 503
 ```
 
 Neither step names the other in `depends_on`, so neither waits: dirigent runs whatever is not
@@ -344,15 +296,15 @@ how many attempts the step may have in total, and `backoff` is the wait before t
 `max_backoff` caps it so a long budget cannot become a long sleep, and jitter spreads the retries
 of a fan-out that all failed in the same instant.)
 
-`/status/404` and `/status/503` are Postman Echo answering with a status and nothing else, which
-makes them a stand-in for the two sentences a real service says: *the thing is not there*, and
-*I am unwell right now*. Both are built on `base_url`, the document's one parameter, so those two
-sentences can just as well come from an echo running on this machine.
+`status` is a query argument the playground reads as a knob rather than as data: it answers with
+that status, and reflects the request under it either way. So the two steps differ in one number,
+and that number is the two sentences a real service says: *the thing is not there*, and *I am
+unwell right now*. Both are built on `playground`, the document's one parameter.
 
 ## Where to go next
 
-- [`echo-fanout`](../echo-fanout/README.md) is the same two classes over a list: one request per
-  item, one station down, and a join that counts the survivors rather than the rows asked for.
+- [`echo-fanout`](../echo-fanout/README.md) is the same two classes over a list: one item per
+  station, one station down, and a join that counts the survivors rather than the rows asked for.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial this example is
   cut from, and section 6 is this step of it.
 - [**The examples**](../README.md): every example in order, and what you need once.

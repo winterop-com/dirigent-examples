@@ -10,6 +10,11 @@
 #
 # This run is meant to fail. Both steps fail, so the run ends failed with exit code 1.
 #
+# NEEDS AN INSTANCE TO CALL. The playground is a request-and-response service every dirigent
+# instance serves itself under /api/v1/playground, unauthenticated, and it answers with whatever
+# status it is asked for -- which is what lets one document show both classes of failure without
+# calling anything on the public internet. `dg dev` is what serves it.
+#
 #   dg run --local pipelines/echo-retry.yaml     # failed, by design
 
 format: dirigent/v1
@@ -27,13 +32,12 @@ requires:
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at another
-    # echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080 runs it
-    # against a stand-in on this machine, with no network at all.
-    base_url:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
       type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
 
 steps:
   refused:
@@ -44,8 +48,10 @@ steps:
     config:
       # 404 is the service saying the thing is not there. Asking again cannot change that, so the
       # block classifies it rejected and the budget above is never touched.
-      url: ${params.base_url}/status/404
+      url: ${params.playground}/request
       method: GET
+      query:
+        status: 404
 
   unlucky:
     block: http.request
@@ -55,5 +61,7 @@ steps:
     config:
       # 503 is the service saying it is unwell right now, which is a different sentence: the block
       # classifies it transient and every attempt in the budget is spent.
-      url: ${params.base_url}/status/503
+      url: ${params.playground}/request
       method: GET
+      query:
+        status: 503
