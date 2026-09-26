@@ -56,41 +56,18 @@ mints its token with `dg auth login --username dev --password dirigent-dev`, wai
 scheduled run to land, POSTs the hook, asserts on the records both produced, and stops the
 instance it started by pid.
 
-## Offline
+## This one needs no network
 
-Postman Echo is the one thing here that needs the network, and `local-echo` beside this
-repository is the same service in one file of Python. Start it in another terminal:
+The read is a node, not a call. `playground.generate` takes an `input` and hands it back, so
+the document reaches nothing: no connection, no URL, no network. That matters more here than
+anywhere else, because a trigger cannot be handed anything after it was applied -- a schedule's
+parameters are pinned in the document and a webhook's come out of the payload, so a document
+with an address in it is a document whose triggered runs are stuck with the address it was
+written with. Replacing `ask` with an `http.request` whose answer `record` reads changes that
+one step and nothing under it.
 
-```bash
-python3 ../local-echo/echo_server.py
-```
-
-It listens on `http://127.0.0.1:8080`, and the document already carries the parameter that
-points at it, on a local run and on an instance alike:
-
-```bash
-uv run dg run --local pipelines/echo-schedule.yaml -p base_url=http://127.0.0.1:8080
-uv run dg run echo-schedule --watch -p base_url=http://127.0.0.1:8080
-```
-
-```text
-2026-09-17T15:50:42.073+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:8080/get status=200 bytes=288 duration_ms=28
-```
-
-A trigger is where that stops, and it is worth knowing why: a schedule's parameters are
-pinned in the document and a webhook's come out of the payload it is POSTed, so neither can
-be handed a port chosen after the document was applied. A run the clock starts reads
-`base_url`'s default and goes to the real service. That is the same fact the rest of this
-page is about -- what travels with the document and what does not -- seen from the other
-side.
-
-So `./verify.sh` asserts of a triggered run only what a trigger decides: that it fired, what
-started it, and the parameters it was given. Every run it starts itself takes the flag.
-
-`./verify.sh` makes every assertion on this page twice, once against each echo, whenever
-`../local-echo/echo_server.py` is there; `VERIFY_OFFLINE=1 ./verify.sh` leaves the online
-leg out. `OFFLINE.md` beside this repository is the rest of the story, including the
-`UV_OFFLINE=1` that keeps `uv` off the network too.
+`OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1` that
+keeps `uv` off the network too.
 
 ## What you see
 
@@ -104,11 +81,11 @@ uv run dg validate pipelines/echo-schedule.yaml
 ```
 
 ```text
-2026-09-17T15:15:25.123+02:00 [info    ] valid                          [validation] code=echo-schedule document=pipelines/echo-schedule.yaml checked="document, offline"
+2026-09-26T13:03:21.079+02:00 [info    ] valid                          [validation] code=echo-schedule document=pipelines/echo-schedule.yaml checked="document, offline"
   each step under the last one it waits for
-    ask  (http.request)
+    ask  (playground.generate)
       record  (transform.jq)
-2026-09-17T15:15:25.126+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T13:03:21.083+02:00 [info    ] valid                          [validated] documents=1 invalid=0
 ```
 
 Applying it stores the document and materialises what it declared -- one clock, one hook:
@@ -118,8 +95,7 @@ uv run dg apply
 ```
 
 ```text
-create echo-schedule  version 1 
-(/home/you/echo-schedule/pipelines/echo-schedule.yaml)
+create echo-schedule  version 1 (/home/you/echo-schedule/pipelines/echo-schedule.yaml)
 ```
 
 ```bash
@@ -127,11 +103,11 @@ uv run dg schedule list echo-schedule
 ```
 
 ```text
-schedules of echo-schedule                                                                    
+schedules of echo-schedule
 ┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ code         ┃ name         ┃ clock ┃ timezone ┃ paused ┃ next firing         ┃ last fired ┃
 ┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ every-minute │ Every minute │ 1m    │ UTC      │ no     │ 2026-09-17 15:50:04 │ -          │
+│ every-minute │ Every minute │ 1m    │ UTC      │ no     │ 2026-09-26 13:04:22 │ -          │
 └──────────────┴──────────────┴───────┴──────────┴────────┴─────────────────────┴────────────┘
 ```
 
@@ -140,14 +116,14 @@ uv run dg webhook list echo-schedule
 ```
 
 ```text
-webhooks of echo-schedule                                                                         
-┏━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
-┃            ┃             ┃            ┃        ┃        ┃           ┃             ┃ last       ┃
-┃ code       ┃ name        ┃ token      ┃ signed ┃ active ┃ limit/min ┃ maps        ┃ delivery   ┃
-┡━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ upstream-… │ Upstream    │ jmXBMdEy.… │ no     │ yes    │ 60        │ reading,    │ -          │
-│            │ reading     │            │        │        │           │ station     │            │
-└────────────┴─────────────┴────────────┴────────┴────────┴───────────┴─────────────┴────────────┘
+webhooks of echo-schedule
+┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━━━┓
+┃             ┃             ┃             ┃        ┃        ┃           ┃             ┃ last       ┃
+┃ code        ┃ name        ┃ token       ┃ signed ┃ active ┃ limit/min ┃ maps        ┃ delivery   ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━━━┩
+│ upstream-r… │ Upstream    │ ESowlsbR... │ no     │ yes    │ 60        │ reading,    │ -          │
+│             │ reading     │             │        │        │           │ station     │            │
+└─────────────┴─────────────┴─────────────┴────────┴────────┴───────────┴─────────────┴────────────┘
 ```
 
 `next firing` and `last fired` are instance state, which is exactly why they are not in the
@@ -161,13 +137,13 @@ uv run dg runs list --pipeline echo-schedule
 ```
 
 ```text
-runs                                                                                              
-┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
-┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
-┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ 01a0afa1-b827… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ every-minute   │ 15:50:06        │ 15:50:07       │
-└────────────────┴───────────────┴───────────┴────────────────┴─────────────────┴────────────────┘
+runs
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃ run             ┃ pipeline      ┃ status    ┃ triggered by    ┃ started         ┃ finished       ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
+│ 01a0dd63-3c5a-… │ echo-schedule │ succeeded │ schedule        │ 2026-09-26      │ 2026-09-26     │
+│                 │               │           │ every-minute    │ 13:04:23        │ 13:04:24       │
+└─────────────────┴───────────────┴───────────┴─────────────────┴─────────────────┴────────────────┘
 ```
 
 Then the other trigger. There is no command that reads an existing hook token back, so a
@@ -181,7 +157,7 @@ curl -s -X POST "$hook" -H 'content-type: application/json' \
 
 ```json
 {
-  "run_id": "01a0afa1-f69c-7643-ae3d-a08b9b7c878b",
+  "run_id": "01a0dd63-569c-758e-8606-b9721f2c22f1",
   "outcome": "accepted",
   "detail": null
 }
@@ -195,32 +171,30 @@ uv run dg runs list --pipeline echo-schedule
 ```
 
 ```text
-runs                                                                                              
-┏━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
-┃ run            ┃ pipeline      ┃ status    ┃ triggered by   ┃ started         ┃ finished       ┃
-┡━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
-│ 01a0afa1-f69c… │ echo-schedule │ succeeded │ webhook        │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ upstream-read… │ 15:50:22        │ 15:50:23       │
-│ 01a0afa1-b827… │ echo-schedule │ succeeded │ schedule       │ 2026-09-17      │ 2026-09-17     │
-│                │               │           │ every-minute   │ 15:50:06        │ 15:50:07       │
-└────────────────┴───────────────┴───────────┴────────────────┴─────────────────┴────────────────┘
+runs
+┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┓
+┃ run             ┃ pipeline      ┃ status    ┃ triggered by    ┃ started         ┃ finished       ┃
+┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━┩
+│ 01a0dd63-569c-… │ echo-schedule │ succeeded │ webhook         │ 2026-09-26      │ 2026-09-26     │
+│                 │               │           │ upstream-readi… │ 13:04:30        │ 13:04:30       │
+│ 01a0dd63-3c5a-… │ echo-schedule │ succeeded │ schedule        │ 2026-09-26      │ 2026-09-26     │
+│                 │               │           │ every-minute    │ 13:04:23        │ 13:04:24       │
+└─────────────────┴───────────────┴───────────┴─────────────────┴─────────────────┴────────────────┘
 ```
 
 ```bash
-uv run dg runs show 01a0afa1-f69c-7643-ae3d-a08b9b7c878b --json | jq '.fields.run.params'
+uv run dg runs show 01a0dd63-569c-758e-8606-b9721f2c22f1 --json | jq '.fields.run.params'
 ```
 
 ```json
 {
   "station": "tromso-langnes",
-  "reading": "-6.8",
-  "base_url": "https://postman-echo.com"
+  "reading": "-6.8"
 }
 ```
 
 Two parameters out of a payload that carried three things: `sender` is not in the mapping, so
-nothing reached it. The third is `base_url`, which the payload never mentioned and the mapping
-does not name -- a run records every parameter it ran with, and one nobody set is its default.
+nothing reached it, and a run records every parameter it ran with.
 
 ## The document, hop by hop
 
@@ -230,7 +204,14 @@ does not name -- a run records every parameter it ran with, and one nobody set i
 # The two things that start a run without anybody typing a command: a clock, and a POST.
 #
 # In:  a station and its reading, from a parameter, a schedule, or a webhook's payload.
-# Out: the reading as Postman Echo answered it back.
+# Out: the reading, with the run it arrived in beside it.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
+# this document reaches nothing: no connection, no URL, no network. That matters more here
+# than anywhere else, because a trigger cannot be handed anything after it was applied -- a
+# schedule's parameters are pinned in this document and a webhook's come out of the payload,
+# so a document with an address in it is a document whose triggered runs are stuck with the
+# address it was written with.
 #
 # Both triggers travel with the document, so one file is one deployable unit and `dg apply`
 # materialises the clock and mints the hook's token. What stays behind on the instance is
@@ -243,9 +224,9 @@ does not name -- a run records every parameter it ran with, and one nobody set i
 #
 # Hop by hop:
 #
-#   ask     one GET, with the station and the reading as query arguments.
-#   record  the arguments as the service handed them back, with the trigger's own label
-#           beside them, so a run says out loud what started it.
+#   ask     the reading for this run's station, as the node's one record.
+#   record  that record, with the run's own id beside it, so a run says out loud what it
+#           was asked for.
 #
 # EXPECT THIS RUN TO SUCCEED in under a second, whichever of the three started it.
 #
@@ -261,35 +242,26 @@ kind: pipeline
 code: echo-schedule
 name: Started by a clock, and by a POST
 description: |
-  One read, carrying both trigger kinds: a rolling one-minute schedule, and an inbound
+  One reading, carrying both trigger kinds: a rolling one-minute schedule, and an inbound
   webhook that maps a payload onto the pipeline's parameters.
 
   The document declares them; the instance holds the token, the pause flag and the history.
 
-tags: [triggers, http, transform, webhook, schedule]
+tags: [triggers, playground, transform, webhook, schedule]
 
 requires:
   blocks:
-    - http.request
+    - playground.generate
     - transform.jq
 
 params:
   type: object
   properties:
-    # Every URL in this document is built on this one value, so pointing the document at
-    # another echo is a flag on the run rather than an edit: -p base_url=http://127.0.0.1:8080
-    # runs it against a stand-in on this machine, with no network at all. A trigger is the
-    # exception: a schedule's parameters are pinned in this document and a webhook's come out
-    # of the payload, so neither can be handed a port chosen after it was applied.
-    base_url:
-      type: string
-      default: https://postman-echo.com
-      description: The echo service this document's requests are built on.
     station:
       type: string
       default: bergen-florida
       minLength: 1
-      description: The station the reading is asked for.
+      description: The station the reading is for.
     reading:
       type: string
       default: "12.4"
@@ -305,11 +277,11 @@ are what this document is about:
 ```yaml
 steps:
   ask:
-    block: http.request
+    block: playground.generate
     config:
-      url: ${params.base_url}/get
-      method: GET
-      query:
+      # No fields: are named, so the input travels through untouched and becomes this run's
+      # one record.
+      input:
         station: ${params.station}
         reading: ${params.reading}
 
@@ -318,14 +290,14 @@ steps:
     depends_on: [ask]
     config:
       input:
-        echoed: ${steps.ask.output.body.args}
+        reported: ${steps.ask.output.records.0}
         # run exposes exactly four names -- run.id, run.scratch, run.window.start and
         # run.window.end -- and what started the run is not one of them. Which trigger
         # fired is the instance's fact about the run, read back with `dg runs list`, not
         # something a step can reach for.
         run: ${run.id}
       program: |
-        {station: .echoed.station, reading: .echoed.reading, run: .run}
+        {station: .reported.station, reading: .reported.reading, run: .run}
 ```
 
 **The clock.** An interval is a cadence with no calendar moment behind it; a cron is the other
