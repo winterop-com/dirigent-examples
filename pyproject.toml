@@ -4,6 +4,6 @@ version = "0.1.0"
 description = "A dirigent project: pipeline documents, and the runtime that runs them."
 requires-python = ">=3.13"
 dependencies = [
-    "dirigent-cli>=0.19,<0.20",
-    "dirigent-dhis2>=0.19,<0.20",
+    "dirigent-cli>=0.20,<0.21",
+    "dirigent-dhis2>=0.20,<0.21",
 ]
