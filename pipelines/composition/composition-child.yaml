@@ -1,0 +1,65 @@
+# The child half of a composed pair: an ordinary pipeline that knows nothing about parents.
+#
+# Nothing here says it is a child: it has its own name, its own parameter schema, and its
+# own run history, and it can be run on its own, scheduled on its own, or called by three
+# different parents. Being callable is not something a document opts into.
+#
+# The parameter schema is the interface. composition-parent.yaml writes these parameters out
+# explicitly rather than forwarding whatever it was run with.
+#
+# Apply this one first -- composition-parent.yaml requires it by name:
+#   dg apply examples/composition/composition-child.yaml
+#   dg apply examples/composition/composition-parent.yaml
+#
+# Or run the parent locally, which applies this one into the throwaway instance for you:
+#   dg run --local examples/composition/composition-parent.yaml --also-apply examples/composition/composition-child.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: composition-child
+name: The called pipeline
+description: Load one region's data for one day; callable on its own or by a parent pipeline.
+
+tags: [composition, playground, storage]
+
+params:
+  type: object
+  required: [region, day]
+  additionalProperties: false
+  properties:
+    region:
+      type: string
+      description: Which region this run loads.
+    day:
+      type: string
+      format: date
+      description: The day being loaded.
+
+steps:
+  fetch:
+    block: playground.generate
+    retry:
+      max_attempts: 3
+    config:
+      # Stands in for the region's source read. Seeded from the region's own name, so two
+      # children of the same parent load genuinely different rows.
+      rows: 10
+      input:
+        region: "${params.region}"
+        day: "${params.day}"
+
+  store:
+    block: storage.write
+    depends_on: [fetch]
+    config:
+      # The child writes under its own run's scratch, so two children of the same parent
+      # never write to the same place, whatever region they were given.
+      target: "${run.scratch}/regions/${params.region}.json"
+      value: "${steps.fetch.output.records}"
+
+  archive:
+    block: storage.copy
+    depends_on: [store]
+    config:
+      source: "${steps.store.output.uri}"
+      target: "${run.scratch}/archive/${params.day}/${params.region}.json"

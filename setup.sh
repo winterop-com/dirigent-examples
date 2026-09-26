@@ -22,6 +22,7 @@ source ./bootstrap.sh
 PORT="${DG_PORT:-3333}"
 S3_PORT="${S3_PORT:-9000}"
 S3_NAME=everything-s3
+SERVICES=everything-services
 STATE=.dirigent/state
 PIDFILE="$STATE/dev.pid"
 LOG="$STATE/dev.log"
@@ -37,6 +38,7 @@ if [ "${1:-}" = stop ]; then
     say "stopped the instance on $DG_URL"
   fi
   docker rm -f "$S3_NAME" > /dev/null 2>&1 && say "stopped $S3_NAME"
+  services_stop "$SERVICES" && say "stopped $SERVICES"
   exit 0
 fi
 
@@ -53,10 +55,14 @@ fi
 say "the S3 server, as $S3_NAME on port $S3_PORT"
 s3_start "$S3_NAME" "$S3_PORT"
 
+say "the brokers and the warehouse, as the compose project $SERVICES"
+services_start "$SERVICES"
+
 say "the connections, sealed into $STATE"
 seal_connections "$S3_PORT"
+seal_service_connections
 
-say "the bucket $S3_BUCKET"
+say "the buckets ${BUCKETS[*]}"
 make_bucket
 
 # Something on the port is either this directory's own dg dev, which is used, or another
@@ -94,7 +100,11 @@ say "the schemas"
 ensure_schemas
 
 say "every document under pipelines/, applied"
-uv run dg apply --json > "$STATE/apply.ndjson"
+apply_all "$STATE/seed.ndjson"
+jq -r -s '
+  (map(select(.kind == "seed.done")) | last) as $done
+  | "   \($done.pipelines) applied, \($done.refused) refused; the refusals are in '"$STATE"'/seed.ndjson"
+' "$STATE/seed.ndjson"
 
 say "echo-alert's rule and the sink it delivers to"
 ensure_alert

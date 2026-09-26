@@ -40,6 +40,17 @@ connections:
       secret_access_key: everything-s3-secret
       path_style: true
 
+  # The corpus's playground connection, and the secret its webhook.post recipes sign with.
+  playground:
+    kind: http
+    config:
+      base_url: http://127.0.0.1:3333/api/v1/playground
+      basic_username: playground
+      basic_password: playground
+      hmac_secret: a shared secret between two dirigent instances
+      timeout: 30s
+      health_path: /request
+
   # The playground's own documented pair, a public constant that guards nothing.
   playground-auth:
     kind: http

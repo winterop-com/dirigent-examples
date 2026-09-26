@@ -16,9 +16,13 @@ environment: "local"
 log_level: "INFO"
 worker_concurrency: 8
 
-# docker.run is an unsafe block, and org-units-to-pdf runs pandoc in a container with it.
-enabled_unsafe_blocks: ["docker.run"]
+# The unsafe blocks the documents use: shell.run for the execute shelf, and the docker family
+# for org-units-to-pdf and the docker and git shelves.
+enabled_unsafe_blocks: ["shell.run", "docker.run", "docker.build", "docker.compose.up", "docker.compose.down"]
 
 # The s3:// scheme echo-s3 writes to is served by the `artifacts` connection.
 storage_connections:
   s3: artifacts
+
+# The tag the docker and git shelves' documents require of the worker that runs them.
+worker_tags: ["docker"]

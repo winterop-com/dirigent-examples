@@ -3,13 +3,14 @@
 # never on the rendering: a table is what a terminal makes of a record, and this script has no
 # terminal.
 #
-# It starts its own S3 container and its own instance, on free ports and on a throwaway state
-# of its own, so it neither needs nor touches the demo instance setup.sh leaves on 3333. Every
-# document is applied, every pipeline is run on the instance, the three tutorial documents are
-# run locally, and both of echo-schedule's triggers are waited on. Everything it started is
-# stopped on the way out.
+# It starts its own S3 container, its own brokers and warehouse, and its own instance, on free
+# ports and on a throwaway state of its own, so it neither needs nor touches the demo instance
+# setup.sh leaves on 3333. Every document is applied, the pipelines beside the shelves are run
+# one by one with their own assertions, corpus.py runs every pipeline on a shelf, the three
+# tutorial documents are run locally, and both of echo-schedule's triggers are waited on.
+# Everything it started is stopped on the way out.
 #
-# Needs docker, uv, jq, curl, and the network for the DHIS2 play demos.
+# Needs docker, uv, jq, curl, and the network for the DHIS2 play demos and the open-data APIs.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
@@ -20,12 +21,16 @@ mkdir -p .dirigent/state
 WORK="$(mktemp -d "$(pwd -P)/.dirigent/state/verify.XXXXXX")"
 DEV_PID=""
 S3_NAME=""
+SERVICES=""
 
 cleanup() {
   stop_pid "$DEV_PID"
   port_clear "${PORT:-}"
   if [ -n "$S3_NAME" ]; then
     docker rm -f "$S3_NAME" > /dev/null 2>&1 || true
+  fi
+  if [ -n "$SERVICES" ]; then
+    services_stop "$SERVICES"
   fi
   rm -rf "$WORK"
 }
@@ -62,9 +67,9 @@ say "the project's own environment"
 uv sync --quiet
 
 say "every document, checked offline"
-uv run dg validate --json > "$WORK/validate.ndjson"
-expect "every document under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'map(select(.kind == "validated")) | last | .invalid == 0 and .documents == 23'
+validate_all "$WORK/validate.ndjson"
+expect "all 211 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 211 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -78,6 +83,15 @@ DIRIGENT_SECRET_KEY="$(uv run dg secret-key)"
 export DIRIGENT_SECRET_KEY
 
 S3_PORT="$(free_port)"
+KAFKA_PORT="$(free_port)"
+RABBITMQ_PORT="$(free_port)"
+RABBITMQ_UI_PORT="$(free_port)"
+WAREHOUSE_PORT="$(free_port)"
+export KAFKA_PORT RABBITMQ_PORT RABBITMQ_UI_PORT WAREHOUSE_PORT
+SERVICES="everything-verify-$S3_PORT"
+say "the brokers and the warehouse, as the compose project $SERVICES"
+services_start "$SERVICES"
+
 S3_NAME="everything-s3-verify-$S3_PORT"
 say "the S3 server, as $S3_NAME on port $S3_PORT"
 s3_start "$S3_NAME" "$S3_PORT"
@@ -88,6 +102,7 @@ playground="$DG_URL/api/v1/playground"
 
 say "the connections, and the bucket"
 seal_connections "$S3_PORT"
+seal_service_connections
 make_bucket
 
 say "the instance, on port $PORT"
@@ -104,11 +119,16 @@ check_connections
 
 say "the schemas, the documents, and echo-alert's rule"
 ensure_schemas
-uv run dg apply --json > "$WORK/apply.ndjson"
+apply_all "$WORK/seed.ndjson"
+# The five documents this project cannot give what they need, and nothing else, are refused.
+expect "only the five documents without what they need refused" "$WORK/seed.ndjson" '
+  map(select(.kind == "seed.refused" and .pass == 2) | .document | split("/") | last)
+  | sort == ["docker-build-push.yaml", "docker-remote-daemon.yaml", "odk-central-submissions.yaml",
+             "s3-parquet-to-ingestion.yaml", "waiting-for-a-batch.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 23 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 23'
+expect "all 205 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 205'
 
 # The clock started with the apply; its first firing is looked for once everything else has run.
 newest_scheduled() {
@@ -277,7 +297,9 @@ passed+=(playground-auth)
 
 # --- the dhis2-* pipelines --------------------------------------------------------------------
 say "dhis2-read-gate-send"
-run dhis2-read-gate-send "$WORK/r.ndjson"
+# Bagruwa rather than the default Badjia: the play demo is shared, and on 2026-09-26 somebody
+# added an organisation unit under Badjia with no code, which the gate refuses as it should.
+run dhis2-read-gate-send "$WORK/r.ndjson" -p parent=jPidqyo7cpF
 expect "a gated read and a rehearsed import" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
     and ($step.check.output.value.organisationUnits | length) >= 1
@@ -350,6 +372,16 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 expect "echo-send before its send to pass" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
 passed+=(tutorial)
 
+# --- the corpus, under pipelines/<shelf>/ -----------------------------------------------------
+say "the corpus: every pipeline on a shelf, six at a time"
+publish_order
+uv run python corpus.py > "$WORK/corpus.ndjson" || true
+jq -r 'select(.kind == "corpus.failed") | "  FAILED \(.code): expected \(.expected), got \(.got) \(.failures // .errors // "")"' "$WORK/corpus.ndjson" >&2
+jq -r 'select(.kind == "corpus.skipped") | "  SKIPPED \(.code): \(.reason)"' "$WORK/corpus.ndjson"
+expect "every corpus pipeline to end as it is meant to" "$WORK/corpus.ndjson" \
+  'map(select(.kind == "corpus.done")) | last | .failed == 0 and .passed > 0'
+corpus="$(jq -r -s 'map(select(.kind == "corpus.done")) | last | "\(.passed) passed, \(.failed) failed, \(.skipped) skipped"' "$WORK/corpus.ndjson")"
+
 # --- echo-schedule's clock --------------------------------------------------------------------
 say "echo-schedule's clock"
 landed=""
@@ -373,6 +405,7 @@ expect "the clock's run to be pinned to oslo-blindern" "$WORK/show.ndjson" '
 passed+=(echo-schedule)
 
 echo
-echo "everything: 23 pipelines applied; verified ${#passed[@]} of 24 (the 23 and tutorial/):"
+echo "everything: 205 pipelines applied; the corpus $corpus"
+echo "verified ${#passed[@]} of the 23 beside it and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

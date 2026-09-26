@@ -1,0 +1,85 @@
+# A query's rows, and the hop that puts them in a file.
+#
+# NEEDS NOTHING: no network, no daemon, no server, no allowlist. The database is a SQLite file
+# in the run's own work directory, and the rows land in the run's scratch space.
+#   dg run --local examples/sql/sql-query-to-storage.yaml --keep
+# docs/sql.md is the family's home.
+#
+# Three hops, and what each one hands on:
+#   build     creates the table and inserts three rows. Output: the row counts.
+#   extract   selects them. Output: rows, row_count and columns.
+#   save      storage.write puts those rows in the run's scratch space as json. Output: the
+#             uri they landed at, how many bytes went there, and what the object is.
+#
+# A QUERY HANDS ROWS ON, AND NOTHING ELSE. sql.query carries its rows in the step's output,
+# where a transform maps them, a validate.schema checks them and a reference names them. A
+# file is one more hop, not a mode: storage.write is the only way a value leaves a run, so
+# the rows that belong in a file go to it, and the rows that belong to the next step stay in
+# the output.
+#
+# max_rows IS THE LINE, AND IT IS ABOUT MEMORY. An output is stored with the run and read back
+# whole, so a hundred thousand rows in one is a hundred thousand rows in the database and in
+# every read of that run. The block fails the step at that bound rather than truncating,
+# because half an answer is not a smaller answer -- and since the rows are carried either way,
+# writing them to a file does not raise it. A result too large to carry is one a query narrows,
+# with a GROUP BY, a LIMIT, or a WHERE the database evaluates instead of the worker.
+#
+# WHAT THE FILE IS. storage.write puts a value down as canonical JSON -- sorted keys, no
+# spaces -- so reading.json is one array of objects keyed by column name. A convert.std step
+# after this one re-spells it as ndjson or csv, and convert.arrow as parquet; each of those
+# reads the uri this step wrote.
+#
+# TO MAKE IT YOURS: point save's target at a bucket rather than scratch if the file should
+# outlive the run, and follow it with the step that consumes it -- a conversion, a
+# storage.copy to a landing bucket, or the load that reads it back somewhere else.
+
+format: dirigent/v1
+kind: pipeline
+code: sql-query-to-storage
+name: Write a query result to storage
+description: Read a table with sql.query and hand its rows to storage.write, which is how a result becomes a file.
+
+tags: [sql, storage]
+
+requires:
+  blocks:
+    - sql.execute
+    - sql.query
+    - storage.write
+
+connections:
+  work-db:
+    kind: sql
+    config:
+      # Relative, so the database lands in this run's work directory and needs nothing on the
+      # host. The same connection as the roundtrip example, for the same reason.
+      url: sqlite+aiosqlite:///demo.db
+
+steps:
+  build:
+    block: sql.execute
+    config:
+      connection: work-db
+      statements:
+        - CREATE TABLE reading (id INTEGER PRIMARY KEY, site TEXT NOT NULL, value REAL NOT NULL)
+        - INSERT INTO reading (id, site, value) VALUES (1, :north, 2.5), (2, :south, 4.0), (3, :north, 3.5)
+      params:
+        north: north
+        south: south
+
+  extract:
+    block: sql.query
+    depends_on: [build]
+    config:
+      connection: work-db
+      sql: SELECT id, site, value FROM reading ORDER BY id
+      max_rows: 100
+
+  save:
+    block: storage.write
+    depends_on: [extract]
+    config:
+      # A file inside the run's scratch space, so it is cleaned up with the run. A bucket URI
+      # here is what makes the result outlive it.
+      target: "${run.scratch}/reading.json"
+      value: "${steps.extract.output.rows}"

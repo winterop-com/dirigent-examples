@@ -18,7 +18,13 @@ SCHEMAS=(
   org-unit-sync-import
   org-unit-sync-verdict
   org-units-page
+  ou-record
+  playground-reading
+  station-reading
 )
+
+# The buckets the documents write into: echo-s3's, and the corpus's s3 shelf's.
+BUCKETS=(echo-s3 dirigent-archive)
 
 free_port() {
   python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
@@ -93,6 +99,16 @@ seal_connections() {
     --set "secret_access_key=$S3_SECRET_KEY" \
     --set path_style=true \
     --json > /dev/null
+  # The corpus's playground connection, on the instance DG_URL names.
+  uv run dg connection ensure http playground \
+    --name "The playground" \
+    --set "base_url=$DG_URL/api/v1/playground" \
+    --set basic_username=playground \
+    --set basic_password=playground \
+    --set "hmac_secret=a shared secret between two dirigent instances" \
+    --set timeout=30s \
+    --set health_path=/request \
+    --json > /dev/null
   # The playground's own documented pair, on the instance DG_URL names.
   uv run dg connection ensure http playground-auth \
     --name "The playground's auth route" \
@@ -103,16 +119,21 @@ seal_connections() {
     --json > /dev/null
 }
 
-# The bucket echo-s3 writes into. dg storage ensure makes the bucket the artifact root
-# addresses, so it is handed a root in that bucket for this one call.
+# The buckets the documents write into. dg storage ensure makes the bucket the artifact root
+# addresses, so it is handed a root in each bucket for one call.
 make_bucket() {
-  for _ in $(seq 1 30); do
-    if DIRIGENT_ARTIFACT_ROOT="s3://$S3_BUCKET/artifacts" uv run dg storage ensure --json > /dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
+  local bucket made
+  for bucket in "${BUCKETS[@]}"; do
+    made=false
+    for _ in $(seq 1 30); do
+      if DIRIGENT_ARTIFACT_ROOT="s3://$bucket/artifacts" uv run dg storage ensure --json > /dev/null 2>&1; then
+        made=true
+        break
+      fi
+      sleep 1
+    done
+    [ "$made" = true ] || DIRIGENT_ARTIFACT_ROOT="s3://$bucket/artifacts" uv run dg storage ensure --json
   done
-  DIRIGENT_ARTIFACT_ROOT="s3://$S3_BUCKET/artifacts" uv run dg storage ensure --json
 }
 
 wait_ready() {
@@ -172,11 +193,111 @@ ensure_alert() {
 # Every connection the documents name, asked whether it answers.
 check_connections() {
   local code
-  for code in play source target artifacts playground-auth; do
+  for code in play source target artifacts playground playground-auth; do
     uv run dg connection check "$code" --json \
       | jq -se --arg code "$code" '
           map(select(.kind == "connection.checked")) | last
           | if .healthy then true else error("the \($code) connection is not healthy: \(.detail)") end
         ' > /dev/null
   done
+}
+
+# Every document under pipelines/, however deep, checked offline, eight at a time. `dg validate`
+# with no argument reads the top level of pipelines/ alone.
+validate_all() {
+  local out=$1
+  find pipelines -name '*.yaml' | sort \
+    | xargs -P 8 -I{} sh -c 'uv run dg validate "$1" --json | jq -c --arg path "$1" "select(.kind == \"validated\") | . + {path: \$path}"' _ {} \
+    > "$out"
+}
+
+# Every document under pipelines/ onto the instance, through seed.py, and echo-schedule's clock
+# resumed: a schedule the walk creates is created paused.
+apply_all() {
+  local out=$1
+  uv run python seed.py pipelines > "$out"
+  uv run dg schedule resume echo-schedule every-minute --json > /dev/null
+}
+
+# The brokers and the warehouse the queues and sql shelves reach, as compose project NAME with
+# the host ports KAFKA_PORT, RABBITMQ_PORT, RABBITMQ_UI_PORT and WAREHOUSE_PORT, and the
+# topic and queue those documents expect: neither block declares one.
+services_start() {
+  local name=$1
+  if ! docker compose -f services/compose.yaml -p "$name" up -d --wait > /dev/null 2>&1; then
+    docker compose -f services/compose.yaml -p "$name" ps >&2
+    return 1
+  fi
+  local answer made=false
+  for _ in $(seq 1 30); do
+    answer="$(KAFKA_BOOTSTRAP="127.0.0.1:${KAFKA_PORT:-9092}" uv run python - 2>&1 <<'PY' || true
+import asyncio
+import os
+
+from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from aiokafka.errors import TopicAlreadyExistsError
+
+
+async def main() -> None:
+    admin = AIOKafkaAdminClient(bootstrap_servers=os.environ["KAFKA_BOOTSTRAP"])
+    await admin.start()
+    try:
+        await admin.create_topics([NewTopic("orders", num_partitions=1, replication_factor=1)])
+    except TopicAlreadyExistsError:
+        pass
+    finally:
+        await admin.close()
+    print("OK")
+
+
+asyncio.run(main())
+PY
+)"
+    if printf '%s' "$answer" | grep -q '^OK$'; then made=true; break; fi
+    sleep 1
+  done
+  [ "$made" = true ] || { echo "redpanda never created the topic orders: $answer" >&2; return 1; }
+  local queue declared
+  for queue in shop-orders shop-reports; do
+    declared=false
+    for _ in $(seq 1 30); do
+      if curl -fsS -u dirigent:dirigent -X PUT -H 'content-type: application/json' -d '{"durable": true}' \
+           "http://127.0.0.1:${RABBITMQ_UI_PORT:-15672}/api/queues/%2F/$queue" > /dev/null 2>&1; then
+        declared=true
+        break
+      fi
+      sleep 1
+    done
+    [ "$declared" = true ] || { echo "the rabbitmq management API never declared $queue" >&2; return 1; }
+  done
+}
+
+# One order on shop-orders, for rabbitmq-consume-ack-on-success to take.
+publish_order() {
+  curl -fsS -u dirigent:dirigent -X POST -H 'content-type: application/json' \
+    -d '{"properties": {"content_type": "application/json"}, "routing_key": "shop-orders", "payload": "{\"order\": 1042, \"sku\": \"valve\", \"quantity\": 3}", "payload_encoding": "string"}' \
+    "http://127.0.0.1:${RABBITMQ_UI_PORT:-15672}/api/exchanges/%2F/amq.default/publish" > /dev/null
+}
+
+services_stop() {
+  docker compose -f services/compose.yaml -p "$1" down -v > /dev/null 2>&1 || true
+}
+
+# The connections to those services.
+seal_service_connections() {
+  uv run dg connection ensure kafka orders-topic \
+    --name "Orders topic" \
+    --set "bootstrap_servers=[\"127.0.0.1:${KAFKA_PORT:-9092}\"]" \
+    --json > /dev/null
+  uv run dg connection ensure rabbitmq shop-queue \
+    --name "Shop queue" \
+    --set "url=amqp://dirigent@127.0.0.1:${RABBITMQ_PORT:-5672}/" \
+    --set password=dirigent \
+    --json > /dev/null
+  uv run dg connection ensure sql warehouse-read \
+    --name "The warehouse, read-only" \
+    --set "url=postgresql+asyncpg://reader@127.0.0.1:${WAREHOUSE_PORT:-5433}/warehouse" \
+    --set password=reader-password \
+    --set read_only=true \
+    --json > /dev/null
 }

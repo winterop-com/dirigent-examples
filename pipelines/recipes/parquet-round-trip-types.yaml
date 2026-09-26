@@ -1,0 +1,163 @@
+# What survives a round trip through parquet, and what a csv would have flattened instead.
+#
+# In:  one record carrying every JSON scalar -- a string, an integer, a float, a boolean, a
+#      null, a numeric string, and a column whose values are integers and floats together.
+# Out: {before, after_parquet, after_csv, kinds, changed}, so the two formats can be
+#      compared column by column in one output.
+#
+# Parquet has a schema and csv does not, and that single difference is the whole recipe:
+#
+#   integer          survives as an int64.
+#   float            survives as a float64.
+#   boolean          survives as a boolean, not as "true".
+#   null             survives as a null, in a column that stays typed.
+#   numeric string   survives as a string. "007" comes back "007", where a csv reader is
+#                    left guessing and a spreadsheet would have eaten the leading zeros.
+#   mixed number     integers and floats unify to one float column, because JSON calls both
+#                    a number. The values still come back equal, since JSON has one number
+#                    spelling, so `changed.parquet` is empty -- the loss is in the column's
+#                    type, which a later reader sees and a jq comparison cannot.
+#
+# The csv leg is the control. Every cell in a csv is text on the way out and text on the way
+# back, so after it every value is a string and the booleans, the numbers and the nulls are
+# indistinguishable from the words that spell them.
+#
+# Both legs are four hops, and they are four rather than two because a conversion is a
+# storage-object operation: it reads one URI and writes another, and never carries a value.
+# The record is written once, converted out, converted back, and read into the run again --
+# so `before` is the value this document wrote and `after` is what came off a disk.
+#
+# The comparison is computed rather than described: `changed` lists the fields whose value
+# is not identical after the round trip, so this recipe stays honest if a codec ever changes
+# under it.
+#
+# A column whose rows disagree in a way that cannot unify is refused by name at the write
+# rather than coerced. Adding {"code": 7} to one of the rows below is the fastest way to see
+# it: "column 'code' holds both integer and string values, and a parquet column carries one
+# type; reshape it before converting".
+#
+#   dg run --local examples/recipes/parquet-round-trip-types.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: parquet-round-trip-types
+name: What survives a parquet round trip
+description: Write one record of every JSON scalar, convert it out to parquet and back, and compare it against the same record round-tripped through csv.
+
+tags: [recipes, storage, transform, parquet]
+
+requires:
+  blocks:
+    - value.const
+    - storage.write
+    - convert.std
+    - convert.arrow
+    - storage.read
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the written file is named for.
+
+steps:
+  rows:
+    block: value.const
+    config:
+      value:
+        - text: Harbour
+          whole: 1440
+          fractional: 4.5
+          flag: true
+          absent: null
+          code: "007"
+          mixed: 1
+        - text: Ridge
+          whole: 1200
+          fractional: -1.25
+          flag: false
+          absent: null
+          code: "042"
+          # The other value in this column is an integer, so the column unifies to float.
+          mixed: 2.5
+
+  stored:
+    block: storage.write
+    depends_on: [rows]
+    config:
+      target: ${run.scratch}/types-${params.day}.json
+      value: ${steps.rows.output.value}
+
+  write_parquet:
+    block: convert.arrow
+    depends_on: [stored]
+    config:
+      source: ${steps.stored.output.uri}
+      target: ${run.scratch}/types-${params.day}.parquet
+      from: json
+      to: parquet
+
+  back_from_parquet:
+    block: convert.arrow
+    depends_on: [write_parquet]
+    config:
+      source: ${steps.write_parquet.output.target}
+      target: ${run.scratch}/types-${params.day}-from-parquet.json
+      from: parquet
+      to: json
+
+  read_parquet:
+    block: storage.read
+    depends_on: [back_from_parquet]
+    config:
+      source: ${steps.back_from_parquet.output.target}
+      max_size: 1mb
+
+  write_csv:
+    block: convert.std
+    depends_on: [stored]
+    config:
+      source: ${steps.stored.output.uri}
+      target: ${run.scratch}/types-${params.day}.csv
+      from: json
+      to: csv
+
+  back_from_csv:
+    block: convert.std
+    depends_on: [write_csv]
+    config:
+      source: ${steps.write_csv.output.target}
+      target: ${run.scratch}/types-${params.day}-from-csv.json
+      from: csv
+      to: json
+
+  read_csv:
+    block: storage.read
+    depends_on: [back_from_csv]
+    config:
+      source: ${steps.back_from_csv.output.target}
+      max_size: 1mb
+
+  compare:
+    block: transform.jq
+    depends_on: [rows, read_parquet, read_csv]
+    config:
+      input:
+        before: ${steps.rows.output.value}
+        after_parquet: ${steps.read_parquet.output.value}
+        after_csv: ${steps.read_csv.output.value}
+      program: |
+        def kinds: map_values(type);
+        . as {$before, $after_parquet, $after_csv}
+        | {before: $before[0], after_parquet: $after_parquet[0], after_csv: $after_csv[0],
+           kinds: {before: ($before[0] | kinds),
+                   after_parquet: ($after_parquet[0] | kinds),
+                   after_csv: ($after_csv[0] | kinds)},
+           changed: {parquet: [$before[0] | to_entries[]
+                               | select($after_parquet[0][.key] != .value) | .key],
+                     csv: [$before[0] | to_entries[]
+                           | select($after_csv[0][.key] != .value) | .key]}}

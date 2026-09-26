@@ -9,4 +9,8 @@ dependencies = [
     "dirigent-dhis2>=0.19,<0.20",
     # The s3:// storage backend and the `s3` connection kind it resolves through.
     "dirigent-storage-s3>=0.19,<0.20",
+    # convert.arrow and the parquet format the corpus's parquet recipes write.
+    "dirigent-block-parquet>=0.19,<0.20",
+    # The duckdb driver behind sql.query and sql.execute on a duckdb connection.
+    "dirigent-block-duckdb>=0.19,<0.20",
 ]

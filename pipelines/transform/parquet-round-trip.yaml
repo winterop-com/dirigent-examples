@@ -1,0 +1,68 @@
+# Records into parquet and back, where the types survive the trip.
+#
+# Parquet is the typed spelling at rest: where csv turns every value into a string, a
+# parquet column knows it holds an integer or a float, and convert.arrow infers that schema
+# from the records as it writes. This stores a batch as json, converts it to parquet, reads
+# that file back into json, and loads it as a value -- and the numbers come back numbers
+# rather than strings.
+#
+# Every convert step here names two uris and carries nothing: parquet is bytes, and a
+# conversion is a storage-object operation either way. storage.write is the hop that puts
+# the records in storage to begin with, and storage.read the hop that brings the result
+# back where a later step, or a person reading the run, can see it.
+#
+# convert.arrow ships in the dirigent-block-parquet pack; installing it is what puts the block in
+# the catalog.
+#
+#   dg run --local examples/transform/parquet-round-trip.yaml --keep
+
+format: dirigent/v1
+kind: pipeline
+code: parquet-round-trip
+name: A parquet round trip
+description: Write records to a parquet file, then read them back with their types intact.
+
+tags: [transform, storage]
+
+requires:
+  blocks:
+    - value.const
+    - storage.read
+    - storage.write
+    - convert.arrow
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, celsius: 4.5, active: true }
+        - { station: st-3, region: west, celsius: 1.2, active: true }
+        - { station: st-4, region: north, celsius: -3.4, active: false }
+  store:
+    block: storage.write
+    depends_on: [readings]
+    config:
+      target: ${run.scratch}/readings.json
+      value: ${steps.readings.output.value}
+  write:
+    block: convert.arrow
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/readings.parquet
+      from: json
+      to: parquet
+  read_back:
+    block: convert.arrow
+    depends_on: [write]
+    config:
+      source: ${steps.write.output.target}
+      target: ${run.scratch}/round-trip.json
+      from: parquet
+      to: json
+  load:
+    block: storage.read
+    depends_on: [read_back]
+    config:
+      source: ${steps.read_back.output.target}

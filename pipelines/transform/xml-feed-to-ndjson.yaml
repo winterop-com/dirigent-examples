@@ -1,0 +1,116 @@
+# An XML feed read as records, one line each, and the mapping that makes it reversible.
+#
+# convert.std reads an element as an object: an attribute is a key prefixed with @, the text
+# of an element with no children is the bare string, a child element is a key of its tag, and
+# a tag that repeats is a list in document order. Nothing else fits in, so mixed content --
+# text sitting beside child elements -- is refused naming the element rather than flattened.
+#
+# xml to ndjson is the direction that scales: the root's children are the records, read with
+# iterparse and dropped as they are written, so a feed far larger than memory converts. It is
+# one-way, because an ndjson line carries no root element name to write a document under;
+# xml to json is the pair that round-trips, and this document runs both over the one feed
+# object it stores first.
+#
+# A conversion names two uris and carries no value, so each direction here lands in the run's
+# scratch space and a storage.read is what brings it back in: the ndjson as text a jq program
+# splits, the json as the value it already is.
+#
+# Everything read out of an element is text, exactly as it is out of a csv: 4.5 is the three
+# characters until a jq program says tonumber.
+#
+#   dg run --local examples/transform/xml-feed-to-ndjson.yaml --keep
+
+format: dirigent/v1
+kind: pipeline
+code: xml-feed-to-ndjson
+name: An XML feed as records
+description: |
+  Store an XML feed, convert it to one record per line, aggregate the records with jq, and
+  convert the same object to one whole value to show the mapping that round-trips.
+
+  The mapping, in four rules:
+
+  1. an attribute is a key prefixed with `@`
+  2. an element's text is the value where it has no children
+  3. a child element is a key of its tag
+  4. a tag that repeats is a list, in document order
+
+tags: [transform, storage]
+
+requires:
+  blocks:
+    - convert.std
+    - transform.jq
+    - storage.read
+    - storage.write
+
+steps:
+  feed:
+    block: storage.write
+    config:
+      target: ${run.scratch}/feed.xml
+      # Written inline so the example needs no network. In a real pipeline this object is
+      # the feed an upstream http.request put in storage, and records starts there.
+      text: |
+        <?xml version="1.0" encoding="utf-8"?>
+        <feed source="stations">
+          <reading station="st-1"><region>east</region><celsius>4.5</celsius></reading>
+          <reading station="st-2"><region>east</region><celsius>-3.0</celsius></reading>
+          <reading station="st-3"><region>west</region><celsius>1.2</celsius></reading>
+        </feed>
+      content_type: application/xml
+
+  records:
+    block: convert.std
+    depends_on: [feed]
+    config:
+      source: ${steps.feed.output.uri}
+      target: ${run.scratch}/readings.ndjson
+      from: xml
+      # The records are the root's children, so each <reading> becomes one line. The root's
+      # own attribute, source="stations", is not on any of them: it belongs to the document,
+      # and the json direction below is where it survives.
+      to: ndjson
+
+  lines:
+    block: storage.read
+    depends_on: [records]
+    config:
+      source: ${steps.records.output.target}
+      # Nothing records what an .ndjson object is, and an object a read cannot name is
+      # refused rather than guessed at, so the step says it here.
+      content_type: application/x-ndjson
+
+  mean_by_region:
+    block: transform.jq
+    depends_on: [lines]
+    config:
+      # ndjson is one JSON value per line and is text rather than the JSON family, so the
+      # read handed over text and the program splits before it parses. tonumber for the one
+      # field it wants as a number.
+      input: ${steps.lines.output.text}
+      program: |
+        split("\n")
+        | map(select(length > 0) | fromjson)
+        | group_by(.region)
+        | [.[] | {region: .[0].region,
+                  stations: [.[] | ."@station"],
+                  mean_celsius: ([.[] | .celsius | tonumber] | add / length)}]
+
+  whole_document:
+    block: convert.std
+    depends_on: [feed]
+    config:
+      # The same feed the other way: one object, keyed by the root element's tag, carrying
+      # the document's own @source and the repeated readings as a list. This is the pair
+      # that round-trips -- json to xml writes this object back out as the feed.
+      source: ${steps.feed.output.uri}
+      target: ${run.scratch}/feed.json
+      from: xml
+      to: json
+
+  document:
+    block: storage.read
+    depends_on: [whole_document]
+    config:
+      source: ${steps.whole_document.output.target}
