@@ -69,8 +69,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 213 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 213 and all(.invalid == 0)'
+expect "all 220 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 220 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -128,10 +128,10 @@ expect "only the four documents without what they need refused" "$WORK/seed.ndjs
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 208 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 208'
+expect "all 215 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 215'
 # The walk creates a watch paused, as it does a schedule, so nothing arms runs on its own.
-for watched in watch-a-sensor kafka-watch-then-transform; do
+for watched in watch-a-sensor watch-fan-out-per-message kafka-watch-then-transform; do
   uv run dg watch show "$watched" follow --json > "$WORK/watch.ndjson"
   expect "$watched's watch created paused, with nothing waiting" "$WORK/watch.ndjson" \
     'map(select(.kind == "watch")) | last | .fields | .paused and .waiting_run_id == null'
@@ -314,7 +314,8 @@ expect "a gated read and a rehearsed import" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
     and ($step.check.output.value.organisationUnits | length) >= 1
     and $step.send.output.status == "SUCCESS"
-    and ($step.send.output.imported + $step.send.output.deleted) == 0'
+    and ($step.send.output.imported + $step.send.output.updated) == 2
+    and ($step.send.output.ignored + $step.send.output.deleted) == 0'
 passed+=(dhis2-read-gate-send)
 
 say "dhis2-metadata-to-storage"

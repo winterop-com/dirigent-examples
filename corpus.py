@@ -39,6 +39,7 @@ EXPECTED: dict[str, str] = {
             "docker-run-failing-teardown",
             "error-handler",
             "fan-out-fail-fast",
+            "fan-out-too-wide",
             "pipeline-run-strict",
             "reconcile-two-sources",
             "retry-budget",
@@ -58,6 +59,7 @@ EXPECTED: dict[str, str] = {
     **dict.fromkeys(
         [
             "fan-out-continue",
+            "fan-out-late-after-continue",
             "one-region-refuses",
             "optional-step",
             "retries",

@@ -31,7 +31,7 @@ echo-alert's rule `echo-failed` with its sink `echo-sink`, the instance's own pl
 Running it again changes nothing that is already right.
 
 A schedule the walk creates is created paused, as `dg dev --seed` does, except echo-schedule's
-`every-minute`, which is resumed. So is a watch, and both of the corpus's stay paused, so the
+`every-minute`, which is resumed. So is a watch, and all three of the corpus's stay paused, so the
 demo does not keep arming runs on its own: `uv run dg watch resume watch-a-sensor follow` sets
 one going and `uv run dg watch pause watch-a-sensor follow` stops it again.
 
@@ -73,7 +73,7 @@ In this directory `dg` reads the token from `.env`, so a shell still exporting a
 | `echo-s3` | [echo-s3](../echo-s3) | The same through `s3://`, into the rustfs bucket. | `uv run dg run echo-s3 --watch` |
 | `dhis2-read-gate-send` | [dhis2-read-gate-send](../dhis2-read-gate-send) | Read, gate and a dry-run import on the play demo. | `uv run dg run dhis2-read-gate-send --watch` |
 | `dhis2-metadata-to-storage` | [dhis2-metadata-to-storage](../dhis2-metadata-to-storage) | Organisation units gated, snapshotted and read back. | `uv run dg run dhis2-metadata-to-storage --watch` |
-| `dhis2-to-dhis2` | [dhis2-org-unit-sync](../dhis2-org-unit-sync) | Organisation units from 2.43 to 2.42, rehearsed. | `uv run dg run dhis2-to-dhis2 --watch` |
+| `dhis2-to-dhis2` | [dhis2-org-unit-sync](../dhis2-org-unit-sync) | Organisation units from 2.44 to 2.42, rehearsed. | `uv run dg run dhis2-to-dhis2 --watch` |
 | `dhis2-to-other` | [dhis2-org-unit-sync](../dhis2-org-unit-sync) | Organisation units to another system through jq. | `uv run dg run dhis2-to-other --watch` |
 | `other-to-dhis2` | [dhis2-org-unit-sync](../dhis2-org-unit-sync) | Another system's register into DHIS2 through jq, rehearsed. | `uv run dg run other-to-dhis2 --watch` |
 | `org-units-to-markdown` | [dhis2-org-units-to-markdown](../dhis2-org-units-to-markdown) | Organisation units as a markdown and an HTML page. | `uv run dg run org-units-to-markdown --watch` |
@@ -92,7 +92,7 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-192 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at v0.21.0.
+199 documents across 20 shelves and `hello-world`, from dirigent's `examples/` at v0.23.2.
 A document with a required parameter or a `${run.window}` reference says so in its command.
 Three changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`;
 `a-stream-to-read` takes `playground` rather than `instance`; and
@@ -148,6 +148,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
 | [`error-handler`](https://github.com/winterop-com/dirigent/tree/main/examples/failure/error-handler.yaml) | Load a batch, alert on failure, and always release the lock afterwards. | `uv run dg run error-handler --watch` |
+| [`fan-out-too-wide`](https://github.com/winterop-com/dirigent/tree/main/examples/failure/fan-out-too-wide.yaml) | A `for_each` over a step's output that lists more than `fan_out_max_items` fails as rejected with `run.fan_out_too_wide`, before a single item is written. | `uv run dg run fan-out-too-wide --watch` |
 | [`optional-step`](https://github.com/winterop-com/dirigent/tree/main/examples/failure/optional-step.yaml) | Import a batch, push metrics on a best-effort basis, and publish either way. | `uv run dg run optional-step --watch` |
 | [`retries`](https://github.com/winterop-com/dirigent/tree/main/examples/failure/retries.yaml) | Publish through a step that refuses, then warm an optional cache that is slow. | `uv run dg run retries --watch` |
 | [`retry-budget`](https://github.com/winterop-com/dirigent/tree/main/examples/failure/retry-budget.yaml) | A local command that always exits 1, given three attempts to prove it. | `uv run dg run retry-budget --watch` |
@@ -205,8 +206,13 @@ rather than spelling out the port, so a run on another instance is a flag.
 | [`fan-out-fail-fast`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-fail-fast.yaml) | `items: fail_fast` is the default: one failed element fails the whole fan-out step, and nothing downstream reads a partial batch. | `uv run dg run fan-out-fail-fast --watch` |
 | [`fan-out-from-params`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-from-params.yaml) | `for_each: "${params.regions}"` lets the caller decide how wide the run is, while the parameter schema keeps that from meaning anything at all. | `uv run dg run fan-out-from-params --watch` |
 | [`fan-out-item-wise`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-item-wise.yaml) | `for_each: ${steps.<name>.items}` maps a step over another fan-out's grid, so the two are paired by item position and `${steps.<name>.item.output}` is the matching item's output. | `uv run dg run fan-out-item-wise --watch` |
+| [`fan-out-late-after-continue`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-late-after-continue.yaml) | A late grid read from a fan-out under `items: continue` has one item per item that succeeded; a failed item is absent from the list, so nothing is made for it. | `uv run dg run fan-out-late-after-continue --watch` |
+| [`fan-out-late-item-wise`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-late-item-wise.yaml) | A step adopting a grid that was expanded from an output, `for_each: ${steps.<name>.items}`, expands with the same indices once that grid has settled. | `uv run dg run fan-out-late-item-wise --watch` |
 | [`fan-out-literal-list`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-literal-list.yaml) | `for_each` written as a list in the document: one step definition, one run item per element, all claimable at once. | `uv run dg run fan-out-literal-list --watch` |
 | [`fan-out-nested-objects`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-nested-objects.yaml) | A `for_each` element is any JSON value. | `uv run dg run fan-out-nested-objects --watch` |
+| [`fan-out-over-a-nested-path`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-over-a-nested-path.yaml) | `for_each: ${steps.<name>.output.<field>.<field>...}` reaches a list several fields inside an upstream step's output, so an envelope needs no reshaping before it is fanned out over. | `uv run dg run fan-out-over-a-nested-path --watch` |
+| [`fan-out-over-an-empty-listing`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-over-an-empty-listing.yaml) | A `for_each` over a step's output that turns out to be an empty list skips the step, and the skip carries down every `all_success` edge behind it. | `uv run dg run fan-out-over-an-empty-listing --watch` |
+| [`fan-out-over-an-output`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-over-an-output.yaml) | `for_each: ${steps.<name>.output.<field>}` maps a step over a list an upstream step produced, so the grid is written when that step succeeds rather than when the run is created. | `uv run dg run fan-out-over-an-output --watch` |
 | [`fan-out-then-join`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/fan-out-then-join.yaml) | A step joins a fan-out by depending on it and having no `for_each` of its own: one attempt, and the batch arrives as a JSON array of the items' outputs. | `uv run dg run fan-out-then-join --watch` |
 | [`importance-critical`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/importance-critical.yaml) | `importance` is one word -- `routine`, `normal` or `critical` -- and it says how much this pipeline matters, not when its work is claimed. | `uv run dg run importance-critical --watch` |
 | [`log-levels`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/log-levels.yaml) | `--log-level` is a **run** setting, not a document one: `debug` for everything, or `PATTERN=LEVEL` for one block family, repeatable. | `uv run dg run log-levels --watch` |
@@ -223,7 +229,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | [`references-cheat-sheet`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/references-cheat-sheet.yaml) | Five namespaces -- `params`, `steps`, `item`, `run`, `artifacts` -- and no expressions, conditionals or functions anywhere. | `uv run dg run references-cheat-sheet --watch --window START..END` |
 | [`retry-budget-exhausted`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-budget-exhausted.yaml) | Three attempts against a step that fails every time, then a failed step. | `uv run dg run retry-budget-exhausted --watch` |
 | [`retry-exponential-backoff`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-exponential-backoff.yaml) | The five retry fields and the delays they compute: `backoff`, `multiplier`, `max_backoff`, `jitter`, and the `max_attempts` that counts the first try. | `uv run dg run retry-exponential-backoff --watch` |
-| [`retry-only-transient`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-only-transient.yaml) | The same three-attempt budget on two steps: a transient failure spends all three, a rejected one spends one. | `uv run dg run retry-only-transient --watch` |
+| [`retry-only-transient`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-only-transient.yaml) | The same three-attempt budget on three steps: a transient failure spends all three, a rejected one spends one, and an unknown one spends all three. | `uv run dg run retry-only-transient --watch` |
 | [`retry-with-jitter`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/retry-with-jitter.yaml) | `jitter` spreads each computed backoff randomly, so four items that failed together do not retry together and rebuild the herd that took the dependency down. | `uv run dg run retry-with-jitter --watch` |
 | [`rule-all-done`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/rule-all-done.yaml) | `rule: all_done` runs a step once every prerequisite has **settled**, whatever it settled as. | `uv run dg run rule-all-done --watch` |
 | [`rule-all-success`](https://github.com/winterop-com/dirigent/tree/main/examples/patterns/rule-all-success.yaml) | The default trigger rule: a step runs once every prerequisite **succeeded**. | `uv run dg run rule-all-success --watch` |
@@ -385,6 +391,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | [`interval-rolling`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/interval-rolling.yaml) | A pipeline on a rolling hourly interval, refreshing a window rather than hitting a calendar moment. | `uv run dg run interval-rolling --watch` |
 | [`managed-and-manual`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/managed-and-manual.yaml) | Two document-managed schedules and a webhook, and what an apply leaves untouched. | `uv run dg run managed-and-manual --watch` |
 | [`watch-a-sensor`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/watch-a-sensor.yaml) | A watch keeps one run waiting on `playground.arrive` and arms the next the moment a batch arrives, so the runs overlap and the offsets carry on. | `uv run dg watch resume watch-a-sensor follow`, or once: `uv run dg run watch-a-sensor --watch` |
+| [`watch-fan-out-per-message`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/watch-fan-out-per-message.yaml) | A watch hands each run a batch, and a `for_each` over the batch's messages gives every message its own item, written when the batch arrives. | `uv run dg watch resume watch-fan-out-per-message follow`, or once: `uv run dg run watch-fan-out-per-message --watch` |
 | [`webhook-trigger`](https://github.com/winterop-com/dirigent/tree/main/examples/triggers/webhook-trigger.yaml) | One pipeline started by an inbound webhook that maps a payload onto its parameters. | `uv run dg run webhook-trigger --watch` |
 
 ### validate
@@ -413,8 +420,8 @@ rather than spelling out the port, so a run on another instance is a flag.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance on 4444 alone; validates all 213 documents; applies them, and checks
-the corpus's two watches landed paused; runs the
+it leaves the demo instance on 4444 alone; validates all 220 documents; applies them, and checks
+the corpus's three watches landed paused; runs the
 21 pipelines beside the shelves and the two playground routes on the shelves with their own
 assertions, and the three tutorial documents locally;
 runs every corpus pipeline through `corpus.py`, six at a time and the docker and git shelves
