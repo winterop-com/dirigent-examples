@@ -13,7 +13,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")"
 
-SOURCE_URL=https://play.im.dhis2.org/stable-2-43-1
+SOURCE_URL=https://play.im.dhis2.org/dev
 TARGET_URL=https://play.im.dhis2.org/stable-2-42-6
 SCHEMAS=(org-unit-sync-source org-unit-sync-import org-unit-sync-verdict)
 

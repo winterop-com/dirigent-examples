@@ -15,7 +15,7 @@ URL, which is what lets the same document rehearse against a demo today and move
 metadata tomorrow with nothing edited but a connection row.
 
 Everything below was run against two public DHIS2 demos: the source is
-`https://play.im.dhis2.org/stable-2-43-1`, version **2.43.1**, and the target is
+`https://play.im.dhis2.org/dev`, version **2.44** (a development build), and the target is
 `https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6**, both with the published
 `admin` / `district` credential.
 
@@ -116,7 +116,7 @@ uv run dg schema create schemas/org-unit-sync-verdict.json
 
 uv run dg connection create dhis2 source \
   --name "DHIS2 play demo, the source" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/dev \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection create dhis2 target \
@@ -183,7 +183,7 @@ it once more under the key this instance has now:
 uv run dg connection delete source
 uv run dg connection create dhis2 source \
   --name "DHIS2 play demo, the source" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/dev \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -277,7 +277,7 @@ steps
 └─────────┴─────────────────┴───────────┴─────────────┴──────────┴─────────────────────────────────┘
 ```
 
-Fifteen chiefdoms under Bo, read off 2.43.1 and offered to 2.42.6, which says it would revise
+Fifteen chiefdoms under Bo, read off 2.44 and offered to 2.42.6, which says it would revise
 all fifteen and writes nothing. `updated=15` rather than `created=15` is the two demos being
 the same database: this is a rehearsal of a sync that has already happened.
 
@@ -294,7 +294,7 @@ the same database: this is a rehearsal of a sync that has already happened.
 2026-09-26T13:15:54.571+02:00 [info    ] finished                       [log batch] duration_ms=4 output_bytes=1265
 2026-09-26T13:15:54.630+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=1700 duration_ms=6
 2026-09-26T13:15:54.631+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=11
-2026-09-26T13:15:54.684+02:00 [info    ] the register took 15 facilities from dhis2-play-2-43-1, first OU_539 under OU_264 [log say]
+2026-09-26T13:15:54.684+02:00 [info    ] the register took 15 facilities from dhis2-play-dev, first OU_539 under OU_264 [log say]
 2026-09-26T13:15:54.684+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
 2026-09-26T13:15:54.936+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-other run_id=01a0dd6d-c358-778a-9908-adb3361f9195 exit_code=0
 steps
@@ -352,7 +352,7 @@ stored schema org-unit-sync-verdict
 `uv run dg connection create dhis2 ...`, twice:
 
 ```text
-2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/stable-2-43-1","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
@@ -362,7 +362,7 @@ after it.
 `uv run dg connection check source` and `uv run dg connection check target`:
 
 ```text
-2026-09-17T16:05:16.323+02:00 [info    ] healthy                        [connection.checked] code=source healthy=true version=2.43.1
+2026-09-17T16:05:16.323+02:00 [info    ] healthy                        [connection.checked] code=source healthy=true version=2.44-SNAPSHOT
 2026-09-17T16:05:18.571+02:00 [info    ] healthy                        [connection.checked] code=target healthy=true version=2.42.6
 ```
 
@@ -681,10 +681,11 @@ its own out from the parent it is given -- which is why it is not writable on DH
 `organisationUnit` schema. `path`, `created` and `lastUpdated` are the same kind of thing, and
 the projection above never asked for them.
 
-This is also where a version difference between the two instances would be handled, and it is
-worth saying plainly that **there was not one to show here**: the `organisationUnit` schema on
-2.43.1 and on 2.42.6 publishes the same fifty properties, and a `fields=:owner` bundle read off
-2.43.1 imports into 2.42.6 with `status: OK` and nothing ignored. When a version difference does
+This is also where a version difference between the two instances would be handled, and here
+there is one that does not bite: the `organisationUnit` schema on 2.44 publishes forty-eight
+properties to 2.42.6's fifty, the two it no longer has being `favorite` and `favorites`, which
+are not owner properties, so a `fields=:owner` bundle read off 2.44 imports into 2.42.6 with
+`status: OK` and nothing ignored. When a version difference does
 bite -- a field the newer instance emits and the older one has never heard of -- it arrives as
 an `errorReport` in the `objectReports` tree naming that property, and this step is where it is
 dropped or rewritten. Ask the two instances before believing a bundle is portable:
@@ -825,7 +826,7 @@ than an element-wise edit -- adding the envelope the receiver is handed.
     config:
       input: ${steps.records.output.value}
       program: |
-        {source: "dhis2-play-2-43-1",
+        {source: "dhis2-play-dev",
          synced: length,
          facilities: .}
 ```
@@ -835,7 +836,7 @@ have been cannot be audited on the far side. What arrives, three of its fifteen 
 
 ```json
 {
-  "source": "dhis2-play-2-43-1",
+  "source": "dhis2-play-dev",
   "synced": 15,
   "facilities": [
     { "code": "OU_539", "name": "Badjia", "parent_code": "OU_264", "opened": "1970-01-01" },
