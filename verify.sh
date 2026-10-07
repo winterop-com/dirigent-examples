@@ -218,7 +218,7 @@ say "the connection to the play demo"
 create_play() {
   uv run dg connection create dhis2 play \
     --name "DHIS2 play demo" \
-    --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+    --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
     --set basic_username=admin \
     --set basic_password=district \
     --json > /dev/null

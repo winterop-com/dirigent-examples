@@ -25,7 +25,7 @@ Two documents, then:
 | `pipelines/org-units-to-pdf.yaml` | The same eight, and a ninth: a pandoc container over the markdown file. Needs a Docker daemon, and `docker.run` allowed. |
 
 Everything below was run against the public DHIS2 demo,
-`https://play.im.dhis2.org/stable-2-43-1`, version **2.43.1** -- the Sierra Leone database,
+`https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6** -- the Sierra Leone database,
 with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
@@ -124,7 +124,7 @@ do, because `dg apply` refuses a document whose `requires` this instance cannot 
 uv run dg schema create schemas/org-units-page.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -182,7 +182,7 @@ this instance has now:
 uv run dg connection delete play
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -309,7 +309,7 @@ stored schema org-units-page
 ```
 
 ```text
-2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-43-1","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -318,11 +318,11 @@ after it.
 `uv run dg connection check play`:
 
 ```text
-2026-09-18T22:12:12.526+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.43.1
+2026-09-18T22:12:12.526+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.6
 ```
 
 One line, four facts: the URL resolves, TLS is as configured, the credential is accepted, and
-the instance's version is **2.43.1** -- its own word for itself, read from `/api/system/info`
+the instance's version is **2.42.6** -- its own word for itself, read from `/api/system/info`
 rather than guessed from an `/api/N` path.
 
 `uv run dg apply`:
