@@ -12,7 +12,7 @@ of the read, and every step past it provably received the shape. The write is re
 against its data element's value type, reports what it would have done, and persists nothing.
 
 Everything below was run against the public DHIS2 demo,
-`https://play.im.dhis2.org/stable-2-43-1`, version **2.43.1** -- the Sierra Leone database,
+`https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6** -- the Sierra Leone database,
 with the published `admin` / `district` credential.
 
 ## Run it
@@ -80,7 +80,7 @@ does, because `dg apply` refuses a document whose `requires` this instance canno
 uv run dg schema create schemas/read-gate-send-org-units.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -127,7 +127,7 @@ this instance has now:
 uv run dg connection delete play
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -187,7 +187,7 @@ stored schema read-gate-send-org-units
 ```
 
 ```text
-2026-09-17T15:03:12.605+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-43-1","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T15:03:12.605+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -196,11 +196,11 @@ after it.
 `uv run dg connection check play`:
 
 ```text
-2026-09-17T15:03:14.654+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.43.1
+2026-09-17T15:03:14.654+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.6
 ```
 
 One line, four facts: the URL resolves, TLS is as configured, the credential is accepted,
-and the instance's version is **2.43.1** -- its own word for itself, read from
+and the instance's version is **2.42.6** -- its own word for itself, read from
 `/api/system/info` rather than guessed from an `/api/N` path. That version is why
 `dhis2.metadata` can refuse a collection name this instance does not publish instead of
 sending a request that will 404.
@@ -267,7 +267,9 @@ outputs
 DHIS2's import summary is the step's output, parsed: a status, the four counts, and the
 conflicts. `updated=2` means the instance resolved both values, checked each against its
 data element's value type, decided it would have revised two existing values -- and then
-threw the result away, because `dry_run` was on. A refused value would be a row in
+threw the result away, because `dry_run` was on. The output above was recorded on a demo that
+already held both values; 2.42.6 does not, so there the same rehearsal says `imported=2`, and
+still writes nothing. A refused value would be a row in
 `conflicts` in the instance's own words, and a summary whose status is `ERROR` fails the
 step rather than reporting success with bad news inside it.
 

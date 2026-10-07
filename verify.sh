@@ -121,7 +121,7 @@ say "the connection to the play demo"
 create_play() {
   uv run dg connection create dhis2 play \
     --name "DHIS2 play demo" \
-    --set base_url=https://play.im.dhis2.org/stable-2-43-1 \
+    --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
     --set basic_username=admin \
     --set basic_password=district \
     --json > /dev/null
@@ -158,7 +158,10 @@ uv run dg run "$CODE" --watch --json > "$WORK/run.ndjson"
 assert_run_succeeded "$WORK/run.ndjson" "the server run"
 
 # What the three hops actually did: organisation units read and gated, and an import DHIS2
-# rehearsed without writing anything.
+# rehearsed without writing anything. Under dryRun the counts are what DHIS2 would have done,
+# so they cannot show that nothing was written; the document's dry_run is what guarantees it.
+grep -q '^      dry_run: true$' "pipelines/$CODE.yaml" \
+  || { echo "the send step does not carry dry_run: true, so the run would write to the demo" >&2; exit 1; }
 jq -se '
   map(select(.kind == "run")) | last | .steps
   | (map(select(.step == "check")) | last | .output.value.organisationUnits | length) as $units
@@ -166,7 +169,8 @@ jq -se '
   | if $units < 1 then error("the gate passed no organisation units")
     elif $summary.status != "SUCCESS" then error("the rehearsed import came back \($summary.status)")
     elif ($summary.conflicts | length) != 0 then error("the rehearsed import reported conflicts")
-    elif ($summary.imported + $summary.deleted) != 0 then error("the rehearsal was not a rehearsal: it wrote to the demo")
+    elif ($summary.imported + $summary.updated) != 2 then error("the rehearsed import accounted for \($summary.imported + $summary.updated) of the two values")
+    elif ($summary.ignored + $summary.deleted) != 0 then error("the rehearsed import ignored or deleted values")
     else true end
 ' "$WORK/run.ndjson" > /dev/null
 
