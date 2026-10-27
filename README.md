@@ -114,7 +114,7 @@ uv run dg validate pipelines/echo-alert.yaml
 ```
 
 ```text
-2026-09-26T13:09:01.001+02:00 [info    ] valid                          [validation] code=echo-alert document=pipelines/echo-alert.yaml checked="document, offline"
+2026-09-26T13:09:01.001+02:00 [info    ] valid                          [validation] code=echo-alert document=pipelines/echo-alert.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (playground.generate)
       publish  (playground.generate)
