@@ -37,7 +37,7 @@ uv run dg validate pipelines/echo-hello.yaml
 ```
 
 ```text
-2026-09-17T14:53:17.014+02:00 [info    ] valid                          [validation] code=echo-hello document=pipelines/echo-hello.yaml checked="document, offline"
+2026-09-17T14:53:17.014+02:00 [info    ] valid                          [validation] code=echo-hello document=pipelines/echo-hello.yaml checked="document and installed blocks"
   each step under the last one it waits for
     make  (value.const)
       say  (log.write)
