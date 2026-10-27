@@ -81,7 +81,7 @@ uv run dg validate pipelines/echo-schedule.yaml
 ```
 
 ```text
-2026-09-26T13:03:21.079+02:00 [info    ] valid                          [validation] code=echo-schedule document=pipelines/echo-schedule.yaml checked="document, offline"
+2026-09-26T13:03:21.079+02:00 [info    ] valid                          [validation] code=echo-schedule document=pipelines/echo-schedule.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (playground.generate)
       record  (transform.jq)
