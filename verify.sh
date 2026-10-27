@@ -14,7 +14,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 SOURCE_URL=https://play.im.dhis2.org/dev
-TARGET_URL=https://play.im.dhis2.org/stable-2-42-6
+TARGET_URL=https://play.dhis2.org/2.42
 SCHEMAS=(org-unit-sync-source org-unit-sync-import org-unit-sync-verdict)
 
 # Somewhere to keep the streams this script asserts on, removed on the way out.
@@ -204,6 +204,7 @@ create_connection() {
   uv run dg connection create dhis2 "$1" \
     --name "$2" \
     --set "base_url=$3" \
+    --set follow_redirects_with_auth=true \
     --set basic_username=admin \
     --set basic_password=district \
     --json > /dev/null

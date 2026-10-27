@@ -16,7 +16,7 @@ metadata tomorrow with nothing edited but a connection row.
 
 Everything below was run against two public DHIS2 demos: the source is
 `https://play.im.dhis2.org/dev`, version **2.44** (a development build), and the target is
-`https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6**, both with the published
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written), both with the published
 `admin` / `district` credential.
 
 **Both of them are the Sierra Leone demo database.** That makes this sync a rehearsal by
@@ -121,7 +121,8 @@ uv run dg connection create dhis2 source \
   --set basic_password=district
 uv run dg connection create dhis2 target \
   --name "DHIS2 play demo, the target" \
-  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
+  --set base_url=https://play.dhis2.org/2.42 \
+  --set follow_redirects_with_auth=true \
   --set basic_username=admin \
   --set basic_password=district
 
@@ -198,7 +199,7 @@ uv run dg connection create dhis2 source \
 `uv run dg validate`, with no argument, which is the project's own documents:
 
 ```text
-2026-09-26T13:17:50.664+02:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document, offline"
+2026-09-26T13:17:50.664+02:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -208,7 +209,7 @@ uv run dg connection create dhis2 source \
               say  (log.write)
                 verdict  (validate.schema)
     mode  (value.const)
-2026-09-26T13:17:50.668+02:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document, offline"
+2026-09-26T13:17:50.668+02:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -216,7 +217,7 @@ uv run dg connection create dhis2 source \
           batch  (transform.jq)
             send  (http.request)
               say  (log.write)
-2026-09-26T13:17:50.669+02:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document, offline"
+2026-09-26T13:17:50.669+02:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document and installed blocks"
   each step under the last one it waits for
     fetch  (playground.generate)
       shape  (transform.jq)
@@ -353,7 +354,7 @@ stored schema org-unit-sync-verdict
 
 ```text
 2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
-2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
 The password is already withheld in the record each command answers with, and in every read
