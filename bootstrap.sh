@@ -79,13 +79,14 @@ s3_start() {
 seal_connections() {
   local s3_port=$1 code url
   uv run dg db upgrade --json > /dev/null
-  for pair in "play https://play.im.dhis2.org/stable-2-42-6 DHIS2 play demo" \
+  for pair in "play https://play.dhis2.org/2.42 DHIS2 play demo" \
               "source https://play.im.dhis2.org/dev DHIS2 play demo, the source" \
-              "target https://play.im.dhis2.org/stable-2-42-6 DHIS2 play demo, the target"; do
+              "target https://play.dhis2.org/2.42 DHIS2 play demo, the target"; do
     read -r code url name <<< "$pair"
     uv run dg connection ensure dhis2 "$code" \
       --name "$name" \
       --set "base_url=$url" \
+      --set follow_redirects_with_auth=true \
       --set basic_username=admin \
       --set basic_password=district \
       --set timeout=1m \
