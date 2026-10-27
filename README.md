@@ -16,7 +16,7 @@ cell nobody reads. A snapshot costs one read and one file, and turns "when did t
 into a diff.
 
 Everything below was run against the public DHIS2 demo,
-`https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6** -- the Sierra Leone database,
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written) -- the Sierra Leone database,
 with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
@@ -87,7 +87,7 @@ does, because `dg apply` refuses a document whose `requires` this instance canno
 uv run dg schema create schemas/metadata-snapshot-org-units.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
+  --set base_url=https://play.dhis2.org/2.42 \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -137,7 +137,7 @@ this instance has now:
 uv run dg connection delete play
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
+  --set base_url=https://play.dhis2.org/2.42 \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -152,7 +152,7 @@ uv run dg connection create dhis2 play \
 `uv run dg validate pipelines/dhis2-metadata-to-storage.yaml`:
 
 ```text
-2026-09-17T15:08:41.999+02:00 [info    ] valid                          [validation] code=dhis2-metadata-to-storage document=pipelines/dhis2-metadata-to-storage.yaml checked="document, offline"
+2026-09-17T15:08:41.999+02:00 [info    ] valid                          [validation] code=dhis2-metadata-to-storage document=pipelines/dhis2-metadata-to-storage.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -212,7 +212,7 @@ stored schema metadata-snapshot-org-units
 ```
 
 ```text
-2026-09-17T15:08:52.544+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T15:08:52.544+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
