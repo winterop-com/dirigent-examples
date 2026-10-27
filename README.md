@@ -45,7 +45,7 @@ uv run dg validate pipelines/echo-transform.yaml
 ```
 
 ```text
-2026-09-26T12:48:10.093+02:00 [info    ] valid                          [validation] code=echo-transform document=pipelines/echo-transform.yaml checked="document, offline"
+2026-09-26T12:48:10.093+02:00 [info    ] valid                          [validation] code=echo-transform document=pipelines/echo-transform.yaml checked="document and installed blocks"
   each step under the last one it waits for
     readings  (playground.generate)
       active  (filter.jq)
