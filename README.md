@@ -66,7 +66,7 @@ uv run dg validate pipelines/echo-storage.yaml
 ```
 
 ```text
-2026-09-26T12:51:00.531+02:00 [info    ] valid                          [validation] code=echo-storage document=pipelines/echo-storage.yaml checked="document, offline"
+2026-09-26T12:51:00.531+02:00 [info    ] valid                          [validation] code=echo-storage document=pipelines/echo-storage.yaml checked="document and installed blocks"
   each step under the last one it waits for
     readings  (playground.generate)
       save  (storage.write)
