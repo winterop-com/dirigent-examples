@@ -70,7 +70,7 @@ uv run dg validate pipelines/echo-read.yaml
 ```
 
 ```text
-2026-09-26T12:29:45.000+02:00 [info    ] valid                          [validation] code=echo-read document=pipelines/echo-read.yaml checked="document, offline"
+2026-09-26T12:29:45.000+02:00 [info    ] valid                          [validation] code=echo-read document=pipelines/echo-read.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (http.request)
 2026-09-26T12:29:45.002+02:00 [info    ] valid                          [validated] documents=1 invalid=0
