@@ -25,7 +25,7 @@ Two documents, then:
 | `pipelines/org-units-to-pdf.yaml` | The same eight, and a ninth: a pandoc container over the markdown file. Needs a Docker daemon, and `docker.run` allowed. |
 
 Everything below was run against the public DHIS2 demo,
-`https://play.im.dhis2.org/stable-2-42-6`, version **2.42.6** -- the Sierra Leone database,
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written) -- the Sierra Leone database,
 with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
@@ -124,7 +124,7 @@ do, because `dg apply` refuses a document whose `requires` this instance cannot 
 uv run dg schema create schemas/org-units-page.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
+  --set base_url=https://play.dhis2.org/2.42 \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -182,7 +182,7 @@ this instance has now:
 uv run dg connection delete play
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
-  --set base_url=https://play.im.dhis2.org/stable-2-42-6 \
+  --set base_url=https://play.dhis2.org/2.42 \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -197,7 +197,7 @@ uv run dg connection create dhis2 play \
 `uv run dg validate`:
 
 ```text
-2026-09-18T22:13:00.531+02:00 [info    ] valid                          [validation] code=org-units-to-markdown document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml checked="document, offline"
+2026-09-18T22:13:00.531+02:00 [info    ] valid                          [validation] code=org-units-to-markdown document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml checked="document and installed blocks"
   each step under the last one it waits for
     parent  (dhis2.metadata)
     read  (dhis2.metadata)
@@ -207,7 +207,7 @@ uv run dg connection create dhis2 play \
         html  (report.render)  also after parent
           save_html  (storage.write)
             say  (log.write)  also after save_markdown
-2026-09-18T22:13:00.535+02:00 [info    ] valid                          [validation] code=org-units-to-pdf document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml checked="document, offline"
+2026-09-18T22:13:00.535+02:00 [info    ] valid                          [validation] code=org-units-to-pdf document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml checked="document and installed blocks"
   each step under the last one it waits for
     parent  (dhis2.metadata)
     read  (dhis2.metadata)
@@ -309,7 +309,7 @@ stored schema org-units-page
 ```
 
 ```text
-2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.im.dhis2.org/stable-2-42-6","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
