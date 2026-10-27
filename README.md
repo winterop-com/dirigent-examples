@@ -41,7 +41,7 @@ uv run dg validate pipelines/echo-fanout.yaml
 ```
 
 ```text
-2026-09-26T12:45:48.060+02:00 [info    ] valid                          [validation] code=echo-fanout document=pipelines/echo-fanout.yaml checked="document, offline"
+2026-09-26T12:45:48.060+02:00 [info    ] valid                          [validation] code=echo-fanout document=pipelines/echo-fanout.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (playground.generate)
       report  (transform.jq)
