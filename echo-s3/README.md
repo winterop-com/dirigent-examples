@@ -201,7 +201,7 @@ you: pull it once while you still have a network.
 docker pull rustfs/rustfs:1.0.0-rc.4
 ```
 
-`OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1` that
+`OFFLINE.md` at the root of this repository is the rest of the story, including the `UV_OFFLINE=1` that
 keeps `uv` off the network too.
 
 ## What you see
@@ -504,7 +504,9 @@ local run and the instance run visible without reading the run back.
 
 ## Where to go next
 
-- [`dhis2-read-gate-send`](../dhis2-read-gate-send/README.md) is what comes next: the same three
+- [`echo-stream`](../echo-stream/README.md) is what comes next: data that turns up over time,
+  waited for by a sensor, read off a stream and off a real Kafka topic.
+- [`dhis2-read-gate-send`](../dhis2-read-gate-send/README.md) is after it: the same three
   moves against the DHIS2 play demo, with a pack's blocks, a connection and a rehearsed import.
 - [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
   examples are cut from.

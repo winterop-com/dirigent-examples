@@ -25,7 +25,8 @@ uv sync
   `dhis2-org-units-to-markdown` (a pandoc container), and for the three pack examples below,
   which each start the outside system they talk to: `chap-prediction` a Chap stack,
   `climate-sync-and-export` an open climate service, `fhir-to-fhir` two HAPI FHIR servers.
-- A network only for the four `dhis2-*` examples, which call the public DHIS2 play demo.
+- A network only for the four `dhis2-*` examples, which call the public DHIS2 play demo, for
+  `fhir-to-dhis2` and `climate-sync-and-export`, which call it too, and for `everything`.
   No `echo-*` example calls anything on the internet: the ones that make an HTTP call make it
   against the **playground**, the request-and-response service every dirigent instance serves
   itself under `/api/v1/playground`, and the rest reach nothing at all. For a train ride, see
@@ -79,8 +80,9 @@ and stops whatever it started.
 ```
 
 runs every example's `verify.sh` in turn and prints which passed. It needs the network for
-the four `dhis2-*` examples, `fhir-to-dhis2` and `climate-sync-and-export`, and Docker for
-`echo-s3`, the PDF document, `chap-prediction`, `climate-sync-and-export` and `fhir-to-fhir`. Expect a few
+the four `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything`, and Docker for
+`echo-s3`, `echo-stream`, the PDF document, `chap-prediction`, `climate-sync-and-export`, `fhir-to-fhir`
+and `everything`. Expect a few
 minutes: the schedule example waits for a scheduled run to land, and the DHIS2 examples talk to
 the play demo. One switch makes the rest of it run with no network at all:
 
@@ -90,7 +92,8 @@ export UV_OFFLINE=1                       # on the train: uv never reaches out
 ./verify-all.sh
 ```
 
-The four `dhis2-*` examples need the play demo and fail without it; everything else passes.
+The four `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything` need
+the network and fail without it; everything else passes.
 
 ## The examples, in the order the tutorials teach them
 
@@ -112,7 +115,7 @@ The four `dhis2-*` examples need the play demo and fail without it; everything e
 | [`dhis2-metadata-to-storage`](dhis2-metadata-to-storage) | Organisation units exported, gated on `dhis2-uid` and `dhis2-code`, snapshotted to storage and read back. |
 | [`dhis2-org-unit-sync`](dhis2-org-unit-sync) | Organisation units synchronised three ways: DHIS2 to DHIS2, DHIS2 to another system through jq, and another system into DHIS2 through jq, every import a rehearsal. |
 | [`dhis2-org-units-to-markdown`](dhis2-org-units-to-markdown) | Organisation units rendered as a markdown page, an HTML page, and a PDF from a pandoc container. |
-| [`everything`](everything) | Every pipeline above and the whole dirigent examples corpus in one project: `setup.sh` leaves one instance on 3333 with all of them applied, for a demo. |
+| [`everything`](everything) | Every pipeline above except `echo-stream`'s, and the whole dirigent examples corpus in one project: `setup.sh` leaves one instance on 4444 with all of them applied, for a demo. |
 
 ## The packs beyond the tutorials
 
