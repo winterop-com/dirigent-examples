@@ -53,17 +53,17 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
 a fresh clone has, because the state directory is not in the repository -- it migrates the
-schema, makes its own admin `dev`, mints that admin one token, and prints the
+schema, makes its own admin `admin`, mints that admin one token, and prints the
 `export DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address
 the `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
 `DG_URL` is how you tell the CLI where it went.
 
-Back in the first terminal, mint a token for that admin, whose password is `dirigent-dev`.
+Back in the first terminal, mint a token for that admin, whose password is `admin`.
 The command answers with the `export DG_TOKEN=` line to paste into this terminal, and that
 line is the one output this page does not print, because it is a credential:
 
 ```bash
-uv run dg auth login --username dev --password dirigent-dev
+uv run dg auth login --username admin --password admin
 ```
 
 ```text
@@ -81,6 +81,7 @@ uv run dg schema create schemas/read-gate-send-org-units.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
   --set base_url=https://play.dhis2.org/2.42 \
+  --set follow_redirects_with_auth=true \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -119,15 +120,17 @@ the way out.
 
 A connection is sealed with the key the instance held when it was written, so a state left over
 from a key that is gone answers `uv run dg connection check play` with a record whose `detail`
-begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection update`,
-and the secret it holds is not recoverable -- so delete it and write it once more under the key
-this instance has now:
+begins `SecretKeyMismatch`. Nothing opens that row again, and the secret it holds is not
+recoverable. Nor can it be deleted once a pipeline names it: `dg connection delete` names the
+pipeline and refuses. So write it once more, in place, under the key this instance has now.
+`dg connection ensure` writes the row straight to this instance's database, reading `.env` for
+the key rather than a token, and brings it whole to what the arguments say:
 
 ```bash
-uv run dg connection delete play
-uv run dg connection create dhis2 play \
+uv run dg connection ensure dhis2 play \
   --name "DHIS2 play demo" \
   --set base_url=https://play.dhis2.org/2.42 \
+  --set follow_redirects_with_auth=true \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -147,7 +150,7 @@ uv run dg connection create dhis2 play \
     read  (dhis2.metadata)
       check  (validate.schema)
         send  (dhis2.data_value_set_import)
-2026-09-17T15:03:01.870+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-17T15:03:01.870+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: that tree is the graph the document already
@@ -187,7 +190,7 @@ stored schema read-gate-send-org-units
 ```
 
 ```text
-2026-09-17T15:03:12.605+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T15:03:12.605+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -224,11 +227,11 @@ create dhis2-read-gate-send  version 1 (/home/you/dhis2-read-gate-send/pipelines
 2026-09-26T15:06:42.172+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
 2026-09-26T15:06:43.282+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
 2026-09-26T15:06:43.285+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=1113
-2026-09-26T15:06:43.989+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=3185 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-26T15:06:43.989+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec pipeline_version=1 triggered_by="admin (token dev)" duration_ms=3185 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0ddd3-2e71-75d5-9632-1cb6d40056ec
 pipeline      dhis2-read-gate-send (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      3.2s
 items         -
 
