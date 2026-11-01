@@ -1,0 +1,14 @@
+[project]
+name = "fhir-to-fhir"
+version = "0.1.0"
+description = "A dirigent project: pipeline documents, and the runtime that runs them."
+requires-python = ">=3.13"
+dependencies = [
+    "dirigent-cli>=0.29,<0.30",
+    "dirigent-fhir>=0.29,<0.30",
+]
+
+# dirigent-fhir is not on PyPI yet, so it is installed from a checkout beside this repository's.
+# Once it is published, this table goes and the line above resolves from PyPI.
+[tool.uv.sources]
+dirigent-fhir = { path = "../../dirigent-fhir" }

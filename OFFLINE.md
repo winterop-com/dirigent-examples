@@ -83,7 +83,9 @@ open climate service, but that service downloads CHIRPS rainfall from `data.chc.
 the chiefdoms come from the play demo, so it stays online too. `chap-prediction` runs offline:
 its Chap stack is local and its model trains inside it, and `prepare-offline.sh` pulls the four
 images it needs -- `chap-core` and `chap-worker` at the digests `chap/compose.yaml` pins,
-`valkey/valkey:8` and `postgres:17`, about 15 GB together.
+`valkey/valkey:8` and `postgres:17`, about 15 GB together. `fhir-to-fhir` runs offline too: its
+two HAPI FHIR servers are local, and `prepare-offline.sh` pulls the image at the digest
+`hapi/compose.yaml` pins.
 
 ## The tutorials
 

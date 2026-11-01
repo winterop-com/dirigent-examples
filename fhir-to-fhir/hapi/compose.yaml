@@ -1,0 +1,31 @@
+# Two local HAPI FHIR R4 servers: the published image, pinned by digest, each holding its data in
+# memory, so a server started again starts empty. A server is ready when GET /fhir/metadata
+# answers, which takes a minute or so; verify.sh waits for that.
+#
+#   source  127.0.0.1:${FHIR_SOURCE_PORT:-9811}, which verify.sh seeds and the pipeline reads
+#   target  127.0.0.1:${FHIR_TARGET_PORT:-9812}, which the pipeline writes to
+#
+# verify.sh starts them under the compose project name dirigent-example-fhir-to-fhir, so the
+# containers are this project's alone, and removes them on the way out. By hand:
+#
+#   docker compose -p dirigent-example-fhir-to-fhir -f hapi/compose.yaml up -d
+#   docker compose -p dirigent-example-fhir-to-fhir -f hapi/compose.yaml down -v
+#
+# Nothing either server does reaches the network.
+
+name: dirigent-example-fhir-to-fhir
+
+x-hapi: &hapi
+  image: hapiproject/hapi:v8.12.0-2@sha256:0ff86aac4c7bd13a1ee226444a70263bb46ed1c28ef543c30a44f865b80ca04e
+  environment:
+    hapi.fhir.fhir_version: R4
+
+services:
+  source:
+    <<: *hapi
+    ports:
+      - "127.0.0.1:${FHIR_SOURCE_PORT:-9811}:8080"
+  target:
+    <<: *hapi
+    ports:
+      - "127.0.0.1:${FHIR_TARGET_PORT:-9812}:8080"

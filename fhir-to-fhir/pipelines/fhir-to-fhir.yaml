@@ -1,0 +1,110 @@
+# Copy patients and the observations about them from one FHIR server to another, every night.
+#
+# In:  whatever the source server holds: patients, each with the observations whose subject it is.
+# Out: the same patients and observations on the target, each matched on its identifier, every
+#      Observation.subject pointing at the target's own copy of its patient.
+#
+# Neither server is DHIS2: this is FHIR to FHIR, with the fhir pack's blocks and nothing else.
+# Between the steps the data is plain FHIR JSON, a searchset Bundle, which is also what the run
+# keeps as the search step's output.
+#
+# HOP BY HOP:
+#
+#   find     fhir.search on the source: every patient, with their observations beside them.
+#   copy     fhir.transaction on the target: one Bundle, references rewritten, every write
+#            conditional on the resource's identifier.
+#   receipt  transform.jq: what the target did, counted by resource type.
+#
+# EXPECT the first run against an empty target to create every resource, and every run after
+# it to create none: `created` is zero and `updated` counts them all.
+#
+#   uv run dg run --local pipelines/fhir-to-fhir.yaml --connections connections.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fhir-to-fhir
+name: FHIR to FHIR, nightly
+description: |
+  Copy patients and their observations from one FHIR server to another, nightly.
+
+  One search on the source, one transaction on the target. References between the resources are
+  rewritten for the target, and every write is conditional on the resource's identifier, so a
+  second run creates nothing new.
+
+tags: [fhir, schedule]
+
+requires:
+  blocks:
+    - fhir.search
+    - fhir.transaction
+    - transform.jq
+  connections:
+    - fhir-source
+    - fhir-target
+
+triggers:
+  schedules:
+    # Two in the morning, UTC: a copy that runs while nobody is entering data on the source.
+    - code: nightly
+      name: Nightly
+      description: Copies whatever the source holds at two in the morning.
+      cron: "0 2 * * *"
+      timezone: UTC
+
+steps:
+  find:
+    block: fhir.search
+    config:
+      connection: fhir-source
+      resource_type: Patient
+      params:
+        # _revinclude asks the server for the observations whose subject is each patient on
+        # the page, in the same page. A patient and the observations about it therefore always
+        # travel together, and the transaction below carries both ends of every reference.
+        _revinclude: Observation:subject
+        # Five patients a page, so a dozen take three pages and the paging is exercised. A real
+        # copy asks for more: HAPI answers up to 200 a page.
+        _count: "5"
+        # A stable order, so a page boundary never moves under a search being read.
+        _sort: _id
+      # The search follows Bundle.link[next] on the source's own origin for at most this many
+      # pages, and fails rather than copying part of the source when there are more. on_more
+      # stays at its default, fail, because a copy that stopped half way would say it succeeded.
+      max_pages: 20
+
+  copy:
+    block: fhir.transaction
+    depends_on: [find]
+    config:
+      connection: fhir-target
+      # The searchset Bundle as the search answered it. Each entry's resource is carried, and
+      # each entry's fullUrl is what a reference to it on the source may have been written as.
+      bundle: ${steps.find.output.bundle}
+      # transaction, not batch: the target takes everything or nothing, so a patient is never
+      # copied without the observations about it, or the other way round.
+      mode: transaction
+      # update: each entry is PUT Patient?identifier=system|value, a conditional update. The
+      # target writes over the one resource that identifier matches, and creates it when none
+      # does. The source's ids are never sent, so they never decide what is overwritten.
+      write: update
+      # Patients are matched on their record number and observations on theirs. Unset, each
+      # resource's first identifier with a system and a value is used, which is the same here.
+      # A resource with no identifier fails the step: nothing would tell the second night's
+      # copy of it from the first.
+      #
+      # Every Observation.subject, written Patient/<source id> on the source, is rewritten to
+      # the urn:uuid of the patient's entry, and the target resolves it to wherever it stores
+      # that patient. A reference to a resource the Bundle does not carry fails the step under
+      # the default unresolved_references: fail, because on the target it would point at
+      # whatever holds that id there.
+      unresolved_references: fail
+
+  receipt:
+    block: transform.jq
+    depends_on: [copy]
+    config:
+      input: ${steps.copy.output}
+      program: |
+        {created, updated,
+         by_type: (.entries | group_by(.resource_type)
+                   | map({key: .[0].resource_type, value: length}) | from_entries)}

@@ -59,8 +59,10 @@ echo "== The images the examples run =="
 # runs pandoc; every image must be local before the network goes, or its verify.sh cannot start
 # them.
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  # chap-prediction's Chap stack is the last four, pinned as chap/compose.yaml pins them.
+  # chap-prediction's Chap stack is the four after HAPI, pinned as chap/compose.yaml pins them;
+  # HAPI is fhir-to-fhir's, pinned as hapi/compose.yaml pins it.
   for image in rustfs/rustfs:1.0.0-rc.4 redpandadata/redpanda:v24.2.18 pandoc/typst:3.11-alpine \
+    hapiproject/hapi:v8.12.0-2@sha256:0ff86aac4c7bd13a1ee226444a70263bb46ed1c28ef543c30a44f865b80ca04e \
     ghcr.io/dhis2-chap/chap-core@sha256:ccbfaada86a0af66daa21847662ce06dabd9b84ee7aba54051414fae285e7d7f \
     ghcr.io/dhis2-chap/chap-worker@sha256:59212c42d7167cebe74ba9e467e81c56d6ae8cb531a74ca34cdc46622aa877df \
     valkey/valkey:8 postgres:17; do

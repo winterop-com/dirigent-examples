@@ -1,0 +1,1182 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000001",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0001"
+          }
+        ],
+        "name": [
+          {
+            "family": "Nordmann",
+            "given": [
+              "Kari"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1961-02-11"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000001000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0001-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000001"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 61,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000001000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0001-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000001"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 161,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000002",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0002"
+          }
+        ],
+        "name": [
+          {
+            "family": "Hansen",
+            "given": [
+              "Ola"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1962-03-12"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000002000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0002-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000002"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 62,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000002000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0002-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000002"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 162,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000003",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0003"
+          }
+        ],
+        "name": [
+          {
+            "family": "Johansen",
+            "given": [
+              "Ingrid"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1963-04-13"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000003000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0003-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000003"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 63,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000003000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0003-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000003"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 163,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000004",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0004"
+          }
+        ],
+        "name": [
+          {
+            "family": "Olsen",
+            "given": [
+              "Per"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1964-05-14"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000004000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0004-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000004"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 64,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000004000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0004-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000004"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 164,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000005",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0005"
+          }
+        ],
+        "name": [
+          {
+            "family": "Larsen",
+            "given": [
+              "Anne"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1965-06-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000005000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0005-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000005"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 65,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000005000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0005-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000005"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 165,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000006",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0006"
+          }
+        ],
+        "name": [
+          {
+            "family": "Andersen",
+            "given": [
+              "Lars"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1966-07-16"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000006000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0006-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000006"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 66,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000006000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0006-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000006"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 166,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000007",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0007"
+          }
+        ],
+        "name": [
+          {
+            "family": "Pedersen",
+            "given": [
+              "Marit"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1967-08-17"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000007000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0007-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000007"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 67,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000007000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0007-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000007"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 167,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000008",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0008"
+          }
+        ],
+        "name": [
+          {
+            "family": "Nilsen",
+            "given": [
+              "Erik"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1968-09-18"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000008000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0008-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000008"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 68,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000008000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0008-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000008"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 168,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000009",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0009"
+          }
+        ],
+        "name": [
+          {
+            "family": "Kristiansen",
+            "given": [
+              "Liv"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1969-01-19"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000009000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0009-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000009"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 69,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000009000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0009-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000009"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 169,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000010",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0010"
+          }
+        ],
+        "name": [
+          {
+            "family": "Jensen",
+            "given": [
+              "Knut"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1970-02-10"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000010000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0010-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000010"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 70,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000010000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0010-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000010"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 170,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000011",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0011"
+          }
+        ],
+        "name": [
+          {
+            "family": "Karlsen",
+            "given": [
+              "Sigrid"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1971-03-11"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000011000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0011-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000011"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 71,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000011000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0011-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000011"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 171,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-8000-000000000012",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/mrn",
+            "value": "MRN-0012"
+          }
+        ],
+        "name": [
+          {
+            "family": "Berg",
+            "given": [
+              "Jon"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1972-04-12"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000012000001",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0012-29463-7"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000012"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 72,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:00000000-0000-4000-9000-000012000002",
+      "resource": {
+        "resourceType": "Observation",
+        "identifier": [
+          {
+            "system": "http://example.org/fhir-to-fhir/observation",
+            "value": "MRN-0012-8302-2"
+          }
+        ],
+        "status": "final",
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "8302-2",
+              "display": "Body height"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:00000000-0000-4000-8000-000000000012"
+        },
+        "effectiveDateTime": "2026-10-01",
+        "valueQuantity": {
+          "value": 172,
+          "unit": "cm",
+          "system": "http://unitsofmeasure.org",
+          "code": "cm"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    }
+  ]
+}
