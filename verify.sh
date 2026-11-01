@@ -259,7 +259,7 @@ curl -fsS "$DG_URL/health" > /dev/null
 
 # dg init minted this instance's first token into .env, where the local profile reads it. A
 # fresh clone has neither -- no .env, and no state either -- so the dg dev above just
-# migrated an empty database and made the development admin `dev` for it, and a token is one
+# migrated an empty database and made the development admin `admin` for it, and a token is one
 # login away. dg auth login writes the token into a record, which is the one place it is
 # readable.
 if [ -z "${DG_TOKEN:-}" ] && [ -f .env ]; then
@@ -272,7 +272,7 @@ if [ -n "${DG_TOKEN:-}" ] && ! DG_TOKEN="$DG_TOKEN" uv run dg system info --json
   DG_TOKEN=""
 fi
 if [ -z "${DG_TOKEN:-}" ]; then
-  DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
+  DG_TOKEN="$(uv run dg auth login --username admin --password admin --json \
     | jq -r 'select(.kind == "token.issued") | .token')"
   # Appended, never written over: .env already carries the key this instance seals with.
   [ -n "$DG_TOKEN" ] && (umask 077; printf 'DG_TOKEN=%s\n' "$DG_TOKEN" >> .env)
@@ -281,46 +281,21 @@ fi
 export DG_TOKEN
 
 say "the connection the s3:// scheme resolves through"
-create_artifacts() {
-  uv run dg connection create s3 "$CONNECTION" \
-    --name "Artifact storage" \
-    --set "endpoint_url=http://127.0.0.1:$S3_PORT" \
-    --set "bucket=$BUCKET" \
-    --set "access_key_id=$ACCESS_KEY" \
-    --set "secret_access_key=$SECRET_KEY" \
-    --set path_style=true \
-    --json > /dev/null
-}
+# The connection is brought to this config on every run: `dg connection ensure` writes the row
+# whole, straight to this instance's database, and seals its secret with the key in .env. The
+# container above takes a free port unless S3_PORT names one, so the endpoint is the field that
+# moves between runs; a row sealed under a key that is gone is sealed again under this one.
+# A delete of the row is refused while DIRIGENT_STORAGE_CONNECTIONS names it.
+uv run dg connection ensure s3 "$CONNECTION" \
+  --name "Artifact storage" \
+  --set "endpoint_url=http://127.0.0.1:$S3_PORT" \
+  --set "bucket=$BUCKET" \
+  --set "access_key_id=$ACCESS_KEY" \
+  --set "secret_access_key=$SECRET_KEY" \
+  --set path_style=true \
+  --json > /dev/null
 
-# Left alone when the instance already holds it: the row is sealed with the key in .env, which
-# is the same key on every run, so the state a reader inherits is the state this script
-# asserted on. What does move is the endpoint, because the container above takes a free port
-# unless S3_PORT names one, and a row addressing last run's port addresses nothing -- so a row
-# naming another endpoint is written again. There is no `dg connection update`: a connection
-# changes by being deleted and created.
-ENDPOINT="http://127.0.0.1:$S3_PORT"
-if ! uv run dg connection show "$CONNECTION" --json 2>/dev/null \
-     | jq -se --arg url "$ENDPOINT" '
-         map(select(.kind == "connection")) | last | .fields.config.endpoint_url == $url
-       ' > /dev/null; then
-  uv run dg connection delete "$CONNECTION" --json > /dev/null 2>&1 || true
-  create_artifacts
-fi
-
-# A row sealed under a key that is gone cannot be opened by this one, and the check names the
-# class in its own record. Nothing recovers that secret, so the connection is written again
-# under the key in hand -- which is what a reader does by hand after losing a key.
 uv run dg connection check "$CONNECTION" --json > "$WORK/check.ndjson" || true
-if jq -se '
-  map(select(.kind == "connection.checked")) | last
-  | (.detail // "") | startswith("SecretKeyMismatch")
-' "$WORK/check.ndjson" > /dev/null; then
-  say "the connection, sealed again under the key in .env"
-  uv run dg connection delete "$CONNECTION" --json > /dev/null
-  create_artifacts
-  uv run dg connection check "$CONNECTION" --json > "$WORK/check.ndjson"
-fi
-
 jq -se '
   map(select(.kind == "connection.checked")) | last
   | if .healthy then true else error("the artifacts connection is not healthy: \(.detail)") end

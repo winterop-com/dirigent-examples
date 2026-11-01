@@ -104,7 +104,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
 under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
-its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
 the CLI where it went.
@@ -163,21 +163,21 @@ docker rm -f dirigent-s3
 makes the bucket, runs the document locally and then on an instance it starts with the artifact
 root pointed into that bucket, asserts on the records, asks the object store to confirm both
 objects, and removes the container and the instance it started on the way out. It keeps the key
-on that same `.env` line, and leaves the connection alone unless it is addressing another
-endpoint -- the container takes a free port unless `S3_PORT` names one -- so its second run
-inherits the state its first run left.
+on that same `.env` line, and brings the connection to the endpoint it started with
+`dg connection ensure` -- the container takes a free port unless `S3_PORT` names one -- so its
+second run inherits the state its first run left, the connection rewritten for the port that moved.
 
 ### If the key was lost
 
 A connection is sealed with the key the instance held when it was written, so a state left over
 from a key that is gone answers `uv run dg connection check artifacts` with a record whose
-`detail` begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection
-update`, and the secret it holds is not recoverable -- so delete it and write it once more under
-the key this instance has now:
+`detail` begins `SecretKeyMismatch`. Nothing opens that row again, and the secret it holds is not
+recoverable. It cannot be deleted either, while `DIRIGENT_STORAGE_CONNECTIONS` serves `s3://`
+through it: `dg connection delete` names the storage scheme that uses it and refuses. So write it
+once more, in place, under the key this instance has now:
 
 ```bash
-uv run dg connection delete artifacts
-uv run dg connection create s3 artifacts \
+uv run dg connection ensure s3 artifacts \
   --name "Artifact storage" \
   --set endpoint_url=http://127.0.0.1:9000 \
   --set bucket=echo-s3 \
@@ -186,7 +186,10 @@ uv run dg connection create s3 artifacts \
   --set path_style=true
 ```
 
-`verify.sh` does exactly that when its own check reports that class.
+`dg connection ensure` writes the row straight to this instance's database, reading `.env` for
+the key rather than a token, and brings it whole to what the arguments say.
+
+`verify.sh` does exactly that on every run.
 
 ## Offline
 
@@ -218,7 +221,7 @@ uv run dg validate pipelines/echo-s3.yaml
         back  (storage.read)
           say  (log.write)  also after stash
       stash  (storage.write)
-2026-09-26T12:56:50.489+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:56:50.489+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 `save` and `stash` are siblings: both wait on `ask` and neither waits on the other, so the engine
@@ -312,11 +315,11 @@ create echo-s3  version 1 (/home/you/echo-s3/pipelines/echo-s3.yaml)
 2026-09-26T12:57:02.425+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=141
 2026-09-26T12:57:02.929+02:00 [info    ] 43 bytes back from s3://echo-s3/echo/bergen-florida.json for station bergen-florida, with this run's scratch at s3://echo-s3/artifacts/runs/01a0dd5c-7c74-7168-bf05-63356749480c/echo/bergen-florida.json [log say]
 2026-09-26T12:57:02.929+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-26T12:57:03.614+02:00 [info    ] succeeded                      [run] pipeline=echo-s3 run_id=01a0dd5c-7c74-7168-bf05-63356749480c pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1813 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-26T12:57:03.614+02:00 [info    ] succeeded                      [run] pipeline=echo-s3 run_id=01a0dd5c-7c74-7168-bf05-63356749480c pipeline_version=1 triggered_by="admin (token dev)" duration_ms=1813 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0dd5c-7c74-7168-bf05-63356749480c
 pipeline      echo-s3 (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      1.8s
 items         -
 
