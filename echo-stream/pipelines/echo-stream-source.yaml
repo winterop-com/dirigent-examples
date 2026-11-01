@@ -36,8 +36,8 @@
 # `dg run --local` runs the pipeline once by hand, with no worker poking anything: the run enters
 # with the source's `sample`, a batch the sensor could have arrived with, offsets 0 to 2.
 #
-# A worker looks for the sources that are due every five seconds (`source_poll_tick`), so that
-# is how often the source is poked, however short the wait it is poked for.
+# A worker pokes the source again the moment a batch arrives, and asks a sensor that is not yet
+# ready again when the sensor says the rest of its wait is up, so the wait sets the pace.
 #
 # EXPECT A LOCAL RUN TO SUCCEED in about seven seconds, with offsets 0 to 2.
 #

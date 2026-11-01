@@ -57,6 +57,24 @@
 # DIRIGENT_PLAYGROUND_ENABLED
 # playground_enabled: true
 
+# Whether the server answers MCP over Streamable HTTP at /mcp.
+# DIRIGENT_MCP_ENABLED
+# mcp_enabled: true
+
+# The largest MCP message /mcp reads from an authenticated caller; a larger one is answered
+# 413.
+# DIRIGENT_MCP_MAX_BODY
+# mcp_max_body: 4194304
+
+# How long an MCP session at /mcp lives with no request in flight before it is closed.
+# DIRIGENT_MCP_SESSION_IDLE
+# mcp_session_idle: "30m"
+
+# How many MCP sessions one server process holds open at once; a new one past it is answered
+# 503.
+# DIRIGENT_MCP_MAX_SESSIONS
+# mcp_max_sessions: 256
+
 # A built web UI bundle to serve, instead of the one installed with the server.
 # Host only.
 # DIRIGENT_UI_DIR
@@ -300,7 +318,7 @@
 # DIRIGENT_SOURCE_REPLY_POLL
 # source_reply_poll: "50ms"
 
-# How often a worker looks for polled sources that are due.
+# The longest a worker goes without looking for polled sources that are due.
 # DIRIGENT_SOURCE_POLL_TICK
 # source_poll_tick: "5s"
 

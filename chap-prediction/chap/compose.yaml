@@ -1,10 +1,5 @@
 # A local Chap: chap-core's own compose.ghcr.yml, with the API published on
-# 127.0.0.1:${CHAP_PORT:-8710} instead of 8000 and both images pinned by digest to the master
-# build of 2026-10-30, chap-core 2.6.0.dev0 at d78b4c23.
-#
-# The pinned images answer GET /v1/jobs/{id} with the whole job, which every job-backed chap.*
-# block reads its status from. The v2.5.1 release answers that route with a bare status string,
-# and against it chap.dataset.import, chap.backtest.run and chap.prediction.run never settle.
+# 127.0.0.1:${CHAP_PORT:-8710} instead of 8000 and both images at the v2.5.1 release.
 #
 # verify.sh starts it under the compose project name dirigent-example-chap-prediction, so its
 # containers, network and volumes are this project's alone, and removes all of them on the way
@@ -21,7 +16,7 @@ name: dirigent-example-chap-prediction
 
 services:
   chap:
-    image: ghcr.io/dhis2-chap/chap-core@sha256:ccbfaada86a0af66daa21847662ce06dabd9b84ee7aba54051414fae285e7d7f
+    image: ghcr.io/dhis2-chap/chap-core:v2.5.1
     platform: linux/amd64
     init: true
     environment:
@@ -66,7 +61,7 @@ services:
         condition: service_healthy
 
   worker:
-    image: ghcr.io/dhis2-chap/chap-worker@sha256:59212c42d7167cebe74ba9e467e81c56d6ae8cb531a74ca34cdc46622aa877df
+    image: ghcr.io/dhis2-chap/chap-worker:v2.5.1
     platform: linux/amd64
     init: true
     depends_on:
