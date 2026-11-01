@@ -50,7 +50,7 @@ assert_run_succeeded() {
     map(select(.kind == "run")) | last
     | if . == null then error("\($what): the stream carries no run record")
       elif .message == "succeeded" then true
-      else error("\($what): the run settled \(.message)") end
+      else error("\($what): the run settled \(.message): \(.failures // [] | map("\(.step): \(.error)") | join("; "))") end
   ' "$1" > /dev/null
 }
 
@@ -131,18 +131,31 @@ if ! uv run dg schema list --json | jq -e --arg code "$SCHEMA" 'select(.fields.c
 fi
 
 say "the connections"
-# climate-local carries no secret and names the port this run started the service on, so it is
-# written again on every run. play is written once and kept, sealed under the key in .env.
-if uv run dg connection list --json | jq -e 'select(.fields.code == "climate-local")' > /dev/null; then
-  uv run dg connection delete climate-local --json > /dev/null
-fi
-uv run dg connection create climate climate-local \
-  --name "Local open climate service" \
-  --set base_url="$OCS" \
-  --set timeout=2m \
-  --json > /dev/null
+# climate-local carries no secret and names the port this run started the service on. play is
+# written once and kept, sealed under the key in .env, and written again only when that key
+# changed. Each is created on the first run; on a later one, whose instance still holds it in
+# .dirigent/state with the pipeline that names it, it is updated in place.
+has_connection() {
+  uv run dg connection list --json | jq -e --arg code "$1" 'select(.fields.code == $code)' > /dev/null
+}
+update_connection() {
+  curl -fsS -X PATCH "$DG_URL/api/v1/connections/$1" \
+    -H "Authorization: Bearer $DG_TOKEN" \
+    -H 'content-type: application/json' \
+    -d "{\"config\": $2}" > /dev/null
+}
 
-create_play() {
+if has_connection climate-local; then
+  update_connection climate-local "{\"base_url\": \"$OCS\", \"timeout\": \"2m\"}"
+else
+  uv run dg connection create climate climate-local \
+    --name "Local open climate service" \
+    --set base_url="$OCS" \
+    --set timeout=2m \
+    --json > /dev/null
+fi
+
+if ! has_connection play; then
   uv run dg connection create dhis2 play \
     --name "DHIS2 play demo" \
     --set base_url=https://play.dhis2.org/2.42 \
@@ -150,15 +163,12 @@ create_play() {
     --set basic_username=admin \
     --set basic_password=district \
     --json > /dev/null
-}
-if ! uv run dg connection list --json | jq -e 'select(.fields.code == "play")' > /dev/null; then
-  create_play
 fi
 uv run dg connection check play --json > "$WORK/check-play.ndjson" || true
 if jq -se 'map(select(.kind == "connection.checked")) | last | (.detail // "") | startswith("SecretKeyMismatch")' \
   "$WORK/check-play.ndjson" > /dev/null; then
-  uv run dg connection delete play --json > /dev/null
-  create_play
+  update_connection play '{"base_url": "https://play.dhis2.org/2.42", "follow_redirects_with_auth": true,
+    "basic_username": "admin", "basic_password": "district"}'
 fi
 
 for code in climate-local play; do
