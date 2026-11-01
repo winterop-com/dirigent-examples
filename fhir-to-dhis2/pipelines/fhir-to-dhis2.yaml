@@ -1,0 +1,206 @@
+# A filled-in FHIR form carried into DHIS2 as aggregate data values, checked against the form
+# DHIS2 holds before anything is sent, and the import rehearsed against the play demo.
+#
+# In:  one FHIR QuestionnaireResponse, POSTed to this pipeline's endpoint the way a FHIR server
+#      delivers it, or handed to a run with --input.
+# Out: the dataValueSet it became, and DHIS2's verdict on it, with nothing written.
+#
+# The mapping is the one a DHIS2 FHIR facade publishes its forms with, so a response names DHIS2
+# directly:
+#
+#   questionnaire  .../Questionnaire/<dataSet uid>        ->  dataSet
+#   subject        Location/<org unit uid>                ->  orgUnit
+#   D2Period       the extension's `iso` slice            ->  period
+#   linkId         <dataElement> or <dataElement>.<coc>   ->  one data value, one cell
+#
+# Hop by hop:
+#
+#   capture    the endpoint source. What arrives is the request body, nothing else.
+#   read       transform.jq refuses anything but a completed QuestionnaireResponse, and reads
+#              the data set, org unit and period off it.
+#   form       dhis2.metadata reads that data set from the play demo: its period type, and each
+#              data element with the category option combos its cells may name.
+#   translate  transform.jq turns every answered item into a data value, and fails the run on an
+#              answer the form has no cell for. An unanswered item becomes nothing, never a zero.
+#   check      validate.schema holds the dataValueSet to the shape DHIS2 takes, every identifier a
+#              DHIS2 uid and the period a DHIS2 period.
+#   rehearse   dhis2.data_value_set_import sends it with dryRun=true: DHIS2 checks every value
+#              and writes none.
+#   receipt    transform.jq says what arrived, what it became and what DHIS2 would have done.
+#
+#   uv run dg run --local pipelines/fhir-to-dhis2.yaml --connections connections.yaml \
+#     --schema schemas/fhir-data-value-set.json --input @captures/benkeh-2025-07.json
+
+format: dirigent/v1
+kind: pipeline
+code: fhir-to-dhis2
+name: FHIR form response to DHIS2 data values
+description: |
+  Translate a FHIR QuestionnaireResponse into a DHIS2 dataValueSet, check every answer against
+  the data set DHIS2 holds, and rehearse the import.
+
+  The import is a dry run against the DHIS2 play demo; nothing is written.
+
+tags: [fhir, dhis2, sources, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - dhis2.metadata
+    - validate.schema
+    - dhis2.data_value_set_import
+  connections:
+    - play
+  schemas:
+    - fhir-data-value-set
+
+steps:
+  capture:
+    source:
+      kind: endpoint
+      path: /fhir/questionnaire-responses
+      methods: [POST]
+      accepts: [application/fhir+json, application/json]
+      max_body: 1MB
+    # What a run with no --input is handed: captures/benkeh-2025-07.json.
+    sample:
+      content_type: application/fhir+json
+      body:
+        resourceType: QuestionnaireResponse
+        id: benkeh-2025-07
+        status: completed
+        authored: "2025-08-02T10:15:00Z"
+        questionnaire: http://dhis2.org/fhir/Questionnaire/BfMAe6Itzgt
+        subject:
+          reference: Location/wQ71REGAMet
+          display: Benkeh MCHP
+        extension:
+          - url: http://dhis2.org/fhir/StructureDefinition/D2Period
+            extension:
+              - url: iso
+                valueString: "202507"
+              - url: type
+                valueCode: Monthly
+        item:
+          - linkId: s46m5MS0hxu
+            text: BCG doses given
+            item:
+              - linkId: s46m5MS0hxu.Prlt0C1RF0s
+                text: "Fixed, <1y"
+                answer:
+                  - valueInteger: 12
+              - linkId: s46m5MS0hxu.V6L425pT3A0
+                text: "Outreach, <1y"
+                answer:
+                  - valueInteger: 4
+          - linkId: YtbsuPPo010
+            text: Measles doses given
+            item:
+              - linkId: YtbsuPPo010.Prlt0C1RF0s
+                text: "Fixed, <1y"
+                answer:
+                  - valueDecimal: 9
+          - linkId: l6byfWFUGaP
+            text: Yellow Fever doses given
+            item:
+              # Asked and not answered.
+              - linkId: l6byfWFUGaP.Prlt0C1RF0s
+                text: "Fixed, <1y"
+
+  read:
+    block: transform.jq
+    depends_on: [capture]
+    config:
+      input: ${steps.capture.output.body}
+      program: |
+        if .resourceType != "QuestionnaireResponse" then error("a \(.resourceType) arrived, not a QuestionnaireResponse")
+        elif .status != "completed" then error("the response is \(.status), not completed; nothing to import")
+        elif (.subject.reference // "" | startswith("Location/") | not) then error("the response is not about a Location")
+        else
+          {response: .,
+           dataSet: (.questionnaire | split("/") | last),
+           orgUnit: (.subject.reference | ltrimstr("Location/")),
+           period: ([.extension[]? | select(.url | endswith("/D2Period")) | .extension[]
+                     | select(.url == "iso") | .valueString][0])}
+        end
+
+  form:
+    block: dhis2.metadata
+    depends_on: [read]
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: dataSets
+      fields: "id,name,periodType,dataSetElements[dataElement[id,name,categoryCombo[categoryOptionCombos[id]]]]"
+      filter: "id:eq:${steps.read.output.value.dataSet}"
+
+  translate:
+    block: transform.jq
+    depends_on: [read, form]
+    config:
+      input:
+        capture: ${steps.read.output.value}
+        form: ${steps.form.output.body}
+      program: |
+        .capture as $c
+        | (.form.dataSets[0] // error("DHIS2 has no data set \($c.dataSet)")) as $form
+        # Each data element on the form, with the cells it has.
+        | ($form.dataSetElements | map({key: .dataElement.id,
+             value: [.dataElement.categoryCombo.categoryOptionCombos[].id]}) | from_entries) as $cells
+        # The answered leaves. An item with no answer is skipped here.
+        | [$c.response.item[] | recurse(.item[]?) | select((.answer // []) | length > 0)] as $answered
+        | [$answered[] | (.linkId | split(".")) as $key
+           | select(($cells[$key[0]] // []) as $cocs
+                    | ($key | length) > 2 or ($cocs | length) == 0
+                      or (($key | length) == 2 and ($cocs | index($key[1])) == null))
+           | .linkId] as $off_form
+        | if ($off_form | length) > 0 then error("answers with no cell on the form \($form.name): \($off_form | join(", "))")
+          else
+            {dataSet: $c.dataSet, period: $c.period, orgUnit: $c.orgUnit,
+             dataValues: [$answered[] | (.linkId | split(".")) as $key
+               | {dataElement: $key[0],
+                  value: (.answer[0] | (.valueInteger // .valueDecimal // .valueString) | tostring)}
+                 + (if ($key | length) == 2 then {categoryOptionCombo: $key[1]} else {} end)],
+             unanswered: [$c.response.item[] | recurse(.item[]?)
+                          | select((.item // []) == [] and (.answer // []) == []) | .linkId]}
+          end
+
+  check:
+    block: validate.schema
+    depends_on: [translate]
+    config:
+      input: ${steps.translate.output.value}
+      schema: fhir-data-value-set
+
+  rehearse:
+    block: dhis2.data_value_set_import
+    depends_on: [check]
+    config:
+      connection: play
+      data_values:
+        dataSet: ${steps.check.output.value.dataSet}
+        period: ${steps.check.output.value.period}
+        orgUnit: ${steps.check.output.value.orgUnit}
+        dataValues: ${steps.check.output.value.dataValues}
+      # Nothing is written. Dropping this line makes the same document a real import, and the
+      # play demo is shared.
+      dry_run: true
+
+  receipt:
+    block: transform.jq
+    depends_on: [read, check, rehearse]
+    config:
+      input:
+        response: ${steps.read.output.value.response.id}
+        document: ${steps.check.output.value}
+        summary: ${steps.rehearse.output}
+      program: |
+        {response: .response,
+         data_set: .document.dataSet, org_unit: .document.orgUnit, period: .document.period,
+         values: (.document.dataValues | length),
+         unanswered: .document.unanswered,
+         status: .summary.status,
+         would_import: .summary.imported, would_update: .summary.updated,
+         ignored: .summary.ignored, conflicts: (.summary.conflicts | length)}
