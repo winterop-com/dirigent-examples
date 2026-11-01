@@ -120,7 +120,7 @@ for _ in $(seq 1 90); do
 done
 curl -fsS "$DG_URL/health" > /dev/null
 
-DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
+DG_TOKEN="$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')"
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]

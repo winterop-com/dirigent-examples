@@ -64,10 +64,19 @@ and the export is the same 150 values. `-p end=...` moves the day the sync bring
 forward to, and the window the export covers with it.
 
 Then the instance. A `dhis2` connection carries a password, and a connection secret is sealed
-with the instance's own key, so the instance needs a key before it can hold one; `dg init` put
-one in `.env`, and every command run in this directory reads it from there. In a second
-terminal, in this directory, `uv run dg dev`, and back in the first, the `export DG_TOKEN=`
-line `uv run dg auth login --username dev --password dirigent-dev` answers with. Then:
+with the instance's own key, so the instance needs a key before it can hold one. Mint it once
+into `.env`, which is not in the repository and which every command run in this directory
+reads, then start the instance in a second terminal, in this directory:
+
+```bash
+grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
+  || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
+uv run dg dev
+```
+
+On an empty state `dg dev` makes its own admin `admin`, password `admin`. Back in the first
+terminal, `uv run dg auth login --username admin --password admin` answers with the
+`export DG_TOKEN=` line to paste. Then:
 
 ```bash
 uv run dg schema create schemas/rainfall-data-value-set.json
