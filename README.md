@@ -24,7 +24,7 @@ uv sync
 - Docker, for `echo-s3` (a local rustfs container), for `echo-stream` (a local Redpanda container) and for the PDF document in
   `dhis2-org-units-to-markdown` (a pandoc container), and for the three pack examples below,
   which each start the outside system they talk to: `chap-prediction` a Chap stack,
-  `climate-sync-and-export` an open climate service.
+  `climate-sync-and-export` an open climate service, `fhir-to-fhir` two HAPI FHIR servers.
 - A network only for the four `dhis2-*` examples, which call the public DHIS2 play demo.
   No `echo-*` example calls anything on the internet: the ones that make an HTTP call make it
   against the **playground**, the request-and-response service every dirigent instance serves
@@ -80,7 +80,7 @@ and stops whatever it started.
 
 runs every example's `verify.sh` in turn and prints which passed. It needs the network for
 the four `dhis2-*` examples, `fhir-to-dhis2` and `climate-sync-and-export`, and Docker for
-`echo-s3`, the PDF document, `chap-prediction` and `climate-sync-and-export`. Expect a few
+`echo-s3`, the PDF document, `chap-prediction`, `climate-sync-and-export` and `fhir-to-fhir`. Expect a few
 minutes: the schedule example waits for a scheduled run to land, and the DHIS2 examples talk to
 the play demo. One switch makes the rest of it run with no network at all:
 
@@ -121,5 +121,6 @@ The four `dhis2-*` examples need the play demo and fail without it; everything e
 | [`chap-prediction`](chap-prediction) | A Chap forecast end to end against a local Chap the project starts: a history imported, a configured model backtested and promoted, a forecast read back at two quantiles, and the alerts it raises released once a reviewer approves them. Needs Docker and about 15 GB for the Chap images. |
 | [`climate-sync-and-export`](climate-sync-and-export) | CHIRPS rainfall ingested into a local open climate service, synced forward, and exported averaged over the chiefdoms of a DHIS2 district as a dataValueSet, gated on shape. Needs Docker and the network. |
 | [`fhir-to-dhis2`](fhir-to-dhis2) | A FHIR `QuestionnaireResponse` at an endpoint source, translated into a DHIS2 dataValueSet, checked against the form DHIS2 holds, and the import rehearsed against the play demo. |
+| [`fhir-to-fhir`](fhir-to-fhir) | Patients and their observations copied nightly from one local HAPI FHIR server to another with the `dirigent-fhir` pack: references rewritten for the target, every write conditional on an identifier, and a second run creating nothing. Needs Docker, and a `dirigent-fhir` checkout beside this repository until the pack is on PyPI. |
 
 Each example is independent: work in any one folder, in any order, without touching the others.
