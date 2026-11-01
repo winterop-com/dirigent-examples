@@ -1,0 +1,790 @@
+{
+  "resourceType": "Bundle",
+  "type": "transaction",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:84856f14-23a3-5b5e-b4a3-eb3d8996d78a",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p1"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family1",
+            "given": [
+              "Given1"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1964-02-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:de301850-5ce5-5014-a8ef-d7e08d1facef",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w1-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:84856f14-23a3-5b5e-b4a3-eb3d8996d78a"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 65,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:44ee526b-5849-581f-b275-52698792fa78",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w1-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:84856f14-23a3-5b5e-b4a3-eb3d8996d78a"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 77,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:1f0b4592-6769-54a8-8cb0-0f2998789ca9",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p2"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family2",
+            "given": [
+              "Given2"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1968-03-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b2fce3bc-49b1-5e5a-a3cc-6651fd870075",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w2-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:1f0b4592-6769-54a8-8cb0-0f2998789ca9"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 70,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:1da7ccce-ddcc-5415-bb44-e2bbad5bb13c",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w2-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:1f0b4592-6769-54a8-8cb0-0f2998789ca9"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 82,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:93794d5b-bfe7-5880-8da1-d7e6b2ac9e65",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p3"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family3",
+            "given": [
+              "Given3"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1972-04-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b357b4bb-0b42-5243-8a94-d7098438d9e1",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w3-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:93794d5b-bfe7-5880-8da1-d7e6b2ac9e65"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 75,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:5ce76aa2-df94-54b8-b97f-e5e7d3014065",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w3-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:93794d5b-bfe7-5880-8da1-d7e6b2ac9e65"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 87,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:93eeef39-0b88-592d-9061-702089fecc15",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p4"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family4",
+            "given": [
+              "Given4"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1976-05-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:13e58cb3-b550-5706-a44b-67241d867a6c",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w4-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:93eeef39-0b88-592d-9061-702089fecc15"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 80,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:27778363-792c-579a-8c9c-2a6f02d368ef",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w4-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:93eeef39-0b88-592d-9061-702089fecc15"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 92,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:b546ee38-da33-584e-ab99-9557837f5bf7",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p5"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family5",
+            "given": [
+              "Given5"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1980-06-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:f992a39a-accd-5352-8183-ca429552c094",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w5-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:b546ee38-da33-584e-ab99-9557837f5bf7"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 85,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:e0d62526-ffc7-5585-8df8-2a9fbff2f649",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w5-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:b546ee38-da33-584e-ab99-9557837f5bf7"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 97,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:3ab4293b-b6bd-513c-bb99-c089e701f08a",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p6"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family6",
+            "given": [
+              "Given6"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1984-07-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:445b1a49-9387-5902-94f3-36d4e89e4309",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w6-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:3ab4293b-b6bd-513c-bb99-c089e701f08a"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 90,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:70dd2c98-5d14-5abf-a486-7e0ebb5bee12",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w6-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:3ab4293b-b6bd-513c-bb99-c089e701f08a"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 102,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:fadce6ad-3880-5c8e-b433-7155ab9bb9e0",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p7"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family7",
+            "given": [
+              "Given7"
+            ]
+          }
+        ],
+        "gender": "female",
+        "birthDate": "1988-08-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:07d02d86-70ab-5765-99c5-8f003834354b",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w7-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:fadce6ad-3880-5c8e-b433-7155ab9bb9e0"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 95,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:53d7178e-03d9-51b6-916f-08d6d35aeb33",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w7-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:fadce6ad-3880-5c8e-b433-7155ab9bb9e0"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 107,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:41285ac4-3b11-537c-9959-125a314a9e40",
+      "resource": {
+        "resourceType": "Patient",
+        "identifier": [
+          {
+            "system": "http://example.org/mrn",
+            "value": "p8"
+          }
+        ],
+        "name": [
+          {
+            "family": "Family8",
+            "given": [
+              "Given8"
+            ]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1992-09-15"
+      },
+      "request": {
+        "method": "POST",
+        "url": "Patient"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:862a361d-8f14-5c95-9ef6-909012107831",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w8-0"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:41285ac4-3b11-537c-9959-125a314a9e40"
+        },
+        "effectiveDateTime": "2026-01-10",
+        "valueQuantity": {
+          "value": 100,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:22863359-8dd5-55a3-9b2c-0eeabec0b5f2",
+      "resource": {
+        "resourceType": "Observation",
+        "status": "final",
+        "identifier": [
+          {
+            "system": "http://example.org/obs",
+            "value": "w8-1"
+          }
+        ],
+        "code": {
+          "coding": [
+            {
+              "system": "http://loinc.org",
+              "code": "29463-7",
+              "display": "Body weight"
+            }
+          ]
+        },
+        "subject": {
+          "reference": "urn:uuid:41285ac4-3b11-537c-9959-125a314a9e40"
+        },
+        "effectiveDateTime": "2026-02-10",
+        "valueQuantity": {
+          "value": 112,
+          "unit": "kg",
+          "system": "http://unitsofmeasure.org",
+          "code": "kg"
+        }
+      },
+      "request": {
+        "method": "POST",
+        "url": "Observation"
+      }
+    }
+  ]
+}

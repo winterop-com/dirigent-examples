@@ -1,0 +1,9 @@
+# The environment uv sync builds from pyproject.toml.
+.venv/
+__pycache__/
+
+# This instance's token and key. Never shared.
+.env
+
+# A built documentation site.
+site/
