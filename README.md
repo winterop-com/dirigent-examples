@@ -85,17 +85,17 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a
 fresh clone has, because the state directory is not in the repository -- it migrates the schema,
-makes its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to
+makes its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to
 paste. The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
 the CLI where it went.
 
-Back in the first terminal, mint a token for that admin, whose password is `dirigent-dev`. The
+Back in the first terminal, mint a token for that admin, whose password is `admin`. The
 command answers with the `export DG_TOKEN=` line to paste into this terminal, and that line is
 the one output this page does not print, because it is a credential:
 
 ```bash
-uv run dg auth login --username dev --password dirigent-dev
+uv run dg auth login --username admin --password admin
 ```
 
 ```text
@@ -176,13 +176,15 @@ internet and have no stand-in, so this needs the network either way.
 
 A connection is sealed with the key the instance held when it was written, so a state left over
 from a key that is gone answers `uv run dg connection check source` with a record whose `detail`
-begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection update`,
-and the secret it holds is not recoverable -- so delete each one that answers that way and write
-it once more under the key this instance has now:
+begins `SecretKeyMismatch`. Nothing opens that row again, and the secret it holds is not
+recoverable. Nor can it be deleted once a pipeline names it: `dg connection delete` names the
+pipeline and refuses. So write each one that answers that way once more, in place, under the
+key this instance has now. `dg connection ensure` writes the row straight to this instance's
+database, reading `.env` for the key rather than a token, and brings it whole to what the
+arguments say:
 
 ```bash
-uv run dg connection delete source
-uv run dg connection create dhis2 source \
+uv run dg connection ensure dhis2 source \
   --name "DHIS2 play demo, the source" \
   --set base_url=https://play.im.dhis2.org/dev \
   --set basic_username=admin \
@@ -227,7 +229,7 @@ uv run dg connection create dhis2 source \
               say  (log.write)
                 verdict  (validate.schema)
     mode  (value.const)
-2026-09-26T13:17:50.670+02:00 [info    ] valid                          [validated] documents=3 invalid=0
+2026-09-26T13:17:50.670+02:00 [info    ] valid                          [validated] documents=3 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: those trees are the graphs the documents
@@ -353,8 +355,8 @@ stored schema org-unit-sync-verdict
 `uv run dg connection create dhis2 ...`, twice:
 
 ```text
-2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
-2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":false,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record each command answers with, and in every read
@@ -396,11 +398,11 @@ create other-to-dhis2  version 1 (/home/you/dhis2-org-unit-sync/pipelines/other-
 2026-09-17T16:05:24.193+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=10
 2026-09-17T16:05:24.699+02:00 [info    ] VALIDATE on the target: OK, 0 created, 15 updated, 0 ignored, of 15 units -- no conflicts [log say]
 2026-09-17T16:05:25.207+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T16:05:25.247+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-ad56-774a-8e31-142ddc37eede pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=3618 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-17T16:05:25.247+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-ad56-774a-8e31-142ddc37eede pipeline_version=1 triggered_by="admin (token dev)" duration_ms=3618 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0afaf-ad56-774a-8e31-142ddc37eede
 pipeline      dhis2-to-dhis2 (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      3.6s
 items         -
 

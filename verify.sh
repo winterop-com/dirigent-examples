@@ -144,7 +144,7 @@ curl -fsS "$DG_URL/health" > /dev/null
 
 # dg auth login mints a token and writes it into a record, which is the one place it is
 # readable; at a terminal the same command spells the export line out to paste.
-DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
+DG_TOKEN="$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')"
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]
@@ -200,10 +200,11 @@ for schema in "${SCHEMAS[@]}"; do
 done
 
 say "the two DHIS2 connections"
-create_connection() {
-  uv run dg connection create dhis2 "$1" \
-    --name "$2" \
-    --set "base_url=$3" \
+# Takes the verb first: create through the API, or ensure straight to this instance's database.
+write_connection() {
+  uv run dg connection "$1" dhis2 "$2" \
+    --name "$3" \
+    --set "base_url=$4" \
     --set follow_redirects_with_auth=true \
     --set basic_username=admin \
     --set basic_password=district \
@@ -215,11 +216,12 @@ create_connection() {
 # rewrite and the state a reader inherits is the state this script asserted on.
 #
 # A row sealed under a key that is gone cannot be opened by this one, and the check names the
-# class in its own record. Nothing recovers that secret, so the connection is written again
-# under the key in hand -- which is what a reader does by hand after losing a key.
+# class in its own record. Nothing recovers that secret, so the connection is written again in
+# place under the key in hand, with `dg connection ensure`: a delete is refused while a pipeline
+# uses it. That is what a reader does by hand after losing a key.
 ensure_connection() {
   if ! uv run dg connection list --json | jq -e --arg code "$1" 'select(.fields.code == $code)' > /dev/null; then
-    create_connection "$@"
+    write_connection create "$@"
   fi
 
   uv run dg connection check "$1" --json > "$WORK/check-$1.ndjson" || true
@@ -228,8 +230,7 @@ ensure_connection() {
     | (.detail // "") | startswith("SecretKeyMismatch")
   ' "$WORK/check-$1.ndjson" > /dev/null; then
     say "the $1 connection, sealed again under the key in .env"
-    uv run dg connection delete "$1" --json > /dev/null
-    create_connection "$@"
+    write_connection ensure "$@"
     uv run dg connection check "$1" --json > "$WORK/check-$1.ndjson"
   fi
 
