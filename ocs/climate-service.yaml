@@ -1,0 +1,29 @@
+# The open climate service's instance config: the extent every ingestion and sync downloads
+# over, and the named export the aggregation saves its result through.
+
+id: bo-district-climate-service
+name: Bo district climate service
+
+# Bo district, Sierra Leone, with a margin: every Bo chiefdom on the DHIS2 play demo lies inside.
+extent:
+  name: Bo district
+  bbox: [-12.2, 7.4, -11.3, 8.55]
+  country_code: SLE
+
+data_dir: /app/data
+
+exports:
+  # Daily rainfall, averaged over each chiefdom, as a DHIS2 dataValueSet: one value per org unit
+  # and day. The org unit is each feature's id; the data element is the one value here.
+  - id: rainfall-daily
+    plugin: dhis2
+    dataset: chirps3_precipitation_daily
+    aggregation: mean
+    period_type: daily
+    org_unit_field: feature_id
+    period_field: t
+    series:
+      - select: {}
+        # A rainfall data element in the DHIS2 the values are for. The play demo has none, so
+        # this uid names nothing there; replace it with your own before delivering.
+        data_element: RnFaLLdAiLy
