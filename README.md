@@ -27,7 +27,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
 under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
-its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds and the address the document's `playground` parameter defaults to;
 `dg dev --port` moves the instance, `DG_URL` is how you tell the CLI where it went, and
@@ -73,7 +73,7 @@ uv run dg validate pipelines/echo-read.yaml
 2026-09-26T12:29:45.000+02:00 [info    ] valid                          [validation] code=echo-read document=pipelines/echo-read.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (http.request)
-2026-09-26T12:29:45.002+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:29:45.002+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 Offline, and it already knows the graph: one step, waiting on nothing.
@@ -146,11 +146,11 @@ uv run dg run echo-read --watch
 2026-09-26T12:30:24.213+02:00 [info    ] queued                         [step ask] block=http.request attempt=1
 2026-09-26T12:30:24.489+02:00 [info    ] http call                      [log ask] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=452 duration_ms=22
 2026-09-26T12:30:24.491+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=39
-2026-09-26T12:30:24.808+02:00 [info    ] succeeded                      [run] pipeline=echo-read run_id=01a0dd44-1ed3-7286-a467-d65a57da6cd2 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=39 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-26T12:30:24.808+02:00 [info    ] succeeded                      [run] pipeline=echo-read run_id=01a0dd44-1ed3-7286-a467-d65a57da6cd2 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=39 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0dd44-1ed3-7286-a467-d65a57da6cd2
 pipeline      echo-read (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      0.0s
 items         -
 

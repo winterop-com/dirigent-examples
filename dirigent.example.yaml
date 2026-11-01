@@ -1,7 +1,9 @@
 # Every setting dirigent has, with its default and what it does.
 #
 # This file is read, never loaded: dirigent does not look for it. Copy a line into
-# dirigent.yaml to change it, or set the environment variable named beside it.
+# dirigent.yaml to change it, or set the environment variable named beside it. A setting
+# marked host only is not read from a dirigent.yaml or .env in the working directory: set the
+# environment variable, or put it in the file DIRIGENT_CONFIG_FILE names.
 #
 # Generated from the settings model, so it lists what this version actually has.
 
@@ -10,6 +12,7 @@
 # environment: "local"
 
 # Where the instance's own state lives, as a SQLAlchemy async URL.
+# Host only.
 # DIRIGENT_DATABASE_URL
 # database_url: "sqlite+aiosqlite:///./.dirigent/state/dirigent.db"
 
@@ -34,6 +37,7 @@
 # database_pool_recycle: "30m"
 
 # The address the API server binds. A container needs 0.0.0.0 to be reachable.
+# Host only.
 # DIRIGENT_HOST
 # host: "127.0.0.1"
 
@@ -49,7 +53,12 @@
 # DIRIGENT_UI_ENABLED
 # ui_enabled: true
 
+# Whether the instance serves the playground beside the API.
+# DIRIGENT_PLAYGROUND_ENABLED
+# playground_enabled: true
+
 # A built web UI bundle to serve, instead of the one installed with the server.
+# Host only.
 # DIRIGENT_UI_DIR
 # ui_dir: null
 
@@ -58,19 +67,22 @@
 # DIRIGENT_LOG_LEVEL
 # log_level: "INFO"
 
-# How a command spells a log line: console for a person, json for a collector.
+# How a command spells its output and its logs: console renders, json writes records.
 # DIRIGENT_LOG_FORMAT
-# log_format: "console"
+# log_format: null
 
 # Default storage backend URI prefix for run scratch space and artifacts.
+# Host only.
 # DIRIGENT_ARTIFACT_ROOT
 # artifact_root: "file://./.dirigent/state/artifacts"
 
 # Directory on this worker's own filesystem where a run's local working files go.
+# Host only.
 # DIRIGENT_WORK_ROOT
 # work_root: "./.dirigent/state/work"
 
 # Which connection configures each storage scheme, as scheme -> connection code.
+# Host only.
 # DIRIGENT_STORAGE_CONNECTIONS
 # storage_connections: {}
 
@@ -85,6 +97,11 @@
 # Envelope key for connection secrets; required before any secret is stored.
 # DIRIGENT_SECRET_KEY
 # secret_key: null
+
+# A file holding the envelope key, in place of secret_key; setting both is refused.
+# Host only.
+# DIRIGENT_SECRET_KEY_FILE
+# secret_key_file: null
 
 # How many step attempts one worker process executes at once.
 # DIRIGENT_WORKER_CONCURRENCY
@@ -102,17 +119,29 @@
 # DIRIGENT_LEASE
 # lease: "1m"
 
+# How many times one attempt may be taken back from a worker and run again before it fails.
+# DIRIGENT_LEASE_RECOVERY_LIMIT
+# lease_recovery_limit: 5
+
 # How often a worker refreshes the leases it holds and its registry row.
 # DIRIGENT_HEARTBEAT
 # heartbeat: "15s"
 
-# How long a worker waits before asking for work again when the queue is empty.
+# How long an idle worker waits before asking for work again when nothing wakes it.
 # DIRIGENT_CLAIM_IDLE
 # claim_idle: "500ms"
 
 # How often a running attempt's buffered log entries are written to the run.
 # DIRIGENT_LOG_FLUSH_INTERVAL
 # log_flush_interval: "1s"
+
+# How many items one fan-out grid may expand into; a run that would be wider is refused.
+# DIRIGENT_FAN_OUT_MAX_ITEMS
+# fan_out_max_items: 10000
+
+# How much one run, with every run its steps start, may write to storage.
+# DIRIGENT_RUN_STORAGE_QUOTA
+# run_storage_quota: 1073741824
 
 # How many entries one attempt may log before the rest are dropped with one warning.
 # DIRIGENT_LOG_ENTRIES_PER_ATTEMPT
@@ -130,7 +159,7 @@
 # DIRIGENT_STUCK_RUN
 # stuck_run: "1h"
 
-# A worker whose registry row is older than this has that row reaped by the sweeper.
+# A worker whose last heartbeat is older than this has its registry row reaped by the sweeper.
 # DIRIGENT_STALE_WORKER
 # stale_worker: "15m"
 
@@ -143,22 +172,27 @@
 # docker_reap_grace: "10m"
 
 # How long a settled run is kept, with its items, attempts, artifacts and alerts.
+# Host only.
 # DIRIGENT_RETENTION_RUNS
 # retention_runs: null
 
 # How long a log entry is kept, for runs too young to be pruned themselves.
+# Host only.
 # DIRIGENT_RETENTION_LOGS
 # retention_logs: null
 
-# How long a webhook delivery is kept.
-# DIRIGENT_RETENTION_DELIVERIES
-# retention_deliveries: null
+# How long the record of an input that reached a source is kept.
+# Host only.
+# DIRIGENT_RETENTION_INPUTS
+# retention_inputs: null
 
 # How long a schedule firing is kept.
+# Host only.
 # DIRIGENT_RETENTION_FIRINGS
 # retention_firings: null
 
 # How long an alert that was sent is kept, for runs too young to be pruned themselves.
+# Host only.
 # DIRIGENT_RETENTION_NOTIFICATIONS
 # retention_notifications: null
 
@@ -179,6 +213,7 @@
 # lost_job_max_gone: 3
 
 # Block ids permitted to execute code on a worker; empty means none.
+# Host only.
 # DIRIGENT_ENABLED_UNSAFE_BLOCKS
 # enabled_unsafe_blocks: []
 
@@ -196,18 +231,22 @@
 # scheduler_misfire_grace: "5m"
 
 # The advisory-lock key leadership is taken on; only PostgreSQL has one to take.
+# Host only.
 # DIRIGENT_SCHEDULER_LOCK_KEY
 # scheduler_lock_key: 1684632167
 
 # A directory of pipeline documents the server applies at boot; unset applies nothing.
+# Host only.
 # DIRIGENT_APPLY_DIR
 # apply_dir: null
 
 # Whether the boot apply also deactivates directory-provenance pipelines absent from it.
+# Host only.
 # DIRIGENT_APPLY_PRUNE
 # apply_prune: false
 
 # The advisory-lock key the boot apply is serialised on, distinct from the scheduler's.
+# Host only.
 # DIRIGENT_APPLY_LOCK_KEY
 # apply_lock_key: 1684632161
 
@@ -223,19 +262,83 @@
 # DIRIGENT_NOTIFICATION_LEASE
 # notification_lease: "1m"
 
-# The largest body the webhook intake will read; reading stops one byte past it.
-# DIRIGENT_WEBHOOK_MAX_PAYLOAD
-# webhook_max_payload: 1048576
+# Where endpoint sources are served, outside the versioned API.
+# DIRIGENT_ENDPOINT_PREFIX
+# endpoint_prefix: "/endpoints"
 
-# How fast one *offered* token may deliver, before anything is looked up.
-# DIRIGENT_WEBHOOK_INTAKE_RATE_PER_MINUTE
-# webhook_intake_rate_per_minute: 120
+# The largest body any endpoint reads, whatever its own max_body says; reading stops one byte
+# past it.
+# DIRIGENT_SOURCE_MAX_BODY
+# source_max_body: 1048576
 
-# How many login attempts one address, and one username, get a minute.
+# How long an endpoint waits for a whole body before it answers 408; no database connection is
+# held meanwhile.
+# DIRIGENT_SOURCE_BODY_TIMEOUT
+# source_body_timeout: "30s"
+
+# How fast one address's calls to one method and route are taken, before any source is read.
+# DIRIGENT_SOURCE_INTAKE_RATE_PER_MINUTE
+# source_intake_rate_per_minute: 600
+
+# How far a signed call's X-Dirigent-Timestamp may stand from this server's clock, either way.
+# DIRIGENT_SOURCE_SIGNATURE_WINDOW
+# source_signature_window: "5m"
+
+# The longest a caller is held for a reply, whatever a reply node's timeout says.
+# DIRIGENT_SOURCE_REPLY_MAX
+# source_reply_max: "1m"
+
+# How many callers one server process holds open for their replies at once.
+# DIRIGENT_SOURCE_MAX_WAITING
+# source_max_waiting: 256
+
+# How many of those callers one source may hold, so one slow pipeline cannot take every seat.
+# DIRIGENT_SOURCE_MAX_WAITING_PER_SOURCE
+# source_max_waiting_per_source: 64
+
+# The least time between two reads of the replies one server process's held callers wait for.
+# DIRIGENT_SOURCE_REPLY_POLL
+# source_reply_poll: "50ms"
+
+# How often a worker looks for polled sources that are due.
+# DIRIGENT_SOURCE_POLL_TICK
+# source_poll_tick: "5s"
+
+# How long a worker holds a worker-hosted source without renewing; another may take it once
+# this passes.
+# DIRIGENT_SOURCE_POLL_LEASE
+# source_poll_lease: "5m"
+
+# The most inputs one poll may hand over, before the source's own max_in_flight.
+# DIRIGENT_SOURCE_POLL_BATCH
+# source_poll_batch: 100
+
+# How many held sources, such as queue consumers, one worker keeps open at once.
+# DIRIGENT_SOURCE_HELD_MAX
+# source_held_max: 16
+
+# How long a held source's consumer waits for a message before the worker checks on it.
+# DIRIGENT_SOURCE_HOLD_WAIT
+# source_hold_wait: "1s"
+
+# How long a polled source waits after a failed poll; later failures double it.
+# DIRIGENT_SOURCE_BACKOFF
+# source_backoff: "30s"
+
+# The longest a polled source backs off, however many polls in a row have failed.
+# DIRIGENT_SOURCE_BACKOFF_MAX
+# source_backoff_max: "30m"
+
+# How many login attempts one username gets a minute from one address.
 # DIRIGENT_LOGIN_RATE_PER_MINUTE
 # login_rate_per_minute: 10
 
+# How many login attempts one address gets a minute, across every username.
+# DIRIGENT_LOGIN_ADDRESS_RATE_PER_MINUTE
+# login_address_rate_per_minute: 60
+
 # The externally reachable base URL, so an alert can link back to the run it is about.
+# Host only.
 # DIRIGENT_ALERT_BASE_URL
 # alert_base_url: null
 

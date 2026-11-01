@@ -80,10 +80,10 @@ uv run dg run --local pipelines/echo-read.yaml --json \
 #
 # DG_URL beats the local profile, whose url is the default port; without it every command below
 # would address an instance this script did not start. The token comes from dg dev's own admin:
-# on an empty state that is the fixture dev / dirigent-dev, and dg auth login mints a token from
+# on an empty state that is the fixture admin / admin, and dg auth login mints a token from
 # it.
 export DG_URL="http://127.0.0.1:$port"
-token=$(uv run dg auth login --username dev --password dirigent-dev --json \
+token=$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')
 export DG_TOKEN="$token"
 
