@@ -1,0 +1,110 @@
+# The batch that arrives, made a continuous source: a worker keeps poking for the next one.
+#
+# In:  nothing a caller sends. A worker pokes playground.arrive outside any run.
+# Out: per run, one batch of three readings, summarised: how many, and the offsets they took.
+#
+# echo-stream-wait.yaml waits once, inside its one run, and is done. This document waits over
+# and over, and the waiting is not in a run at all: its first step is a sensor source, which a
+# worker pokes on the source's cadence with no run in existence. A poke that answers "not yet"
+# starts nothing; a poke that succeeds becomes one run, whose `arrive` step already holds the
+# batch, and the sensor is poked again at once for the next one. The runs overlap: one batch is
+# being worked on while the next is being waited for, the way a topic is consumed.
+#
+# Hop by hop:
+#
+#   arrive     the source: playground.arrive, poked until five seconds have passed since the
+#              source began waiting, then a batch of three readings. Its offsets carry on from
+#              the batch before: 0 to 2, then 3 to 5, and on.
+#   work       playground.generate over the batch's messages, seven seconds long: work that
+#              takes longer than the next wait, so the next run's batch has arrived before this
+#              run is done. Stand-in for whatever a real pipeline does with a batch.
+#   summarise  reads the batch the way a step downstream of a topic would: how many, the first
+#              and last offset, and where the next batch starts.
+#
+# THE SOURCE OWNS THE CURSOR. playground.arrive says where its batch ended (`next_offset`), the
+# source stores that, and the next wait's first poke starts from it. A paused source keeps it,
+# so a resume reads on from where the pause left off rather than from zero.
+#
+# A plain `dg apply` sets the source going at once. `dg apply --paused` creates it paused, and
+# `dg source` steers it; a source the instance already holds keeps its state through an apply:
+#
+#   uv run dg apply --paused
+#   uv run dg source resume echo-stream-source arrive   # the worker starts poking
+#   uv run dg runs list --pipeline echo-stream-source    # a new run every five seconds or so
+#   uv run dg source pause echo-stream-source arrive    # stops the poking, keeps the cursor
+#
+# `dg run --local` runs the pipeline once by hand, with no worker poking anything: the run enters
+# with the source's `sample`, a batch the sensor could have arrived with, offsets 0 to 2.
+#
+# A worker looks for the sources that are due every five seconds (`source_poll_tick`), so that
+# is how often the source is poked, however short the wait it is poked for.
+#
+# EXPECT A LOCAL RUN TO SUCCEED in about seven seconds, with offsets 0 to 2.
+#
+#   uv run dg run --local pipelines/echo-stream-source.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: echo-stream-source
+name: A batch that keeps arriving
+description: |
+  A sensor source pokes playground.arrive outside any run, and each batch that arrives becomes
+  one run, so the runs overlap and the offsets carry on from one batch to the next.
+
+tags: [playground, sensor, sources, transform, streaming]
+
+requires:
+  blocks:
+    - playground.arrive
+    - playground.generate
+    - transform.jq
+
+steps:
+  arrive:
+    source:
+      kind: sensor
+      block: playground.arrive
+      config:
+        # Five seconds from when the source began waiting: the last batch, or the first poke.
+        # after_pokes is zero because the clock is what this wait is about.
+        after: 5s
+        after_pokes: 0
+        rows: 3
+        seed: 7
+        fields:
+          station: city
+          reading: pyfloat
+      # How many of its runs may be unsettled before the next poke waits for one to finish.
+      max_in_flight: 2
+    # What a hand run enters with, in the sensor's output shape: a batch playground.arrive
+    # arrived with under the config above.
+    sample:
+      messages:
+        - {offset: 0, value: {reading: 423938499.682554, station: North Loriville}, timestamp: "2026-11-01T13:08:31.560448Z"}
+        - {offset: 1, value: {reading: 976787301.532084, station: North Christopher}, timestamp: "2026-11-01T13:08:31.560448Z"}
+        - {offset: 2, value: {reading: 32301241.1521911, station: Brownshire}, timestamp: "2026-11-01T13:08:31.560448Z"}
+      count: 3
+      next_offset: 3
+      pokes: 2
+      waited_ms: 5176
+      seed: 7
+      locale: en_US
+      fields: {reading: pyfloat, station: city}
+      drift: none
+
+  work:
+    block: playground.generate
+    depends_on: [arrive]
+    config:
+      # Named no fields, so the messages pass through unchanged; the delay is the point.
+      input: ${steps.arrive.output.messages}
+      delay: 7s
+
+  summarise:
+    block: transform.jq
+    depends_on: [work]
+    config:
+      input: ${steps.arrive.output}
+      program: >-
+        {count: .count, first_offset: .messages[0].offset,
+         last_offset: .messages[-1].offset, next_offset: .next_offset}

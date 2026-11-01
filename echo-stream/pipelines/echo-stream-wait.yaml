@@ -1,0 +1,80 @@
+# A step that waits for a batch to arrive, with nothing to wait on.
+#
+# In:  nothing but parameters.
+# Out: the batch the sensor handed over, summarised: how many messages, and their stations.
+#
+# playground.arrive is a sensor. The engine pokes it on a cadence, each poke is one cheap
+# question -- "has the batch arrived yet?" -- and between pokes the run holds no worker slot.
+# The answer is "not yet" for as many pokes as the document asks, and then one poke generates
+# the batch and hands it downstream.
+#
+# The batch comes in the shape a queue consumer's does: `messages`, each with an `offset` and a
+# `value`, and a `count` beside them. That is the whole point of this document next to
+# echo-stream-topic.yaml, which waits on a real Kafka topic: the step after the wait is the
+# same text in both, word for word.
+#
+# Hop by hop:
+#
+#   wait       parks for three pokes, a second apart, then arrives with four seeded readings.
+#              `dg run --watch` prints each park as it happens.
+#   summarise  reads the batch the way a step downstream of a topic would: .messages[].value.
+#
+# EXPECT THIS RUN TO SUCCEED in about three seconds, with three parked pokes before it.
+#
+#   uv run dg run --local pipelines/echo-stream-wait.yaml
+#   uv run dg run --local pipelines/echo-stream-wait.yaml -p after_pokes=10   # a longer wait
+
+format: dirigent/v1
+kind: pipeline
+code: echo-stream-wait
+name: A batch that arrives
+description: |
+  A sensor that answers "not yet" for a few pokes and then hands over a batch in the consume
+  shape, read downstream as .messages[].value.
+
+tags: [playground, sensor, transform, streaming]
+
+requires:
+  blocks:
+    - playground.arrive
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    after_pokes:
+      type: integer
+      default: 3
+      minimum: 0
+      maximum: 20
+      description: How many pokes park before the batch arrives.
+    rows:
+      type: integer
+      default: 4
+      minimum: 1
+      maximum: 50
+      description: How many messages the batch carries.
+
+steps:
+  wait:
+    block: playground.arrive
+    # poll and deadline are the engine's, the same on every sensor: how often it is asked,
+    # and how long the asking may go on. after_pokes and rows are the sensor's own.
+    poll: 1s
+    deadline: 1m
+    config:
+      after_pokes: ${params.after_pokes}
+      rows: ${params.rows}
+      # Seeded, so the stations are the same ones on every run and on every machine.
+      seed: 7
+      fields:
+        station: city
+        reading: pyfloat
+
+  summarise:
+    block: transform.jq
+    depends_on: [wait]
+    config:
+      input: ${steps.wait.output}
+      program: >-
+        {count: .count, stations: [.messages[].value.station]}

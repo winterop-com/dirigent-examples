@@ -1,0 +1,85 @@
+# A body that arrives in pieces, read by a step that gets all of it at once.
+#
+# In:  how many messages the stream sends, and how far apart.
+# Out: the stream's lines, parsed back into records and counted by kind.
+#
+# NEEDS AN INSTANCE TO CALL. /playground/stream is served by a dirigent instance under
+# /api/v1/playground, unauthenticated. Start one first, in this directory:
+#
+#   uv run dg dev
+#
+# The route sends NDJSON, one JSON record per line: an envelope line first, then a message every
+# `every`, then a line saying the stream closed. Watch it arrive live, a line at a time, from a
+# terminal:
+#
+#   curl -N 'http://127.0.0.1:3333/api/v1/playground/stream?messages=5&every=500ms'
+#
+# A step does not see that. http.request reads the whole body and hands it on, so this step
+# waits until the stream closes and then gets every line at once, as one piece of text.
+#
+# Hop by hop:
+#
+#   read       five messages, 200ms apart, read to the end of the stream.
+#   lines      split the text into lines, parse each one, and count what came by kind.
+#
+# EXPECT THIS RUN TO SUCCEED in about a second: one `stream` line, five `stream.message` lines
+# and one `stream.closed` line.
+#
+#   uv run dg run --local pipelines/echo-stream-read.yaml
+#   uv run dg run --local pipelines/echo-stream-read.yaml -p messages=20 -p every=500ms
+
+format: dirigent/v1
+kind: pipeline
+code: echo-stream-read
+name: A stream, read whole
+description: |
+  The playground's streaming route, read by http.request once the stream has closed, and
+  split back into its NDJSON lines by transform.jq.
+
+tags: [playground, http, transform, jq, streaming]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    messages:
+      type: integer
+      default: 5
+      minimum: 1
+      maximum: 50
+      description: How many messages the stream sends after the envelope.
+    every:
+      type: string
+      default: 200ms
+      description: How long the stream waits before each message.
+
+steps:
+  read:
+    block: http.request
+    config:
+      url: ${params.playground}/stream
+      method: GET
+      query:
+        messages: ${params.messages}
+        every: ${params.every}
+
+  lines:
+    block: transform.jq
+    depends_on: [read]
+    config:
+      # NDJSON is not JSON, so the body arrives as text and the lines are parsed here.
+      input: ${steps.read.output.body}
+      program: |
+        split("\n")
+        | map(select(length > 0) | fromjson)
+        | {lines: length,
+           kinds: (group_by(.kind) | map({key: .[0].kind, value: length}) | from_entries),
+           closed: (last.kind == "stream.closed")}
