@@ -1,0 +1,80 @@
+{
+  "content_type": "application/fhir+json",
+  "body": {
+    "resourceType": "QuestionnaireResponse",
+    "id": "benkeh-2025-07",
+    "status": "completed",
+    "authored": "2025-08-02T10:15:00Z",
+    "questionnaire": "http://dhis2.org/fhir/Questionnaire/BfMAe6Itzgt",
+    "subject": {
+      "reference": "Location/wQ71REGAMet",
+      "display": "Benkeh MCHP"
+    },
+    "extension": [
+      {
+        "url": "http://dhis2.org/fhir/StructureDefinition/D2Period",
+        "extension": [
+          {
+            "url": "iso",
+            "valueString": "202507"
+          },
+          {
+            "url": "type",
+            "valueCode": "Monthly"
+          }
+        ]
+      }
+    ],
+    "item": [
+      {
+        "linkId": "s46m5MS0hxu",
+        "text": "BCG doses given",
+        "item": [
+          {
+            "linkId": "s46m5MS0hxu.Prlt0C1RF0s",
+            "text": "Fixed, <1y",
+            "answer": [
+              {
+                "valueInteger": 12
+              }
+            ]
+          },
+          {
+            "linkId": "s46m5MS0hxu.V6L425pT3A0",
+            "text": "Outreach, <1y",
+            "answer": [
+              {
+                "valueInteger": 4
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "linkId": "YtbsuPPo010",
+        "text": "Measles doses given",
+        "item": [
+          {
+            "linkId": "YtbsuPPo010.Prlt0C1RF0s",
+            "text": "Fixed, <1y",
+            "answer": [
+              {
+                "valueDecimal": 9
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "linkId": "l6byfWFUGaP",
+        "text": "Yellow Fever doses given",
+        "item": [
+          {
+            "linkId": "l6byfWFUGaP.Prlt0C1RF0s",
+            "text": "Fixed, <1y"
+          }
+        ]
+      }
+    ]
+  }
+}
