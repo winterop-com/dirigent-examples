@@ -80,34 +80,29 @@ it already stored. In a second terminal, in this directory:
 ```bash
 grep -q '^DIRIGENT_SECRET_KEY=' .env 2>/dev/null \
   || printf 'DIRIGENT_SECRET_KEY=%s\n' "$(uv run dg secret-key)" >> .env
-uv run dg dev
+DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]' uv run dg dev
 ```
 
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a
 fresh clone has, because the state directory is not in the repository -- it migrates the schema,
-makes its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to
+makes its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to
 paste. The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and `DG_URL` is how you tell
 the CLI where it went.
 
-That instance allows `docker.run`, because `dirigent.yaml` in this directory names it:
+That instance allows `docker.run`, because the variable on that command names it. It has to be
+the process environment, or the file `DIRIGENT_CONFIG_FILE` names: a `dirigent.yaml` or `.env` in
+this directory travels with a checkout, so `dg` does not read the allowlist from either. It is the
+decision of whoever starts the instance and never the document's: a document that names an unsafe
+block still applies cleanly on an instance that refuses to run it, and fails at that step.
 
-```yaml
-enabled_unsafe_blocks: ["docker.run"]
-```
-
-An instance you did not `dg init` yourself is told the same thing with an environment
-variable, `DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]'`. Either way it is the instance's
-decision and never the document's: a document that names an unsafe block still applies
-cleanly on an instance that refuses to run it, and fails at that step.
-
-Back in the first terminal, mint a token for that admin, whose password is `dirigent-dev`.
+Back in the first terminal, mint a token for that admin, whose password is `admin`.
 The command answers with the `export DG_TOKEN=` line to paste into this terminal, and that
 line is the one output this page does not print, because it is a credential:
 
 ```bash
-uv run dg auth login --username dev --password dirigent-dev
+uv run dg auth login --username admin --password admin
 ```
 
 ```text
@@ -125,6 +120,7 @@ uv run dg schema create schemas/org-units-page.json
 uv run dg connection create dhis2 play \
   --name "DHIS2 play demo" \
   --set base_url=https://play.dhis2.org/2.42 \
+  --set follow_redirects_with_auth=true \
   --set basic_username=admin \
   --set basic_password=district
 uv run dg connection check play
@@ -174,15 +170,17 @@ It stops the instance it started by pid on the way out.
 
 A connection is sealed with the key the instance held when it was written, so a state left over
 from a key that is gone answers `uv run dg connection check play` with a record whose `detail`
-begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection update`,
-and the secret it holds is not recoverable -- so delete it and write it once more under the key
-this instance has now:
+begins `SecretKeyMismatch`. Nothing opens that row again, and the secret it holds is not
+recoverable. Nor can it be deleted once a pipeline names it: `dg connection delete` names the
+pipeline and refuses. So write it once more, in place, under the key this instance has now.
+`dg connection ensure` writes the row straight to this instance's database, reading `.env` for
+the key rather than a token, and brings it whole to what the arguments say:
 
 ```bash
-uv run dg connection delete play
-uv run dg connection create dhis2 play \
+uv run dg connection ensure dhis2 play \
   --name "DHIS2 play demo" \
   --set base_url=https://play.dhis2.org/2.42 \
+  --set follow_redirects_with_auth=true \
   --set basic_username=admin \
   --set basic_password=district
 ```
@@ -218,7 +216,7 @@ uv run dg connection create dhis2 play \
               say  (log.write)  also after save_markdown, save_html
         html  (report.render)  also after parent
           save_html  (storage.write)
-2026-09-18T22:13:00.536+02:00 [info    ] valid                          [validated] documents=2 invalid=0
+2026-09-18T22:13:00.536+02:00 [info    ] valid                          [validated] documents=2 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: each tree is the graph its document already
@@ -309,7 +307,7 @@ stored schema org-units-page
 ```
 
 ```text
-2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"timeout":"30s","basic_password":"***"}
+2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -358,11 +356,11 @@ create org-units-to-pdf  version 1
 2026-09-18T22:12:17.140+02:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=13
 2026-09-18T22:12:17.645+02:00 [info    ] the page is at file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.md (655 bytes) and file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.html (1647 bytes) [log say]
 2026-09-18T22:12:17.645+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-18T22:12:19.033+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a0b625-f085-7682-9940-654641423ef5 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=2607 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-18T22:12:19.033+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a0b625-f085-7682-9940-654641423ef5 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=2607 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0b625-f085-7682-9940-654641423ef5
 pipeline      org-units-to-markdown (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      2.6s
 items         -
 
@@ -410,11 +408,11 @@ temporary one that is about to be deleted.
 2026-09-18T22:12:27.922+02:00 [info    ] output collected               [log pdf] name=page uri=file://./.dirigent/state/artifacts/runs/01a0b626-127f-76e7-b8f8-be0058dedc46/org-units.pdf bytes_written=37267
 2026-09-18T22:12:27.952+02:00 [info    ] container finished             [log pdf] container_id=d4091a1299f7 exit_code=0 stdout_bytes=0 stderr_bytes=0
 2026-09-18T22:12:27.954+02:00 [info    ] succeeded                      [step pdf] block=docker.run attempt=1 duration_ms=2619
-2026-09-18T22:12:30.255+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-pdf run_id=01a0b626-127f-76e7-b8f8-be0058dedc46 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=4727 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-18T22:12:30.255+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-pdf run_id=01a0b626-127f-76e7-b8f8-be0058dedc46 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=4727 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0b626-127f-76e7-b8f8-be0058dedc46
 pipeline      org-units-to-pdf (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      4.7s
 items         -
 

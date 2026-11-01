@@ -18,8 +18,11 @@
 #
 #   dg run --local pipelines/org-units-to-pdf.yaml --enable-unsafe docker.run ...
 #   export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]'    # for an instance
-#   enabled_unsafe_blocks: ["docker.run"]                     # in dirigent.yaml, which is
-#                                                             # where this project names it
+#   enabled_unsafe_blocks: ["docker.run"]                     # in the file DIRIGENT_CONFIG_FILE
+#                                                             # names, or in ~/.config/dirigent
+#
+# A dirigent.yaml or .env beside this document cannot name it: both travel with a checkout, so
+# a document could otherwise grant itself the block.
 #
 # THE IMAGE. pandoc/typst:3.11-alpine is pandoc with typst as its PDF engine: 86MB to pull
 # against 240MB for pandoc/latex and 566MB for pandoc/extra, a PDF in a fifth of the time,

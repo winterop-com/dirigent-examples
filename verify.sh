@@ -181,9 +181,9 @@ export DG_URL="http://127.0.0.1:$PORT"
 say "the instance, on port $PORT"
 # .dirigent/state/ is not in the repository, so the first run here starts on nothing: dg dev
 # migrates the schema and makes the development admin. Every later run reuses what is there.
-# It reads enabled_unsafe_blocks out of dirigent.yaml, which is how docker.run is allowed for
-# the server leg below.
-uv run dg dev --port "$PORT" > "$WORK/dev.ndjson" 2>&1 &
+# The allowlist is in its environment, which is how docker.run is allowed for the server leg
+# below: dg does not read it from a dirigent.yaml or .env in the working directory.
+DIRIGENT_ENABLED_UNSAFE_BLOCKS='["docker.run"]' uv run dg dev --port "$PORT" > "$WORK/dev.ndjson" 2>&1 &
 DEV_PID=$!
 
 for _ in $(seq 1 90); do
@@ -195,7 +195,7 @@ curl -fsS "$DG_URL/health" > /dev/null
 
 # dg auth login mints a token and writes it into a record, which is the one place it is
 # readable; at a terminal the same command spells the export line out to paste.
-DG_TOKEN="$(uv run dg auth login --username dev --password dirigent-dev --json \
+DG_TOKEN="$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')"
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]
@@ -215,8 +215,9 @@ say "the connection to the play demo"
 # Written when the instance does not hold it, and left alone when it does: the row is sealed
 # with the key in .env, which is the same key on every run, so there is nothing to rewrite and
 # the state a reader inherits is the state this script asserted on.
-create_play() {
-  uv run dg connection create dhis2 play \
+# Takes the verb: create through the API, or ensure straight to this instance's database.
+write_play() {
+  uv run dg connection "$1" dhis2 play \
     --name "DHIS2 play demo" \
     --set base_url=https://play.dhis2.org/2.42 \
     --set follow_redirects_with_auth=true \
@@ -226,20 +227,20 @@ create_play() {
 }
 
 if ! uv run dg connection list --json | jq -e 'select(.fields.code == "play")' > /dev/null; then
-  create_play
+  write_play create
 fi
 
 # A row sealed under a key that is gone cannot be opened by this one, and the check names the
-# class in its own record. Nothing recovers that secret, so the connection is written again
-# under the key in hand -- which is what a reader does by hand after losing a key.
+# class in its own record. Nothing recovers that secret, so the connection is written again in
+# place under the key in hand, with `dg connection ensure`: a delete is refused while the
+# pipeline uses it. That is what a reader does by hand after losing a key.
 uv run dg connection check play --json > "$WORK/check.ndjson" || true
 if jq -se '
   map(select(.kind == "connection.checked")) | last
   | (.detail // "") | startswith("SecretKeyMismatch")
 ' "$WORK/check.ndjson" > /dev/null; then
   say "the connection, sealed again under the key in .env"
-  uv run dg connection delete play --json > /dev/null
-  create_play
+  write_play ensure
   uv run dg connection check play --json > "$WORK/check.ndjson"
 fi
 

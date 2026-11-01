@@ -16,8 +16,7 @@ environment: "local"
 log_level: "INFO"
 worker_concurrency: 8
 
-# Block ids allowed to execute code on a worker. docker.run is one: reaching a Docker daemon
-# is reaching root wherever that daemon runs, so the engine refuses the block unless the
-# instance names its id. This project names it because pipelines/org-units-to-pdf.yaml is
-# about that step; an instance running documents it did not write names nothing here.
-enabled_unsafe_blocks: ["docker.run"]
+# docker.run executes code on a worker, because reaching a Docker daemon is reaching root
+# wherever that daemon runs. This file travels with a checkout, so dg does not read the
+# allowlist from it: whoever starts the instance names the block, with
+# DIRIGENT_ENABLED_UNSAFE_BLOCKS in the process environment. verify.sh and the README both do.
