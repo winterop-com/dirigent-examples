@@ -22,19 +22,8 @@ What you learn here:
 - that every write is a conditional update on the resource's identifier, which is what makes the
   copy safe to run again: the second night creates nothing.
 
-## The pack is not on PyPI yet
-
-`dirigent-fhir` is not published yet, so `pyproject.toml` installs it from a checkout beside this
-repository's, through `[tool.uv.sources]`:
-
-```text
-dirigent-workspace/
-  dirigent-examples/      this repository
-    fhir-to-fhir/         this example
-  dirigent-fhir/          the pack, checked out here
-```
-
-Once the pack is on PyPI, that table goes and `uv sync` takes it from there like any other pack.
+`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.29, and
+`uv sync` installs them like any other pack.
 
 ## Run it
 
