@@ -1,0 +1,15 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so the Chap it talks to is handed to it here.
+#
+# This is the Chap chap/compose.yaml starts on 127.0.0.1:8710, with no API token. A Chap that
+# sets CHAP_API_TOKEN wants it on the connection as api_token, and a token belongs in a
+# connection the server holds, sealed under its key, never in this file.
+
+connections:
+  chap-local:
+    kind: chap
+    name: Local Chap
+    description: The Chap stack chap/compose.yaml starts on port 8710, without auth.
+    config:
+      base_url: http://127.0.0.1:8710
+      timeout: 1m
