@@ -71,7 +71,7 @@ in the document, so a document with an address in it is a document whose schedul
 stuck with the address it was written with. Replacing `ask` with an `http.request` whose answer
 `record` reads changes that one step and nothing under it.
 
-`OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1` that
+`OFFLINE.md` at the root of this repository is the rest of the story, including the `UV_OFFLINE=1` that
 keeps `uv` off the network too.
 
 ## What you see

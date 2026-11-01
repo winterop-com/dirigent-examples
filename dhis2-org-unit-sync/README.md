@@ -901,7 +901,7 @@ made-up values is a choice a reviewer should be able to argue with.
     block: transform.jq
     depends_on: [fetch]
     config:
-      input: ${steps.fetch.output.body.json}
+      input: ${steps.fetch.output.records.0}
       program: |
         {organisationUnits: [.facilities[] | {
           code: .code,

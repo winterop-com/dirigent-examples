@@ -105,7 +105,7 @@ raise an alert about is a number in the document rather than an endpoint somewhe
 be answering. The sink the alert is delivered to is this instance's own playground, on the port
 `dg dev` is serving. Nothing here leaves the machine.
 
-`OFFLINE.md` beside this repository is the rest of the story, including the `UV_OFFLINE=1` that
+`OFFLINE.md` at the root of this repository is the rest of the story, including the `UV_OFFLINE=1` that
 keeps `uv` off the network too.
 
 ## What you see

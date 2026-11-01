@@ -862,8 +862,6 @@ a file of its own rather than a section of the pipeline.
 
 ## Where to go next
 
-This is the last example on the shelf.
-
 - [**Docker**](https://winterop-com.github.io/dirigent/docker/) is the family the ninth hop
   belongs to: one container, a whole compose stack, an image built and pushed, and how a
   worker reaches a daemon it is allowed to reach.

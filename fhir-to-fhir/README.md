@@ -145,5 +145,5 @@ documents.
 ## Where to go next
 
 - [`fhir-to-dhis2`](../fhir-to-dhis2): FHIR arriving at an endpoint and carried into DHIS2.
-- The `dirigent-fhir` pack's own `fhir` shelf: a read, a paged search, a conditional create and a
-  conditional update, one document each.
+- The `dirigent-fhir` pack's own `fhir` shelf: a read, a paged search, a conditional create, a
+  conditional update and a nightly copy, one document each.
