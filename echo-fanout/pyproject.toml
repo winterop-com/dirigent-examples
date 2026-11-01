@@ -1,0 +1,8 @@
+[project]
+name = "echo-fanout"
+version = "0.1.0"
+description = "A dirigent project: pipeline documents, and the runtime that runs them."
+requires-python = ">=3.13"
+dependencies = [
+    "dirigent-cli>=0.29,<0.30",
+]
