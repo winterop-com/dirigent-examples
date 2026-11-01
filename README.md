@@ -45,7 +45,7 @@ uv run dg validate pipelines/echo-fanout.yaml
   each step under the last one it waits for
     ask  (playground.generate)
       report  (transform.jq)
-2026-09-26T12:45:48.064+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:45:48.064+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 ```bash
