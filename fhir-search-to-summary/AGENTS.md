@@ -1,4 +1,4 @@
-# Working in fhir-to-fhir
+# Working in fhir-search-to-summary
 
 This is a dirigent project: pipelines are YAML documents under `pipelines/`, checked and run by
 the `dg` command line this project pins. These notes are for whoever edits it, a person or a
