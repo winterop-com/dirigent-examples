@@ -1,0 +1,109 @@
+# Search body weights a page at a time, validate every page, and summarise the heavy ones with FHIRPath.
+#
+# HOP BY HOP:
+#
+#   find       fhir.search for body weight observations (LOINC 29463-7), four to a page, and
+#              `emit: pages`: the output's `bundles` is one searchset Bundle per page, which is
+#              what the steps after it fan out over.
+#   check      fhir.validate over every page and every observation on it: FHIR's JSON rules,
+#              and the engine's R4 Observation model. An error fails the step, and the run,
+#              before anything reads the data.
+#   heavy      one item per page (`for_each` reads `find`'s output, so the grid is as wide as
+#              the search turned out to be). transform.fhirpath keeps the page's observations
+#              over the limit. The limit is a parameter and reaches the expression as the
+#              variable %limit: a value is bound, never spliced into the expression.
+#   collected  the fan-in: `heavy`'s output is one `{value}` per page, and FHIRPath's `value`
+#              flattens them into one list, a page with none adding nothing.
+#   final      filter.fhirpath: only the observations whose status is final.
+#   weights    map.fhirpath: each kept observation replaced by its value, in order.
+#   patients   transform.fhirpath: who those observations are about, once each.
+#
+#   dg run --local pipelines/fhir-search-to-summary.yaml --connections connections.yaml
+#   dg run --local pipelines/fhir-search-to-summary.yaml --connections connections.yaml -p limit=100
+
+format: dirigent/v1
+kind: pipeline
+code: fhir-search-to-summary
+name: Heavy body weights, page by page
+description: |
+  Search body weights a page at a time, validate them, and summarise the heavy ones.
+
+  The search hands each page on as its own Bundle, fhir.validate checks every page, and the
+  FHIRPath verbs pick the observations over a limit, their values, and their patients.
+
+tags: [fhir, fhirpath, validation, fan-out]
+
+requires:
+  blocks:
+    - fhir.search
+    - fhir.validate
+    - transform.fhirpath
+    - map.fhirpath
+    - filter.fhirpath
+  connections:
+    - fhir-local
+
+params:
+  type: object
+  properties:
+    limit:
+      type: number
+      default: 90
+      description: The body weight in kilograms an observation has to be over to count.
+
+steps:
+  find:
+    block: fhir.search
+    config:
+      connection: fhir-local
+      resource_type: Observation
+      params:
+        code: http://loinc.org|29463-7
+        _count: "4"
+        _sort: _id
+      max_pages: 20
+      emit: pages
+
+  check:
+    block: fhir.validate
+    depends_on: [find]
+    config:
+      input: ${steps.find.output.bundles}
+
+  heavy:
+    block: transform.fhirpath
+    depends_on: [check]
+    for_each: ${steps.find.output.bundles}
+    config:
+      input: ${item}
+      program: entry.resource.ofType(Observation).where(valueQuantity.value > %limit)
+      variables:
+        limit: ${params.limit}
+
+  collected:
+    block: transform.fhirpath
+    depends_on: [heavy]
+    config:
+      input: ${steps.heavy.output}
+      program: value
+
+  final:
+    block: filter.fhirpath
+    depends_on: [collected]
+    config:
+      input: ${steps.collected.output.value}
+      program: status = 'final'
+
+  weights:
+    block: map.fhirpath
+    depends_on: [final]
+    config:
+      input: ${steps.final.output.value}
+      program: valueQuantity.value
+
+  patients:
+    block: transform.fhirpath
+    depends_on: [final]
+    config:
+      input: ${steps.final.output.value}
+      program: subject.reference.distinct()

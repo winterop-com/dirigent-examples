@@ -1,0 +1,15 @@
+[project]
+name = "fhir-search-to-summary"
+version = "0.1.0"
+description = "A dirigent project: pipeline documents, and the runtime that runs them."
+requires-python = ">=3.13"
+dependencies = [
+    "dirigent-cli>=0.29,<0.30",
+    "dirigent-fhir",
+]
+
+# fhir.validate, the FHIRPath verbs and a search handing its pages to a fan-out are on the pack's
+# main and not yet on PyPI. This source goes, and the pin above takes the range fhir-to-fhir does,
+# at the next release.
+[tool.uv.sources]
+dirigent-fhir = { git = "https://github.com/winterop-com/dirigent-fhir", branch = "main" }

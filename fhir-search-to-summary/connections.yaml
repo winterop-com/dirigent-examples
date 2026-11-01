@@ -1,0 +1,15 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so it is handed to it here.
+#
+# It is the HAPI FHIR server hapi/compose.yaml starts on 127.0.0.1:9821, and it takes no
+# credential. A real server's credential belongs in a connection the instance holds, sealed under
+# its key, and never in a file beside the documents.
+
+connections:
+  fhir-local:
+    kind: fhir
+    name: Local FHIR server
+    description: The HAPI FHIR server hapi/compose.yaml starts on port 9821, which is searched.
+    config:
+      base_url: http://127.0.0.1:9821/fhir
+      timeout: 1m
