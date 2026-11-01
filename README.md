@@ -41,7 +41,7 @@ uv run dg validate pipelines/echo-hello.yaml
   each step under the last one it waits for
     make  (value.const)
       say  (log.write)
-2026-09-17T14:53:17.016+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-17T14:53:17.016+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 The tree is the graph the document described, drawn before anything ran: each step under the
