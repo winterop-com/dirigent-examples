@@ -1,0 +1,207 @@
+# Organisation units moved from one DHIS2 instance to another. Two connections, one
+# document, and every hop between them is a decision somebody has to be able to read.
+#
+#   read     dhis2.metadata on `source`. One collection, one subtree, and a fields
+#            projection that asks for exactly what an import needs.
+#   check    validate.schema. The gate, against a shape the instance holds by code. A read
+#            that has moved stops here rather than three steps later, inside the target.
+#   shape    transform.jq. The reshape every cross-instance move needs: the source's derived
+#            fields are the source's, and the target computes its own.
+#   mode     value.const. The four import parameters, written down as a value rather than
+#            typed into the request, so the run record says what was sent.
+#   send     http.request POST /api/metadata on `target`. The pack has no metadata-import
+#            block, and does not need one: an http.request over a dhis2 connection carries
+#            that connection's URL, credential, TLS and timeout.
+#   report   transform.jq. DHIS2's three-level import tree flattened to a verdict and a list
+#            of refusals.
+#   say      log.write. The stats, in the run's own log.
+#   verdict  validate.schema. An import the target refused fails the run -- after `say` has
+#            already written down what the target said.
+#
+# THE PARAMETER TO BE SUSPICIOUS OF is import_mode. importMode=VALIDATE is a dry run on
+# /api/metadata: the target resolves every reference, checks every rule and reports what it
+# would have done, and writes nothing. importMode=COMMIT is the real sync. Both demos below
+# are shared, so VALIDATE is the default and COMMIT is for your own instance.
+#
+# DHIS2 spells a rehearsal differently per endpoint: importMode=VALIDATE on /api/metadata,
+# but dryRun=true on /api/dataValueSets. Reaching for the wrong spelling does not fail -- it
+# imports.
+#
+# A REFUSED IMPORT ARRIVES AS A 409 CARRYING THE REPORT, which is a verdict and not a
+# transport failure, so success_status takes it as an answer and the gate at the bottom is
+# what fails the run. Without that line the 409 would fail the step with nothing but its
+# number, and the target's own words would be lost.
+#
+#   uv run dg run --local pipelines/dhis2-to-dhis2.yaml \
+#     --connections connections.yaml --schema schemas/org-unit-sync-source.json \
+#     --schema schemas/org-unit-sync-verdict.json
+#   uv run dg run dhis2-to-dhis2 --watch -p parent=at6UHUQatSo
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-to-dhis2
+name: Organisation units, source to target
+description: |
+  Read a subtree of organisation units from one DHIS2 instance, gate it, and rehearse the
+  metadata import into another.
+
+  | Parameter | Means |
+  | --- | --- |
+  | `importStrategy=CREATE_AND_UPDATE` | create what is missing, revise what is there |
+  | `atomicMode=ALL` | the whole payload lands, or none of it does |
+  | `identifier=UID` | match each unit by its uid |
+  | `importMode=VALIDATE` | **a dry run**: resolve, check, report, write nothing |
+
+tags: [dhis2, metadata, validate, transform, sync]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - transform.jq
+    - value.const
+    - http.request
+    - log.write
+  connections:
+    - source
+    - target
+  schemas:
+    - org-unit-sync-source
+    - org-unit-sync-verdict
+
+params:
+  type: object
+  properties:
+    parent:
+      type: string
+      # A format the pack contributes. A run submitted with something that is not a DHIS2
+      # uid is refused here, before a call is made.
+      format: dhis2-uid
+      default: O6uvpzGd5pu
+      description: The uid of the parent whose children are synchronised. Bo district by default, which has fifteen chiefdoms under it.
+    import_mode:
+      type: string
+      enum: [VALIDATE, COMMIT]
+      default: VALIDATE
+      description: VALIDATE rehearses the import and writes nothing. COMMIT performs it, and belongs against your own instance and never against a shared demo.
+
+steps:
+  read:
+    block: dhis2.metadata
+    # A read over the wire is worth retrying; what is not worth retrying declines the budget
+    # on its own, because a rejected failure spends none of it.
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: source
+      resource: organisationUnits
+      # The projection is the import's shopping list. DHIS2 requires name, shortName,
+      # openingDate and a parent of every unit below the root; id and code are the two ways
+      # a unit can be matched on the far side. parent[id,code] is DHIS2's nested selector:
+      # the brackets pick fields of the related object rather than fetching all of it.
+      fields: "id,code,name,shortName,openingDate,level,parent[id,code]"
+      filter: "parent.id:eq:${params.parent}"
+      # A parent sorts before its children under path, which is the order an importer can
+      # replay in one pass. One level of children is already in that order under name.
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: org-unit-sync-source
+
+  shape:
+    block: transform.jq
+    depends_on: [check]
+    config:
+      input: ${steps.check.output.value}
+      # level is not a field of a unit, it is a fact about where the unit sits, and the
+      # target works its own out from the parent it is given. The same goes for path,
+      # created and lastUpdated, which is why the projection above never asked for them.
+      #
+      # parent is narrowed to {id} because the request below matches by uid. The other
+      # document in this repository matches by code and keeps {code} instead.
+      program: |
+        {organisationUnits: [.organisationUnits[] | {
+          id, code, name, shortName, openingDate,
+          parent: {id: .parent.id}
+        }]}
+
+  mode:
+    block: value.const
+    config:
+      # Every dangerous parameter written out rather than defaulted: an import request should
+      # say what it does where the person reviewing it will read it, and being a step's
+      # output it is in the run record afterwards rather than only in the document.
+      value:
+        importStrategy: CREATE_AND_UPDATE
+        atomicMode: ALL
+        identifier: UID
+        importMode: ${params.import_mode}
+
+  send:
+    block: http.request
+    depends_on: [shape, mode]
+    config:
+      # A dhis2 connection through a generic HTTP block: the base URL, the credential, the
+      # TLS setting and the timeout all come from the connection row, exactly as they do for
+      # a dhis2.* block. The step still carries no credential.
+      connection: target
+      path: /api/metadata
+      method: POST
+      query: ${steps.mode.output.value}
+      body: ${steps.shape.output.value}
+      # A rejected metadata import is a 409 whose body is the import report. Reading it as an
+      # answer is what lets the report below name what the target refused.
+      success_status: [200, 409]
+      max_response: 16mb
+
+  report:
+    block: transform.jq
+    depends_on: [send]
+    config:
+      input: ${steps.send.output.body}
+      # /api/metadata answers with a three-level tree -- typeReports[] -> objectReports[] ->
+      # errorReports[] -- each error tagged with the resource type and uid that caused it.
+      # /api/dataValueSets answers with a flat conflicts[] list instead, so a pipeline that
+      # reads one shape reads nothing from the other.
+      program: |
+        [ .response.typeReports[]?.objectReports[]?
+          | .uid as $uid
+          | .displayName as $name
+          | .errorReports[]?
+          | {uid: $uid, name: $name, code: .errorCode, message: .message}
+        ] as $conflicts
+        | {
+            status: .response.status,
+            created: .response.stats.created,
+            updated: .response.stats.updated,
+            deleted: .response.stats.deleted,
+            ignored: .response.stats.ignored,
+            total: .response.stats.total,
+            refused: ($conflicts | length),
+            conflicts: $conflicts,
+            detail: (
+              if ($conflicts | length) == 0 then "no conflicts"
+              else ([$conflicts[] | "\(.name) \(.code): \(.message)"] | join("; "))
+              end
+            )
+          }
+
+  say:
+    block: log.write
+    depends_on: [report]
+    config:
+      message: "${params.import_mode} on the target: ${steps.report.output.value.status}, ${steps.report.output.value.created} created, ${steps.report.output.value.updated} updated, ${steps.report.output.value.ignored} ignored, of ${steps.report.output.value.total} units -- ${steps.report.output.value.detail}"
+
+  verdict:
+    block: validate.schema
+    # After `say` rather than beside it: the target's own words are in the run's log before
+    # the gate is allowed to end the run.
+    depends_on: [say]
+    config:
+      input: ${steps.report.output.value}
+      schema: org-unit-sync-verdict

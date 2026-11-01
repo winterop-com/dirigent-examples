@@ -1,0 +1,29 @@
+# The two connections a --local run has nowhere else to read. A local run starts on a
+# throwaway instance holding nothing, so the credentials are handed to it here.
+#
+# Two DHIS2 instances, and the only difference between them is the version in the URL: a sync
+# is a document that names two connections, never one that names two URLs. Repoint `target`
+# at your own instance and the same documents perform the real thing without an edit.
+#
+# These credentials are the play demos' own, published so that anyone may try the instances.
+# A real one belongs in a connection the server holds, encrypted under its key, and never in
+# a file beside the documents -- which is why pipelines/ carries no connections: section and
+# the server would refuse one that did.
+
+connections:
+  source:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/dev
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  target:
+    kind: dhis2
+    config:
+      base_url: https://play.dhis2.org/2.42
+      follow_redirects_with_auth: true
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
