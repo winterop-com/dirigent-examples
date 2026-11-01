@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Run this example end to end and fail if anything about it has moved.
 #
-# A trigger only exists on an instance, so this one starts its own `dg dev`, applies the
-# document, waits for the clock to fire, POSTs the webhook, and stops the instance again.
+# A schedule and a source only exist on an instance, so this one starts its own `dg dev`,
+# applies both documents, waits for the clock to fire, POSTs the endpoint, and stops the
+# instance again.
 # .dirigent/state survives between runs by design, so running this twice passes twice.
 #
-# The document reaches nothing, so a run the clock or the hook started settles the same way
+# Neither document reaches anything, so a run the clock or a POST started settles the same way
 # a run somebody asked for does, and the whole of this script passes with no network at all.
 set -euo pipefail
 
@@ -13,7 +14,7 @@ cd "$(dirname "$0")"
 
 uv sync --quiet
 
-uv run dg validate pipelines/echo-schedule.yaml
+uv run dg validate pipelines/
 
 dev_pid=
 accepted=$(mktemp)
@@ -67,9 +68,13 @@ expect() {
   fi
 }
 
-# The pipeline itself needs neither trigger, so prove it runs before anything is applied.
+# Neither pipeline needs its trigger, so prove both run before anything is applied: the
+# endpoint's run enters with the source's sample.
 records=$(uv run dg run --local pipelines/echo-schedule.yaml --json)
 expect "a local run to succeed" "$records" \
+  '(map(select(.kind == "run" and has("exit_code"))) | last).message == "succeeded"'
+records=$(uv run dg run --local pipelines/echo-endpoint.yaml --json)
+expect "a local run of the endpoint's sample to succeed" "$records" \
   '(map(select(.kind == "run" and has("exit_code"))) | last).message == "succeeded"'
 
 # --- the instance ----------------------------------------------------------------------
@@ -92,9 +97,9 @@ fi
 
 # DG_URL beats the local profile, whose url is the default port; without it every command
 # below would address an instance this script did not start. The token comes from dg dev's
-# own admin: on an empty state that is the fixture dev / dirigent-dev, and dg auth login
+# own admin: on an empty state that is the fixture admin / admin, and dg auth login
 # mints a token of its own from it.
-DG_TOKEN=$(uv run dg auth login --username dev --password dirigent-dev --json \
+DG_TOKEN=$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')
 export DG_TOKEN
 [ -n "$DG_TOKEN" ] || { echo "echo-schedule: dg auth login issued no token" >&2; exit 1; }
@@ -142,26 +147,28 @@ expect "the clock's run to be pinned to oslo-blindern at 3.1" \
 
 echo "echo-schedule: the clock fired ${landed}, pinned to oslo-blindern"
 
-# --- the webhook -----------------------------------------------------------------------
+# --- the endpoint ----------------------------------------------------------------------
 #
-# An instance holds a hook's token and hands it back exactly once, when it is minted. There
-# is no command that reads an existing one, so a script that has to POST rotates it and
-# uses what rotation returns -- which also invalidates the token the last verification used.
-hook=$(uv run dg webhook rotate-token echo-schedule upstream-reading --json | jq -r '.url')
+# An instance holds a source's token and hands it back exactly once, when it is minted. There
+# is no command that reads an existing one, so a script that has to POST rotates it and uses
+# what rotation returns -- which also invalidates the token the last verification used.
+rotated=$(uv run dg source rotate-token echo-endpoint upstream --json)
+token=$(printf '%s\n' "$rotated" | jq -r 'select(.kind == "source.token_rotated") | .token')
+url=$(printf '%s\n' "$rotated" | jq -r 'select(.kind == "source.token_rotated") | .url')
 
 # -f alone turns a refusal into an exit status and nothing else, so the body and the status
 # line are kept and printed here rather than lost.
-http=$(curl -s -o "$accepted" -w '%{http_code}' -X POST "$hook" \
-  -H 'content-type: application/json' \
+http=$(curl -s -o "$accepted" -w '%{http_code}' -X POST "$url" \
+  -H "authorization: Bearer $token" -H 'content-type: application/json' \
   -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}')
-if [ "${http#2}" = "$http" ]; then
-  echo "echo-schedule: expected the hook to accept the POST, and it answered $http" >&2
+if [ "$http" != 202 ]; then
+  echo "echo-schedule: expected the endpoint to answer the POST 202, and it answered $http" >&2
   sed 's/^/    /' "$accepted" >&2
   exit 1
 fi
 
-expect "the hook to accept the payload and name the run it created" "$(cat "$accepted")" \
-  '.[0].outcome == "accepted" and (.[0].run_id | length) > 0'
+expect "the endpoint to queue a run and name it" "$(cat "$accepted")" \
+  '.[0].status == "queued" and (.[0].run_id | length) > 0'
 delivered_run=$(jq -r '.run_id' "$accepted")
 
 # The run the POST created settles on its own a moment later, so wait for it -- 60s, counted
@@ -181,18 +188,21 @@ case "$status" in
     ;;
 esac
 
-# The mapping put two payload fields onto two parameters and ignored the third thing the
-# POST carried, because nothing in the mapping names it.
-expect "the payload to reach station and reading, and sender to reach nothing" \
+# record took the two fields it names from the body and nothing else the POST carried.
+expect "the body's station and reading to reach record, and sender to reach nothing" \
   "$(uv run dg runs show "$delivered_run" --json)" '
-  .[0].fields.run as $run
-  | $run.triggered_by_kind == "webhook"
-    and $run.params.station == "tromso-langnes"
-    and $run.params.reading == "-6.8"
-    and ($run.params | has("sender") | not)
-    and $run.status == "succeeded"
+  .[0].fields as $f
+  | $f.run.triggered_by_kind == "source"
+    and $f.run.status == "succeeded"
+    and ($f.attempts[] | select(.step_name == "record") | .output.value
+         | .station == "tromso-langnes" and .reading == "-6.8" and (has("sender") | not))
 '
 
-echo "echo-schedule: the webhook started ${delivered_run}, mapped to tromso-langnes"
+echo "echo-schedule: the endpoint started ${delivered_run}, reading tromso-langnes"
 
-echo "echo-schedule: both triggers fired, with nothing called"
+# A POST without the token is refused before any run exists.
+http=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" \
+  -H 'content-type: application/json' -d '{"station": {"code": "nobody"}}')
+[ "$http" = 401 ] || { echo "echo-schedule: expected a POST with no token to be refused 401, and it answered $http" >&2; exit 1; }
+
+echo "echo-schedule: the clock and the endpoint both started runs, with nothing called"
