@@ -38,7 +38,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
 a fresh clone has, because the state directory is not in the repository -- it migrates the
-schema, makes its own admin `dev`, mints that admin one token, and prints the `export
+schema, makes its own admin `admin`, mints that admin one token, and prints the `export
 DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address the
 `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
 `DG_URL` is how you tell the CLI where it went.
@@ -73,25 +73,29 @@ The rule is created after the pipeline because `--pipeline` scopes it to one, an
 naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
 keeps the key on a line in the gitignored `.env` so its second run can still read what its
 first run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
---username dev --password dirigent-dev`, writes the connection and the rule, fails a run,
+--username admin --password admin`, writes the connection and the rule, fails a run,
 waits for the notification to be delivered, and stops the instance it started by pid.
 
 ### If the key was lost
 
 A connection is sealed with the key the instance held when it was written, so a state left over
 from a key that is gone answers `uv run dg connection check echo-sink` with a record whose
-`detail` begins `SecretKeyMismatch`. Nothing opens that row again -- there is no `dg connection
-update`, and the secret it holds is not recoverable -- so write it once more under the key this
-instance has now. The rule points at the connection and an instance refuses to delete a
-connection a rule still holds, so the rule goes first and both are written again after:
+`detail` begins `SecretKeyMismatch`. Nothing opens that row again, and the secret it holds is
+not recoverable. Nor can it be deleted while the rule points at it: `dg connection delete` names
+the rule and refuses. So write it once more, in place, under the key this instance has now:
 
 ```bash
-uv run dg alerts rules delete echo-failed
-uv run dg connection delete echo-sink
+uv run dg connection ensure webhook echo-sink \
+    --name "The alert sink" \
+    --description "The instance's own playground, which answers 200 to whatever is POSTed." \
+    --set url=http://127.0.0.1:3333/api/v1/playground/request
 ```
 
-Then the `dg connection create` and `dg alerts rules create` above, unchanged -- which is the
-same order `verify.sh` uses between its two legs.
+`dg connection ensure` writes the row straight to this instance's database, reading `.env` for
+the key rather than a token, and brings it whole to what the arguments say. The rule keeps
+pointing at it by its code, so nothing else changes. `verify.sh` takes the other way between its
+two legs, because it points the sink somewhere else: it deletes the rule, then the connection,
+and creates both again.
 
 ## This one needs no network
 
@@ -119,7 +123,7 @@ uv run dg validate pipelines/echo-alert.yaml
     ask  (playground.generate)
       publish  (playground.generate)
         note  (log.write)
-2026-09-26T13:09:01.005+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T13:09:01.005+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 ```bash
@@ -234,11 +238,11 @@ uv run dg run echo-alert --watch
 2026-09-26T13:09:14.037+02:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=4
 2026-09-26T13:09:14.040+02:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 2 on purpose, because fail_until is 3; attempt 4 will succeed"
 2026-09-26T13:09:14.037+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
-2026-09-26T13:09:14.289+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0dd67-a31d-7218-a27d-62c2cb13765b pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=2078 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-26T13:09:14.289+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0dd67-a31d-7218-a27d-62c2cb13765b pipeline_version=1 triggered_by="admin (token dev)" duration_ms=2078 items_total=0 items_failed=0 exit_code=1 priority=normal
 run 01a0dd67-a31d-7218-a27d-62c2cb13765b
 pipeline      echo-alert (version 1)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      2.1s
 items         -
 
