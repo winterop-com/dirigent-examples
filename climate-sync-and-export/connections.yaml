@@ -1,0 +1,25 @@
+# The connections a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so both are handed to it here.
+#
+# climate-local is the open climate service ocs/compose.yaml starts on 127.0.0.1:9710, which
+# takes no credential. play is the DHIS2 play demo with its own published credential, read from
+# and never written to; a real instance's credential belongs in a connection the server holds,
+# sealed under its key, and never in a file beside the documents.
+
+connections:
+  climate-local:
+    kind: climate
+    name: Local open climate service
+    description: The open climate service ocs/compose.yaml starts on port 9710.
+    config:
+      base_url: http://127.0.0.1:9710
+      timeout: 2m
+  play:
+    kind: dhis2
+    name: DHIS2 play demo
+    config:
+      base_url: https://play.dhis2.org/2.42
+      follow_redirects_with_auth: true
+      basic_username: admin
+      basic_password: district
+      timeout: 1m

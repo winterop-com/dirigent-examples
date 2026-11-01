@@ -1,0 +1,46 @@
+# A local open climate service: the published image, pinned by digest to the main build this
+# example was run against, with the API on 127.0.0.1:${OCS_PORT:-9710}.
+#
+# verify.sh starts it under the compose project name dirigent-example-climate-sync-and-export,
+# so its container and its data volume are this project's alone, and removes both on the way
+# out. By hand:
+#
+#   docker compose -p dirigent-example-climate-sync-and-export -f ocs/compose.yaml up -d --wait
+#   docker compose -p dirigent-example-climate-sync-and-export -f ocs/compose.yaml down -v
+#
+# The service downloads CHIRPS v3 from data.chc.ucsb.edu when it ingests or syncs; nothing else
+# it does reaches the network.
+
+name: dirigent-example-climate-sync-and-export
+
+services:
+  api:
+    image: ghcr.io/dhis2/open-climate-service@sha256:9f454cbca2395142f12af8cfbf453eafc78ec12139a9c54c3ece625e7fa430c9
+    platform: linux/amd64
+    init: true
+    user: "999:999"
+    working_dir: /app
+    command: ["/app/.venv/bin/climate-service"]
+    environment:
+      PATH: /app/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      CLIMATE_SERVICE_CONFIG: /app/climate-service.yaml
+      PYGEOAPI_CONFIG: /app/data/pygeoapi/pygeoapi-config.yml
+      PYGEOAPI_OPENAPI: /app/data/pygeoapi/pygeoapi-openapi.yml
+      MPLCONFIGDIR: /tmp
+      PORT: "9000"
+      CLIMATE_SERVICE_MAX_CONCURRENT_JOBS: "1"
+      DASK_NUM_WORKERS: "2"
+    ports:
+      - "127.0.0.1:${OCS_PORT:-9710}:9000"
+    volumes:
+      - ./climate-service.yaml:/app/climate-service.yaml:ro
+      - data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+volumes:
+  data: {}
