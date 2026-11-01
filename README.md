@@ -52,7 +52,7 @@ uv run dg validate pipelines/echo-transform.yaml
         fahrenheit  (map.jq)
           summary  (transform.jq)
             say  (log.write)
-2026-09-26T12:48:10.097+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:48:10.097+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 ```bash
