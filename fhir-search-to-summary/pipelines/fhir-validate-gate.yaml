@@ -1,0 +1,47 @@
+# A malformed patient stopped at the gate, with every issue named.
+#
+# fhir.validate fails its step on an error, classified rejected so no retry is spent on it, and
+# the failure lists the issues by the FHIRPath of the element each is about. Nothing behind the
+# gate runs. The patient below is wrong three ways: a gender outside its value set, an element
+# written empty, and a reference no server resolves.
+#
+# EXPECT THIS RUN TO FAIL at `check`, with fhir.validate.invalid and three issues.
+#
+#   dg run --local pipelines/fhir-validate-gate.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fhir-validate-gate
+name: A malformed patient, refused
+description: |
+  Refuse a malformed patient at a validation gate, naming every issue.
+
+  fhir.validate fails the step with fhir.validate.invalid, and the step behind it never runs.
+
+tags: [fhir, validation, failure]
+
+requires:
+  blocks:
+    - fhir.validate
+    - transform.fhirpath
+
+steps:
+  check:
+    block: fhir.validate
+    config:
+      input:
+        resourceType: Patient
+        identifier:
+          - system: http://example.org/mrn
+            value: p99
+        gender: mal
+        birthDate: ""
+        managingOrganization:
+          reference: organisations/1
+
+  name:
+    block: transform.fhirpath
+    depends_on: [check]
+    config:
+      input: ${steps.check.output.outcome}
+      program: issue.count()

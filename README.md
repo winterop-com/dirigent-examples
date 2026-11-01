@@ -24,7 +24,8 @@ uv sync
 - Docker, for `echo-s3` (a local rustfs container), for `echo-stream` (a local Redpanda container) and for the PDF document in
   `dhis2-org-units-to-markdown` (a pandoc container), and for the three pack examples below,
   which each start the outside system they talk to: `chap-prediction` a Chap stack,
-  `climate-sync-and-export` an open climate service, `fhir-to-fhir` two HAPI FHIR servers.
+  `climate-sync-and-export` an open climate service, `fhir-to-fhir` two HAPI FHIR servers,
+  `fhir-search-to-summary` one.
 - A network only for the four `dhis2-*` examples, which call the public DHIS2 play demo, for
   `fhir-to-dhis2` and `climate-sync-and-export`, which call it too, and for `everything`.
   No `echo-*` example calls anything on the internet: the ones that make an HTTP call make it
@@ -81,8 +82,8 @@ and stops whatever it started.
 
 runs every example's `verify.sh` in turn and prints which passed. It needs the network for
 the four `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything`, and Docker for
-`echo-s3`, `echo-stream`, the PDF document, `chap-prediction`, `climate-sync-and-export`, `fhir-to-fhir`
-and `everything`. Expect a few
+`echo-s3`, `echo-stream`, the PDF document, `chap-prediction`, `climate-sync-and-export`, `fhir-to-fhir`,
+`fhir-search-to-summary` and `everything`. Expect a few
 minutes: the schedule example waits for a scheduled run to land, and the DHIS2 examples talk to
 the play demo. One switch makes the rest of it run with no network at all:
 
@@ -125,5 +126,6 @@ the network and fail without it; everything else passes.
 | [`climate-sync-and-export`](climate-sync-and-export) | CHIRPS rainfall ingested into a local open climate service, synced forward, and exported averaged over the chiefdoms of a DHIS2 district as a dataValueSet, gated on shape. Needs Docker and the network. |
 | [`fhir-to-dhis2`](fhir-to-dhis2) | A FHIR `QuestionnaireResponse` at an endpoint source, translated into a DHIS2 dataValueSet, checked against the form DHIS2 holds, and the import rehearsed against the play demo. |
 | [`fhir-to-fhir`](fhir-to-fhir) | Patients and their observations copied nightly from one local HAPI FHIR server to another with the `dirigent-fhir` pack: references rewritten for the target, every write conditional on an identifier, and a second run creating nothing. Needs Docker. |
+| [`fhir-search-to-summary`](fhir-search-to-summary) | Body weights searched a page at a time from a local HAPI FHIR server with the `dirigent-fhir` pack: the pages handed to a fan-out, every page validated, and the heavy ones reduced to their values and patients with FHIRPath, a limit bound as a variable. Needs Docker. |
 
 Each example is independent: work in any one folder, in any order, without touching the others.
