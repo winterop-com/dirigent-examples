@@ -77,7 +77,9 @@ Within five seconds `review` succeeds and `release` hands on the six approved al
 some instead, `"approved": "declined"`, and they arrive under `held_back`.
 
 On an instance the same documents are applied and run by code. Start one in another terminal,
-`uv run dg dev`, paste the `export DG_TOKEN=` line it prints, then:
+`uv run dg dev`; on an empty state it makes its own admin `admin`, password `admin`, and
+`uv run dg auth login --username admin --password admin` answers with the `export DG_TOKEN=`
+line to paste. Then:
 
 ```bash
 uv run dg connection create chap chap-local --name "Local Chap" --set base_url=http://127.0.0.1:8710
