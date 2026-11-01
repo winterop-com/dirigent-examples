@@ -27,7 +27,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
 under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
-its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds and the address both documents' `playground` parameter defaults to;
 `dg dev --port` moves the instance, `DG_URL` is how you tell the CLI where it went, and
@@ -145,11 +145,11 @@ uv run dg run echo-send --watch
 2026-09-26T12:39:24.557+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=420
 2026-09-26T12:39:25.068+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=486 duration_ms=6
 2026-09-26T12:39:25.069+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=12
-2026-09-26T12:39:25.289+02:00 [info    ] succeeded                      [run] pipeline=echo-send run_id=01a0dd4c-5b50-7709-a8e0-e3c5961985c6 pipeline_version=2 triggered_by="dev (token cli-dev)" duration_ms=1044 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-26T12:39:25.289+02:00 [info    ] succeeded                      [run] pipeline=echo-send run_id=01a0dd4c-5b50-7709-a8e0-e3c5961985c6 pipeline_version=2 triggered_by="admin (token dev)" duration_ms=1044 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0dd4c-5b50-7709-a8e0-e3c5961985c6
 pipeline      echo-send (version 2)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      1.0s
 items         -
 
@@ -203,11 +203,11 @@ uv run dg run echo-send --watch -p station=
 2026-09-26T12:39:29.604+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=5
 2026-09-26T12:39:29.604+02:00 [info    ] skipped                        [step send] block=http.request attempt=1
 2026-09-26T12:39:29.606+02:00 [error   ] failed                         [log check] duration_ms=0 error_class=rejected error_code=base.value_refused error="at $.args.station: '' should be non-empty"
-2026-09-26T12:39:30.222+02:00 [error   ] failed                         [run] pipeline=echo-send run_id=01a0dd4c-6e97-76f2-a916-ed613ab2b91a pipeline_version=2 triggered_by="dev (token cli-dev)" duration_ms=514 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-26T12:39:30.222+02:00 [error   ] failed                         [run] pipeline=echo-send run_id=01a0dd4c-6e97-76f2-a916-ed613ab2b91a pipeline_version=2 triggered_by="admin (token dev)" duration_ms=514 items_total=0 items_failed=0 exit_code=1 priority=normal
 run 01a0dd4c-6e97-76f2-a916-ed613ab2b91a
 pipeline      echo-send (version 2)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      0.5s
 items         -
 
