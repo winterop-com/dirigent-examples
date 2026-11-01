@@ -1,0 +1,155 @@
+# A local Chap: chap-core's own compose.ghcr.yml, with the API published on
+# 127.0.0.1:${CHAP_PORT:-8710} instead of 8000 and both images pinned by digest to the master
+# build of 2026-10-30, chap-core 2.6.0.dev0 at d78b4c23.
+#
+# The pinned images answer GET /v1/jobs/{id} with the whole job, which every job-backed chap.*
+# block reads its status from. The v2.5.1 release answers that route with a bare status string,
+# and against it chap.dataset.import, chap.backtest.run and chap.prediction.run never settle.
+#
+# verify.sh starts it under the compose project name dirigent-example-chap-prediction, so its
+# containers, network and volumes are this project's alone, and removes all of them on the way
+# out. By hand:
+#
+#   docker compose -p dirigent-example-chap-prediction -f chap/compose.yaml up -d --wait
+#   docker compose -p dirigent-example-chap-prediction -f chap/compose.yaml down -v
+#
+# Four containers: the API, the worker that trains and forecasts, valkey as the job broker, and
+# postgres as Chap's database. The images are built for linux/amd64 only, so on an arm64 machine
+# Docker runs them under emulation. No API token is set, so the server answers without one.
+
+name: dirigent-example-chap-prediction
+
+services:
+  chap:
+    image: ghcr.io/dhis2-chap/chap-core@sha256:ccbfaada86a0af66daa21847662ce06dabd9b84ee7aba54051414fae285e7d7f
+    platform: linux/amd64
+    init: true
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CHAP_DATABASE_URL: postgresql://chap:chap@postgres:5432/chap_core
+      CELERY_BROKER: redis://redis:6379/0
+      CHAP_LOGS_DIR: /data/logs
+      CHAP_RUNS_DIR: /data/runs
+      CHAP_API_TOKEN: ""
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: chap:chap
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 2000000000
+      - type: volume
+        source: logs
+        target: /data/logs
+    networks:
+      - default
+      - backend
+    ports:
+      - "127.0.0.1:${CHAP_PORT:-8710}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    depends_on:
+      redis:
+        condition: service_healthy
+      worker:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+
+  worker:
+    image: ghcr.io/dhis2-chap/chap-worker@sha256:59212c42d7167cebe74ba9e467e81c56d6ae8cb531a74ca34cdc46622aa877df
+    platform: linux/amd64
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      IS_IN_DOCKER: 1
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      CHAP_DATABASE_URL: postgresql://chap:chap@postgres:5432/chap_core
+      CELERY_BROKER: redis://redis:6379
+      RENV_PATHS_ROOT: /data/renv
+      UV_CACHE_DIR: /data/uv
+      CHAP_LOGS_DIR: /data/logs
+      CHAP_RUNS_DIR: /data/runs
+      PYTENSOR_FLAGS: "base_compiledir=/data/pytensor"
+    networks:
+      - default
+      - backend
+    command: "/app/.venv/bin/celery -A chap_core.rest_api.celery_tasks worker --loglevel=info"
+    working_dir: /app
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    user: chap:chap
+    volumes:
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 2000000000
+      - type: volume
+        source: runs
+        target: /data/runs
+      - type: volume
+        source: renv
+        target: /data/renv
+      - type: volume
+        source: uv
+        target: /data/uv
+      - type: volume
+        source: logs
+        target: /data/logs
+      - type: volume
+        source: pytensor
+        target: /data/pytensor
+
+  redis:
+    image: valkey/valkey:8
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: chap
+      POSTGRES_PASSWORD: chap
+      POSTGRES_DB: chap_core
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chap -d chap_core"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - chap-db:/var/lib/postgresql/data
+    networks:
+      - backend
+
+volumes:
+  chap-db: {}
+  logs: {}
+  renv: {}
+  uv: {}
+  pytensor: {}
+  runs: {}
+
+networks:
+  backend: {}

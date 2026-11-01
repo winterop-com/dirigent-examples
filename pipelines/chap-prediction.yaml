@@ -1,0 +1,212 @@
+# A Chap forecast end to end: the history imported, a configured model backtested and promoted,
+# a forecast read back at two quantiles, and the alerts it raises held until a person releases
+# them.
+#
+# In:  monthly case counts and climate for a set of org units, as a Chap CSV, and their polygons.
+# Out: the forecast's quantiles, and the alerts a reviewer approved.
+#
+# Hop by hop:
+#
+#   models     chap.models.list reads every model this Chap has configured.
+#   model      transform.jq picks the one named by `model`, and fails the run when Chap has no
+#              such model or has archived it.
+#   dataset    chap.dataset.import stores the history as a dataset. on_rejected: fail checks it
+#              with a dry run first, so an observation Chap would reject fails the run before
+#              anything is stored.
+#   backtest   chap.backtest.run trains and evaluates the model on that dataset, as a Chap job.
+#   promote    http.request saves the backtest as a prediction setup, the configuration a
+#              forecast runs from: the model, the target and the future-weather provider.
+#   forecast   chap.prediction.run runs the setup on the history and follows the forecast job.
+#   quantiles  chap.prediction.read reads the stored forecast at the median and the 0.9 quantile.
+#   raise      transform.jq turns every forecast cell whose 0.9 quantile reaches `threshold`
+#              into one alert, and answers with a list of at most one batch.
+#   record     chap.alerts.record records the batch. Every alert lands in Chap as `pending`.
+#              Over an empty list it is skipped, and so is everything after it.
+#   review     chap.alerts.reviewed waits until no alert of this forecast is pending. A person
+#              decides each one in Chap; the step only reads where they stand.
+#   release    transform.jq hands on the approved alerts: the ones cleared to go out.
+#
+#   uv run dg run --local pipelines/chap-prediction.yaml --connections connections.yaml \
+#     -P data/laos-dengue.yaml -p alert_policy_id=1
+
+format: dirigent/v1
+kind: pipeline
+code: chap-prediction
+name: Forecast with Chap and release the alerts
+description: |
+  Import a history into Chap, backtest and promote a configured model, forecast, read the
+  forecast back, and release the alerts a reviewer approves.
+
+  The alerts are recorded against an alert policy chap-alert-policy defines, and wait in Chap
+  for a person to approve or decline them.
+
+tags: [chap, alerts]
+
+requires:
+  blocks:
+    - chap.models.list
+    - transform.jq
+    - chap.dataset.import
+    - chap.backtest.run
+    - http.request
+    - chap.prediction.run
+    - chap.prediction.read
+    - chap.alerts.record
+    - chap.alerts.reviewed
+  connections:
+    - chap-local
+
+params:
+  type: object
+  required: [org_units, history, alert_policy_id]
+  properties:
+    org_units:
+      type: object
+      description: The org units as a GeoJSON FeatureCollection, each feature's id the location the history names.
+    history:
+      type: string
+      minLength: 1
+      description: The history as a wide Chap CSV, time_period, location and one column per feature.
+    model:
+      type: string
+      default: naive_model
+      description: The configured model to forecast with, by its name.
+    alert_policy_id:
+      type: integer
+      description: The alert policy the alerts are recorded against, as chap-alert-policy outputs it.
+    level:
+      type: string
+      default: action
+      description: The policy level a breaching cell is recorded at.
+    threshold:
+      type: number
+      default: 100
+      description: The case count a cell's 0.9 quantile has to reach to raise an alert.
+
+steps:
+  models:
+    block: chap.models.list
+    config:
+      connection: chap-local
+
+  model:
+    block: transform.jq
+    depends_on: [models]
+    config:
+      input:
+        models: ${steps.models.output.models}
+        wanted: ${params.model}
+      program: |
+        .wanted as $name
+        | [.models[] | select(.name == $name)] as $found
+        | if ($found | length) == 0 then error("Chap has no configured model named \($name)")
+          elif $found[0].archived then error("Chap has archived the model \($name)")
+          else {name: $found[0].name, id: $found[0].id, period_type: $found[0].supportedPeriodType} end
+
+  dataset:
+    block: chap.dataset.import
+    depends_on: [model]
+    config:
+      connection: chap-local
+      name: "history for ${steps.model.output.value.name}"
+      geojson: ${params.org_units}
+      csv: ${params.history}
+      on_rejected: fail
+
+  backtest:
+    block: chap.backtest.run
+    depends_on: [model, dataset]
+    timeout: 1h
+    # A Chap job is looked at every 30s unless the step says otherwise.
+    poll: 5s
+    config:
+      connection: chap-local
+      name: "backtest of ${steps.model.output.value.name}"
+      model_id: ${steps.model.output.value.name}
+      dataset_id: ${steps.dataset.output.dataset_id}
+      # Three splits of three months each; Chap's own defaults are seven splits.
+      n_splits: 3
+      n_periods: 3
+
+  promote:
+    block: http.request
+    depends_on: [model, backtest]
+    config:
+      connection: chap-local
+      method: POST
+      path: /v1/crud/prediction-setups
+      body:
+        backtestId: ${steps.backtest.output.backtest_id}
+        name: "monthly forecast with ${steps.model.output.value.name}"
+
+  forecast:
+    block: chap.prediction.run
+    depends_on: [promote]
+    timeout: 1h
+    poll: 5s
+    config:
+      connection: chap-local
+      prediction_setup_id: ${steps.promote.output.body.id}
+      name: "forecast from setup ${steps.promote.output.body.id}"
+      geojson: ${params.org_units}
+      csv: ${params.history}
+      n_periods: 3
+
+  quantiles:
+    block: chap.prediction.read
+    depends_on: [forecast]
+    config:
+      connection: chap-local
+      prediction_id: ${steps.forecast.output.prediction_id}
+      quantiles: [0.5, 0.9]
+
+  raise:
+    block: transform.jq
+    depends_on: [forecast, quantiles]
+    config:
+      input:
+        entries: ${steps.quantiles.output.entries}
+        prediction_id: ${steps.forecast.output.prediction_id}
+        policy: ${params.alert_policy_id}
+        level: ${params.level}
+        threshold: ${params.threshold}
+      # One alert per org unit and period whose 0.9 quantile reaches the threshold, spelled the
+      # way Chap's POST /v1/crud/alerts spells it. Chap takes at most one alert per cell.
+      program: |
+        . as $in
+        | [.entries[] | select(.quantile == 0.9 and .value >= $in.threshold)
+           | {timePeriod: .period, orgUnit: .orgUnit, alertPolicyId: $in.policy,
+              level: $in.level, predictionId: $in.prediction_id}]
+        | {batches: (if length == 0 then [] else [.] end)}
+
+  record:
+    block: chap.alerts.record
+    depends_on: [raise]
+    # One item when anything breached, none when nothing did.
+    for_each: ${steps.raise.output.value.batches}
+    config:
+      connection: chap-local
+      alerts: ${item}
+
+  review:
+    block: chap.alerts.reviewed
+    depends_on: [forecast, record]
+    poll: 5s
+    deadline: 1h
+    on_timeout: fail
+    config:
+      connection: chap-local
+      prediction_id: ${steps.forecast.output.prediction_id}
+      alert_policy_id: ${params.alert_policy_id}
+      release: all
+
+  release:
+    block: transform.jq
+    depends_on: [review]
+    config:
+      input:
+        approved: ${steps.review.output.approved}
+        declined: ${steps.review.output.declined}
+      program: |
+        {released: [.approved[] | {orgUnit, timePeriod, level, approvedBy}],
+         held_back: [.declined[] | {orgUnit, timePeriod, level}]}

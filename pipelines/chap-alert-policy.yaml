@@ -1,0 +1,49 @@
+# Define the alert policy every forecast's alerts are recorded against. Run once per Chap.
+#
+# An alert in Chap names a policy and one of its levels, and Chap refuses an alert whose policy
+# or level it does not hold. A policy is a ladder of levels, each an epidemic channel and the
+# probability of breaching it at which that level fires. This one has a single level, `action`.
+#
+# One hop:
+#
+#   define  http.request posts the policy to /v1/crud/alert-policies on the chap-local
+#           connection. The pack has no block for it, so the generic HTTP block makes the call,
+#           and it reaches Chap through the same connection the chap.* blocks use.
+#
+# The run's output is the policy's id, which chap-prediction takes as alert_policy_id.
+#
+#   uv run dg run --local pipelines/chap-alert-policy.yaml --connections connections.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: chap-alert-policy
+name: Define the alert policy
+description: Create the one-level alert policy chap-prediction records its alerts against.
+
+tags: [chap, alerts]
+
+requires:
+  blocks:
+    - http.request
+  connections:
+    - chap-local
+
+steps:
+  define:
+    block: http.request
+    config:
+      connection: chap-local
+      method: POST
+      path: /v1/crud/alert-policies
+      body:
+        name: dengue action level
+        levels:
+          # The level's channel: the 75th percentile of the same month over the two most recent
+          # complete years. Chap reads it when a prediction setup raises alerts itself; an alert
+          # recorded by chap.alerts.record only has to name the level.
+          - name: action
+            thresholdParams:
+              type: percentile
+              quantile: [0.75]
+              baselineYears: 2
+            exceedanceThreshold: 0.5
