@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+.dirigent/state/
+.env
+site/
+.DS_Store
+# prepare-offline.sh downloads the tutorials here.
+docs/*.pdf
