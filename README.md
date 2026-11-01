@@ -25,7 +25,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
 under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
-its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds and the address the document's `playground` parameter defaults to;
 `dg dev --port` moves the instance, `DG_URL` is how you tell the CLI where it went, and
@@ -146,11 +146,11 @@ uv run dg run echo-retry --watch
 2026-09-26T12:42:48.513+02:00 [info    ] queued                         [step unlucky] block=http.request attempt=3
 2026-09-26T12:42:53.570+02:00 [info    ] http call                      [log unlucky] method=GET url=http://127.0.0.1:3333/api/v1/playground/request status=503 bytes=398 duration_ms=4
 2026-09-26T12:42:53.571+02:00 [info    ] failed                         [step unlucky] block=http.request attempt=3 duration_ms=15
-2026-09-26T12:42:56.765+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0dd4f-7165-72f5-8ad8-41544b361d1f pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=7131 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-26T12:42:56.765+02:00 [error   ] failed                         [run] pipeline=echo-retry run_id=01a0dd4f-7165-72f5-8ad8-41544b361d1f pipeline_version=1 triggered_by="admin (token dev)" duration_ms=7131 items_total=0 items_failed=0 exit_code=1 priority=normal
 run 01a0dd4f-7165-72f5-8ad8-41544b361d1f
 pipeline      echo-retry (version 1)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      7.1s
 items         -
 
