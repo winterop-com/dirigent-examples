@@ -1,0 +1,18 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so the endpoint and the credential are handed to it here.
+#
+# This credential is a local rustfs container's, made up by verify.sh and thrown away with the
+# container. A real bucket's key belongs in a connection the server holds, encrypted under its
+# own key, and never in a file beside the documents -- which is why pipelines/ carries no
+# connections: section and the server would refuse one that did.
+
+connections:
+  artifacts:
+    kind: s3
+    config:
+      endpoint_url: http://127.0.0.1:9000
+      bucket: echo-s3
+      access_key_id: echo-s3-key
+      secret_access_key: echo-s3-secret
+      # Every S3 clone addresses buckets as a path segment rather than as a subdomain.
+      path_style: true
