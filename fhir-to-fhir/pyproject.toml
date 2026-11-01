@@ -7,8 +7,3 @@ dependencies = [
     "dirigent-cli>=0.29,<0.30",
     "dirigent-fhir>=0.29,<0.30",
 ]
-
-# dirigent-fhir is not on PyPI yet, so it is installed from a checkout beside this repository's.
-# Once it is published, this table goes and the line above resolves from PyPI.
-[tool.uv.sources]
-dirigent-fhir = { path = "../../dirigent-fhir" }

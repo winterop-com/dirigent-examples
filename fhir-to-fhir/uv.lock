@@ -684,35 +684,16 @@ wheels = [
 [[package]]
 name = "dirigent-fhir"
 version = "0.29.0"
-source = { directory = "../../dirigent-fhir" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dhis2w-fhir-engine" },
     { name = "dirigent-common" },
     { name = "dirigent-plugin" },
     { name = "httpx2" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "dhis2w-fhir-engine", specifier = ">=1.38.2,<2" },
-    { name = "dirigent-common", specifier = "==0.29.0" },
-    { name = "dirigent-plugin", specifier = "==0.29.0" },
-    { name = "httpx2", specifier = ">=2.12.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "dirigent-testing", specifier = "==0.29.0" },
-    { name = "mkdocs", specifier = ">=1.6.1" },
-    { name = "mkdocs-material", specifier = ">=9.7.7" },
-    { name = "mypy", specifier = ">=1.19" },
-    { name = "pymdown-extensions", specifier = ">=11.0.2" },
-    { name = "pyright", specifier = ">=1.1" },
-    { name = "pytest", specifier = ">=8" },
-    { name = "pytest-asyncio", specifier = ">=0.24" },
-    { name = "pyyaml", specifier = ">=6" },
-    { name = "ruff", specifier = ">=0.16" },
-    { name = "types-pyyaml", specifier = ">=6" },
+sdist = { url = "https://files.pythonhosted.org/packages/43/1b/cb697ac3610072206328ddab55d5a1cb4a3e6d0a67234d935df148384e1a/dirigent_fhir-0.29.0.tar.gz", hash = "sha256:bb129117408173c5e7823e29ebeeb64a6bcc1cddfc578d0b33939dc71f4242de", size = 26111, upload-time = "2026-11-01T15:14:42.831Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/c3/58f0a1cf15d7337daaa91fa37ce7c1d1c975107abeaea316dbe041176dea/dirigent_fhir-0.29.0-py3-none-any.whl", hash = "sha256:14b15566be7971f0eac2d61be6af03827fb26aaed22ca107bd1665c16a2b85c6", size = 35830, upload-time = "2026-11-01T15:14:41.73Z" },
 ]
 
 [[package]]
@@ -787,7 +768,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "dirigent-cli", specifier = ">=0.29,<0.30" },
-    { name = "dirigent-fhir", directory = "../../dirigent-fhir" },
+    { name = "dirigent-fhir", specifier = ">=0.29,<0.30" },
 ]
 
 [[package]]
