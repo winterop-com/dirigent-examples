@@ -30,6 +30,9 @@ services:
       PORT: "9000"
       CLIMATE_SERVICE_MAX_CONCURRENT_JOBS: "1"
       DASK_NUM_WORKERS: "2"
+      # data.chc.ucsb.edu answers some reads with 429; GDAL retries a 429 when told how often.
+      GDAL_HTTP_MAX_RETRY: "10"
+      GDAL_HTTP_RETRY_DELAY: "2"
     ports:
       - "127.0.0.1:${OCS_PORT:-9710}:9000"
     volumes:

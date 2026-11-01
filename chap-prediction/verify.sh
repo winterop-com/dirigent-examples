@@ -57,7 +57,7 @@ assert_run_succeeded() {
     map(select(.kind == "run")) | last
     | if . == null then error("\($what): the stream carries no run record")
       elif .message == "succeeded" then true
-      else error("\($what): the run settled \(.message)") end
+      else error("\($what): the run settled \(.message): \(.failures // [] | map("\(.step): \(.error)") | join("; "))") end
   ' "$1" > /dev/null
 }
 
@@ -148,15 +148,19 @@ export DG_TOKEN
 [ -n "$DG_TOKEN" ]
 
 say "the connection to Chap"
-# The connection carries no secret, so it is written again on every run: the port is the one
-# this run started Chap on.
+# chap-local carries no secret. It is created on the first run; on a later one, whose instance
+# still holds it in .dirigent/state, its base_url is set to the port this run started Chap on.
 if uv run dg connection list --json | jq -e 'select(.fields.code == "chap-local")' > /dev/null; then
-  uv run dg connection delete chap-local --json > /dev/null
+  curl -fsS -X PATCH "$DG_URL/api/v1/connections/chap-local" \
+    -H "Authorization: Bearer $DG_TOKEN" \
+    -H 'content-type: application/json' \
+    -d "{\"config\": {\"base_url\": \"$CHAP\"}}" > /dev/null
+else
+  uv run dg connection create chap chap-local \
+    --name "Local Chap" \
+    --set base_url="$CHAP" \
+    --json > /dev/null
 fi
-uv run dg connection create chap chap-local \
-  --name "Local Chap" \
-  --set base_url="$CHAP" \
-  --json > /dev/null
 uv run dg connection check chap-local --json > "$WORK/check.ndjson"
 jq -se '
   map(select(.kind == "connection.checked")) | last
