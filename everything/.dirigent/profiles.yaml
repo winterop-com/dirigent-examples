@@ -1,0 +1,17 @@
+# Client-side addressing only: which server, and how to get a token for it.
+# Never a database URL -- a CLI that could reach the database would bypass
+# authentication, attribution, and validation entirely.
+
+default: local
+
+profiles:
+  local:
+    url: http://127.0.0.1:4444
+    token_env: DG_TOKEN
+
+  # staging:
+  #   url: https://dirigent-staging.example.org
+  #   token_env: DG_STAGING_TOKEN
+  #
+  # A token_cmd is refused here: a project's file may not name a command to run. A profile
+  # that needs one lives in ~/.config/dirigent/profiles.yaml.

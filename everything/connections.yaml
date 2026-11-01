@@ -1,0 +1,63 @@
+# The connections a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, so every connection a document here names is handed to it here.
+#
+# The DHIS2 credentials are the play demos' own, published so that anyone may try them. The
+# s3 credential is the local rustfs container's, made up by setup.sh and thrown away with the
+# container. A real credential belongs in a connection the server holds, encrypted under its
+# key, and never in a file beside the documents.
+
+connections:
+  play:
+    kind: dhis2
+    config:
+      base_url: https://play.dhis2.org/2.42
+      follow_redirects_with_auth: true
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  source:
+    kind: dhis2
+    config:
+      base_url: https://play.im.dhis2.org/dev
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  target:
+    kind: dhis2
+    config:
+      base_url: https://play.dhis2.org/2.42
+      follow_redirects_with_auth: true
+      basic_username: admin
+      basic_password: district
+      timeout: 1m
+
+  artifacts:
+    kind: s3
+    config:
+      endpoint_url: http://127.0.0.1:9000
+      bucket: echo-s3
+      access_key_id: everything-s3-key
+      secret_access_key: everything-s3-secret
+      path_style: true
+
+  # The corpus's playground connection, and the secret its webhook.post recipes sign with.
+  playground:
+    kind: http
+    config:
+      base_url: http://127.0.0.1:4444/api/v1/playground
+      basic_username: playground
+      basic_password: playground
+      hmac_secret: a shared secret between two dirigent instances
+      timeout: 30s
+      health_path: /request
+
+  # The playground's own documented pair, a public constant that guards nothing.
+  playground-auth:
+    kind: http
+    config:
+      base_url: http://127.0.0.1:4444/api/v1/playground
+      basic_username: playground
+      basic_password: playground
+      health_path: /request

@@ -1,0 +1,113 @@
+# Take a dated snapshot of one level of the organisation unit hierarchy, and prove it
+# arrived. Five hops, and the middle three are the lesson:
+#
+#   read   dhis2.metadata. One collection through the version-bound generic accessor, with a
+#          fields projection that keeps the snapshot to the columns a diff is about.
+#   check  validate.schema. The gate, against a shape the instance holds by code. Every id
+#          is held to the pack's own dhis2-uid format, so a payload that moved stops here.
+#   save   storage.write. Storage has exactly two doors and no dhis2.* block opens either,
+#          so a read that has to leave a file behind is a read step and a write step.
+#   load   storage.read. The other door, reading back what the write put out. It names
+#          ${steps.save.output.uri} rather than repeating the path.
+#   count  transform.jq. What came back, counted -- which is the proof the file holds the
+#          snapshot and not an empty envelope.
+#
+# Metadata drifts: a facility is renamed, a district is closed, a hierarchy is rearranged
+# underneath a data set. A snapshot costs one read and one file, and turns "when did this
+# change?" into a diff.
+#
+# ${run.scratch} is this run's own directory under the artifact root, cleaned up when the run
+# ends -- pass --keep to a local run to be told where it landed instead. A target naming a
+# bucket URI writes there and outlives the run, and nothing above it changes: the scheme is
+# the only difference.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-metadata-to-storage
+name: Organisation units, snapshotted
+description: Read one level of the organisation unit hierarchy, gate it, write it to storage, read it back and count it.
+
+tags: [dhis2, metadata, validate, storage, transform]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - storage.write
+    - storage.read
+    - transform.jq
+    - log.write
+  connections:
+    - play
+  schemas:
+    - metadata-snapshot-org-units
+
+params:
+  type: object
+  properties:
+    level:
+      type: integer
+      minimum: 1
+      maximum: 4
+      default: 2
+      description: The hierarchy level to snapshot. 2 is the districts of the play demo.
+
+steps:
+  read:
+    block: dhis2.metadata
+    # A read over the wire is worth retrying; what is not worth retrying declines the budget
+    # on its own, because a rejected failure spends none of it.
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      fields: id,code,name,level
+      # A filter is DHIS2's own syntax: a property path, an operator, a value. A reference
+      # inside a larger string interpolates as text, which is what a filter wants.
+      filter: "level:eq:${params.level}"
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: metadata-snapshot-org-units
+
+  save:
+    block: storage.write
+    depends_on: [check]
+    config:
+      # The level is in the file name, so a run per level leaves one file per level rather
+      # than each overwriting the last.
+      target: "${run.scratch}/dhis2/organisation-units-level-${params.level}.json"
+      # Written out of the gate, not out of the read: what is stored is what passed.
+      value: ${steps.check.output.value}
+      content_type: application/json
+
+  load:
+    block: storage.read
+    depends_on: [save]
+    config:
+      source: ${steps.save.output.uri}
+
+  count:
+    block: transform.jq
+    depends_on: [load]
+    config:
+      input: ${steps.load.output.value}
+      program: |
+        {
+          level: (.organisationUnits[0].level),
+          units: (.organisationUnits | length),
+          first: (.organisationUnits[0].name),
+          last: (.organisationUnits[-1].name)
+        }
+
+  say:
+    block: log.write
+    depends_on: [count, save]
+    config:
+      message: "the snapshot at ${steps.save.output.uri} holds ${steps.count.output.value.units} organisation units, ${steps.count.output.value.first} to ${steps.count.output.value.last}"

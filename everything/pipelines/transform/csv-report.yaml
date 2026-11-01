@@ -1,0 +1,58 @@
+# A csv report, written where a person can fetch it.
+#
+# Four hops turn records into a file: a fixed value stands in for whatever produced the
+# records, a jq program shapes them into flat rows, storage.write puts those rows in the
+# run's scratch as json, and convert.std re-encodes that object as csv -- so the run's
+# Output tab lists a report.csv somebody can read back. Nothing here is on the allowlist.
+#
+# convert.std works on storage objects, the way storage.copy does: it names a source uri
+# and a target uri and never carries a value. The write is how the rows a step is holding
+# become an object it can read.
+#
+# The rows must be flat: a nested value has no csv spelling and is refused naming the row
+# and the key, so the jq step is where a list becomes one joined cell.
+#
+#   dg run --local examples/transform/csv-report.yaml --keep
+
+format: dirigent/v1
+kind: pipeline
+code: csv-report
+name: A report as csv
+description: |
+  Turn records into flat rows, and save them as a csv file.
+
+  The rows are stored as json first, and that object is re-encoded as a csv artifact.
+
+tags: [transform, storage]
+
+steps:
+  readings:
+    block: value.const
+    config:
+      value:
+        - { station: st-1, region: east, celsius: 4.5, tags: [ok, new] }
+        - { station: st-3, region: west, celsius: 1.2, tags: [ok] }
+        - { station: st-4, region: north, celsius: -3.4, tags: [] }
+  rows:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.value}
+      # Flatten for the codec: the tag list becomes one joined cell, because only this
+      # program knows what the separator should mean.
+      program: |
+        [.[] | {station, region, celsius, tags: (.tags | join(" "))}]
+  store:
+    block: storage.write
+    depends_on: [rows]
+    config:
+      target: ${run.scratch}/rows.json
+      value: ${steps.rows.output.value}
+  report:
+    block: convert.std
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/report.csv
+      from: json
+      to: csv

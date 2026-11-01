@@ -1,0 +1,65 @@
+# Fan-out: one step mapped over a list, with one run item per element.
+#
+# This for_each reads params, so it is expanded when the run is created and the item grid
+# exists from the moment the run is visible. One that reads another step's output is written
+# when that step has settled instead; patterns/fan-out-over-an-output.yaml shows it.
+#
+# items: continue is the item policy: a region that fails does not stop the others, its
+# failure is recorded against its own run item, and the run reports completed_with_errors
+# rather than failed. Under the default, fail_fast, any failed item fails the whole step.
+#
+# What a failed item costs downstream: the step still counts as succeeded, so an ordinary
+# all_success edge out of it runs. But the step's output is the list of its items' outputs
+# and a failed item is absent from it -- not null, absent -- so a step reading the batch
+# sees only what worked. If every item fails the step failed, and then the edge is skipped.
+# examples/graph/fan-in.yaml is that downstream step.
+#
+# This one uses shell.run, which executes code on the worker and is refused unless the
+# instance allowlists it: export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run"]', or pass
+# --enable-unsafe shell.run to a local run.
+#
+#   dg run --local examples/graph/fan-out.yaml -p day=2026-01-01 --enable-unsafe shell.run
+#   dg run --local examples/graph/fan-out.yaml -p day=2026-01-01 \
+#     -p regions='["east","west","north","south"]' --enable-unsafe shell.run
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out
+name: One step fans out
+description: Push one payload per region, tolerating a region that refuses it.
+
+tags: [graph, execute, playground]
+
+params:
+  type: object
+  required: [day]
+  properties:
+    day:
+      type: string
+      format: date
+    regions:
+      type: array
+      default: [east, west, north]
+      items:
+        type: string
+
+steps:
+  push:
+    block: playground.generate
+    for_each: "${params.regions}"
+    # One element per region, each its own attempt. items: continue lets the rest finish
+    # when one region refuses; items: fail_fast would fail the step on the first failure.
+    items: continue
+    config:
+      input:
+        day: "${params.day}"
+        region: "${item}"
+
+  audit:
+    block: shell.run
+    depends_on: [push]
+    # all_done runs the audit once every element has settled, failures included. The
+    # default all_success would skip it precisely when there is something to audit.
+    rule: all_done
+    config:
+      argv: [echo, "the push step has settled for every region"]

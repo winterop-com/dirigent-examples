@@ -1,0 +1,141 @@
+# Where a value lives: in a step's output, in the run's scratch space, or in storage.
+#
+# A value travels in a step's output. That is the whole of it: a step reads
+# ${steps.x.output.field} from a step it depends on, and no block reads or writes storage to
+# move a value around. The two ends of a run are the exception, and they are blocks of their
+# own -- storage.read is the only way a value comes in from storage, and storage.write the
+# only way one goes out.
+#
+# THE ENGINE'S OWN DECISION is separate from both, and it is about size rather than about
+# what a document said. Every successful attempt keeps its output whole, whatever its size,
+# so a reference always resolves. Alongside it the engine files a copy: at or below
+# inline_artifact_max (16384 bytes by default) the copy is inlined, and above it the
+# canonical JSON is streamed to the run's scratch prefix and the attempt records the URI it
+# went to. Nothing in this document chooses that, and nothing downstream has to know which
+# happened.
+#
+#   dg runs show <run-id>          the attempt says where its output's copy went
+#   DIRIGENT_INLINE_ARTIFACT_MAX   the instance setting that moves the line
+#
+# WHERE A URI MAY POINT. ${run.scratch} is this run's own directory under the instance's
+# artifact root. file:// URIs are refused outside that root, so a stored pipeline can never
+# be turned into an arbitrary-file read, and a run cannot write over another run's work. An
+# s3:// URI goes to whichever connection the instance binds that scheme to.
+#
+# Hop by hop:
+#
+#   fetch      a playground.generate step. Its answer is a few hundred bytes, so its copy is
+#              inlined, and the next step reads .records straight out of the output.
+#   bulk       jq builds four thousand rows from it. The serialised output is far over the
+#              default cap, so the engine spills that copy to the run's scratch.
+#   count      reads ${steps.bulk.output.value} anyway. A spilled copy changes nothing for a
+#              reference: the attempt kept the value whole.
+#   keep       storage.write, the one way out. The rows become an object with a URI.
+#   read_back  storage.read, the one way back in. The object becomes a value again.
+#   compare    the small answer and the round-tripped rows, side by side.
+#
+# EXPECT THIS RUN TO SUCCEED in about three seconds, with bulk's output spilled and every
+# reference to it resolving regardless.
+#
+#   dg run --local examples/patterns/outputs-inline-vs-storage.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: outputs-inline-vs-storage
+name: A value, and the storage on either side of it
+description: |
+  Build a large list, save it to storage, and read it back.
+
+  A value travels in a step's output. `storage.read` is the only way one comes in from
+  storage and `storage.write` the only way one goes out.
+
+  Where the engine files its copy of an output is a separate question, decided by size:
+  at or below `inline_artifact_max` (16KB by default) it is inlined on the attempt, and
+  above it spilled to the run's scratch space. A reference resolves either way.
+
+tags: [patterns, playground, storage, transform, outputs]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+    - storage.write
+    - storage.read
+
+params:
+  type: object
+  properties:
+    dataset:
+      type: string
+      description: Carried by the first step, so the answer has something recognisable in it.
+      default: cases
+    rows:
+      type: integer
+      description: How many rows the bulk step builds. Above about three hundred the output spills.
+      default: 4000
+      minimum: 1
+
+steps:
+  fetch:
+    block: playground.generate
+    config:
+      input:
+        dataset: "${params.dataset}"
+
+  bulk:
+    block: transform.jq
+    depends_on: [fetch]
+    config:
+      input:
+        dataset: "${steps.fetch.output.records.0.dataset}"
+        rows: "${params.rows}"
+      program: |
+        . as {$dataset, $rows} | [range($rows) | {row: ., dataset: $dataset, made_by: "playground"}]
+
+  count:
+    block: transform.jq
+    depends_on: [bulk]
+    config:
+      # The reference is the same reference it would be for a four-field output. Whether the
+      # engine inlined the copy or spilled it is not something a document can see.
+      input: "${steps.bulk.output.value}"
+      program: |
+        {rows: length, first: .[0]}
+
+  keep:
+    block: storage.write
+    depends_on: [bulk]
+    config:
+      target: "${run.scratch}/rows/${params.dataset}.json"
+      value: "${steps.bulk.output.value}"
+
+  read_back:
+    block: storage.read
+    depends_on: [keep]
+    config:
+      source: "${steps.keep.output.uri}"
+      # This step's own guard on how much it will hold. A humane size, and an object bigger
+      # than it fails the step rather than exhausting the worker; bytes nobody has to look
+      # at move with storage.copy instead, which this does not bound.
+      max_size: 8mb
+
+  compare:
+    block: transform.jq
+    depends_on: [fetch, count, keep, read_back]
+    config:
+      input:
+        inline_dataset: "${steps.fetch.output.records.0.dataset}"
+        counted: "${steps.count.output.value.rows}"
+        written_uri: "${steps.keep.output.uri}"
+        written_bytes: "${steps.keep.output.bytes_written}"
+        read_bytes: "${steps.read_back.output.bytes_read}"
+        round_tripped: "${steps.read_back.output.value}"
+      program: |
+        {
+          inline_dataset,
+          counted,
+          written_uri,
+          written_bytes,
+          read_bytes,
+          same: (.counted == (.round_tripped | length))
+        }

@@ -1,0 +1,59 @@
+# The services the queues and sql shelves reach: dirigent's infra/compose.queues.yaml and the
+# warehouse from infra/compose.sql.yaml, on host ports the environment may move.
+#
+#   docker compose -f services/compose.yaml -p everything-services up -d --wait
+
+services:
+  redpanda:
+    image: ${DIRIGENT_KAFKA_IMAGE:-redpandadata/redpanda:v24.2.18}
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --node-id=0
+      - --check=false
+      - --kafka-addr=PLAINTEXT://0.0.0.0:9092
+      - --advertise-kafka-addr=PLAINTEXT://127.0.0.1:${KAFKA_PORT:-9092}
+      - --set
+      - redpanda.auto_create_topics_enabled=false
+    ports:
+      - "127.0.0.1:${KAFKA_PORT:-9092}:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -q 'Healthy:.*true'"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  rabbitmq:
+    image: ${DIRIGENT_RABBITMQ_IMAGE:-rabbitmq:3-management-alpine}
+    environment:
+      RABBITMQ_DEFAULT_USER: dirigent
+      RABBITMQ_DEFAULT_PASS: dirigent
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_UI_PORT:-15672}:15672"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  warehouse:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: warehouse
+      POSTGRES_PASSWORD: warehouse
+      POSTGRES_DB: warehouse
+      WAREHOUSE_READER_PASSWORD: reader-password
+      WAREHOUSE_WRITER_PASSWORD: writer-password
+    volumes:
+      - ./warehouse.sql:/docker-entrypoint-initdb.d/warehouse.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U warehouse -d warehouse"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    ports:
+      - "127.0.0.1:${WAREHOUSE_PORT:-5433}:5432"

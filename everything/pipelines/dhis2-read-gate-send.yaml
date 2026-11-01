@@ -1,0 +1,106 @@
+# Read organisation units from the DHIS2 play demo, hold the answer to a shape, and rehearse
+# an import at the unit that answer named. Three hops, and each one is a move the tutorial
+# makes on its own:
+#
+#   read    dhis2.metadata. One collection through the version-bound generic accessor, so
+#           resource is the collection name exactly as it appears in the API path, and
+#           fields= is the projection that decides what arrives. What it does not name does
+#           not come back.
+#   check   validate.schema. The gate. It hands its input on unchanged as value, which makes
+#           it a waypoint: every step past it provably received the shape.
+#   send    dhis2.data_value_set_import, rehearsed. The org unit is read out of the gate
+#           rather than out of the read, so the write goes where the validated answer says
+#           and nowhere else.
+#
+# The schema is named, not carried: the instance holds it under the code below, so two
+# pipelines gating on the same shape gate on the same shape. requires.schemas is what
+# refuses this document on an instance that does not hold it, before a run rather than
+# during one.
+#
+# A reference walks a value with dots, and an array index is a dot too, so
+# ${steps.check.output.value.organisationUnits.0.id} is the first validated unit's uid --
+# Benkeh MCHP, because the read is ordered by name.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-read-gate-send
+name: Read, gate, send
+description: Read organisation units from the play demo, gate them on a schema, and rehearse an import at the first one.
+
+tags: [dhis2, validate, references]
+
+requires:
+  blocks:
+    - dhis2.metadata
+    - validate.schema
+    - dhis2.data_value_set_import
+  connections:
+    - play
+  schemas:
+    - read-gate-send-org-units
+
+params:
+  type: object
+  properties:
+    parent:
+      type: string
+      # A format the pack contributes. A run submitted with something that is not a DHIS2
+      # uid is refused here, before a call is made.
+      format: dhis2-uid
+      default: jPidqyo7cpF
+      description: The uid of the parent whose children are read. Bagruwa chiefdom by default.
+    period:
+      type: string
+      format: dhis2-period
+      default: "202507"
+      description: The ISO period the rehearsed values belong to.
+
+steps:
+  read:
+    block: dhis2.metadata
+    # A read over the wire is worth retrying; what is not worth retrying declines the budget
+    # on its own, because a rejected failure spends none of it.
+    retry:
+      max_attempts: 3
+      backoff: 2s
+    config:
+      connection: play
+      resource: organisationUnits
+      fields: id,code,name,level
+      filter: "parent.id:eq:${params.parent}"
+      order: [name:asc]
+
+  check:
+    block: validate.schema
+    depends_on: [read]
+    config:
+      input: ${steps.read.output.body}
+      schema: read-gate-send-org-units
+
+  send:
+    block: dhis2.data_value_set_import
+    depends_on: [check]
+    config:
+      connection: play
+      data_values:
+        # The envelope's dataSet, period and orgUnit are the defaults each value inherits.
+        # Every uid here is a real one on the play demo: BfMAe6Itzgt is the monthly "Child
+        # Health" data set, s46m5MS0hxu is "BCG doses given", Prlt0C1RF0s and psbwp3CQEhs
+        # are its "Fixed, <1y" and "Fixed, >1y" cells, and HllvX50cXC0 is the default
+        # attribute option combo. A value is always a string on the wire, whatever the data
+        # element's value type says.
+        dataSet: BfMAe6Itzgt
+        period: ${params.period}
+        orgUnit: ${steps.check.output.value.organisationUnits.0.id}
+        dataValues:
+          - dataElement: s46m5MS0hxu
+            categoryOptionCombo: Prlt0C1RF0s
+            attributeOptionCombo: HllvX50cXC0
+            value: "12"
+          - dataElement: s46m5MS0hxu
+            categoryOptionCombo: psbwp3CQEhs
+            attributeOptionCombo: HllvX50cXC0
+            value: "7"
+      # Nothing is written. Dropping this line turns the same document into a real import,
+      # and the play demo is shared.
+      dry_run: true

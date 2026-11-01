@@ -1,0 +1,131 @@
+# Which failures are retried, and which are refused another attempt however much budget is left.
+#
+# The budget is not the whole story. Before the engine spends an attempt it asks the block
+# what kind of failure it was, and there are exactly three answers:
+#
+#   transient  a network error, a 5xx, a timeout       retried while the budget lasts
+#   rejected   a validation error, auth, a 4xx         never retried, whatever the budget says
+#   unknown    anything the block declines to classify  retried while the budget lasts
+#
+# Only rejected ends a step on its first failure. unknown is retried, which surprises people:
+# a block that cannot tell a corrupt input from a database that was briefly away declines to
+# guess, and the engine spends the budget rather than assuming the worst.
+#
+# playground.generate says which class it fails as, so all three fit in one document:
+# `fail_until` decides how many attempts fail and `fail_as` decides what kind of failure they
+# are. The three steps below carry character for character the SAME retry policy, so the
+# difference in attempts cannot be the policy.
+#
+# Hop by hop:
+#
+#   transient_error  fail_until above its budget, failing as transient. All three attempts
+#                    are spent: 1s, then 2s.
+#   rejected_error   the same window, failing as rejected. One attempt and no more -- the
+#                    identical max_attempts: 3 buys nothing, because the engine does not ask
+#                    a rejected failure a second time.
+#   unknown_error    the same window, failing as unknown. Three attempts again: a failure
+#                    nobody can explain is retried exactly like one everybody can.
+#   compare          all_done on all three, so it runs whatever they did and gives the run
+#                    something to end on.
+#
+# EXPECT THIS RUN TO END completed_with_errors, in about four seconds. Read the attempt
+# counts: three, one, three. All three failures are tolerated, which is why the run is
+# completed_with_errors and not failed.
+#
+# To change it: -p fail_until=0 and none of the three fails at all, so each one lands on its
+# first attempt and the classes have nothing to decide between.
+#
+#   dg run --local examples/patterns/retry-only-transient.yaml                   # completed_with_errors
+#   dg run --local examples/patterns/retry-only-transient.yaml -p fail_until=0   # all three land
+
+format: dirigent/v1
+kind: pipeline
+code: retry-only-transient
+name: Transient retries, rejected does not
+description: |
+  Fail three steps in three different ways, and see which ones get retried.
+
+  The same three-attempt budget on three steps: a transient failure spends all three, a
+  rejected one spends one, and an unknown one spends all three.
+
+  The block classifies (`transient`, `rejected`, `unknown`) and the engine decides. Only
+  `rejected` is refused another attempt, however much budget is left.
+
+tags: [patterns, playground, failure, retry]
+
+requires:
+  blocks:
+    - playground.generate
+    - value.const
+
+params:
+  type: object
+  properties:
+    fail_until:
+      type: integer
+      description: How many of each step's attempts fail; above the budget, all of them.
+      default: 9
+      minimum: 0
+      maximum: 9
+
+steps:
+  transient_error:
+    block: playground.generate
+    continue_on_failure: true
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      jitter: 0.0
+    config:
+      # A network having a moment: the same call a moment later is expected to work, which is
+      # what a budget is for.
+      fail_until: "${params.fail_until}"
+      fail_as: transient
+
+  rejected_error:
+    block: playground.generate
+    continue_on_failure: true
+    # Character for character the policy above. That is the point: the budget is identical
+    # and the number of attempts is not, because the classification differs.
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      jitter: 0.0
+    config:
+      # A payload the far end refuses, or a credential it will not accept. No later attempt
+      # is going to change its mind, so the engine does not make one.
+      fail_until: "${params.fail_until}"
+      fail_as: rejected
+
+  unknown_error:
+    block: playground.generate
+    continue_on_failure: true
+    # And again, unchanged.
+    retry:
+      max_attempts: 3
+      backoff: 1s
+      multiplier: 2.0
+      max_backoff: 4s
+      jitter: 0.0
+    config:
+      # A block that declines to guess, which is what an ordinary program failure looks like:
+      # exit 1 says nothing about whether trying again would help.
+      fail_until: "${params.fail_until}"
+      fail_as: unknown
+
+  compare:
+    block: value.const
+    depends_on: [transient_error, rejected_error, unknown_error]
+    # All three prerequisites are tolerated failures, so their dependents are shown a success
+    # and the default rule would fire. all_done is written anyway, because this step's job is
+    # to be reached whatever happened above it, and saying so is cheaper than remembering why.
+    rule: all_done
+    config:
+      value:
+        transient: three attempts
+        rejected: one attempt
+        unknown: three attempts

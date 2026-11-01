@@ -1,0 +1,116 @@
+# A value leaving the run and coming back: storage.write out, storage.read in.
+#
+# A transform works on a value and answers with one, so a list that should survive as a
+# file leaves through storage.write and returns through storage.read. Those two blocks are
+# the only doors, and this document walks through both of them: generate builds a list,
+# store puts it in the run's scratch space, reload reads it back as a value, cold keeps the
+# readings below zero, keep writes those out as their own file, and summary folds what cold
+# produced down to the handful of fields the run answers with.
+#
+# What each hop hands the next:
+#
+#   - a transform's output is value, which is what the next transform's input reads
+#   - a write's output is uri, bytes_written and content_type, so the read that follows
+#     names ${steps.store.output.uri} rather than repeating the path
+#   - a read's output is value for the json family and text otherwise, decided by what the
+#     object says it is; readings.json says application/json by its extension
+#
+# A read holds the object whole, so max_size bounds it and an object past that is refused
+# rather than truncated. Bytes nobody has to look at move with storage.copy instead.
+#
+# The list is built in jq from range, so the example needs no network and no fixture file.
+# In a real pipeline generate is an http.request and its body goes straight to store.
+#
+# What it prints, and the arithmetic to check it against: celsius is (i % 40) - 10, so ten
+# of every forty stations are below zero, and 2000 stations give 500 cold ones. The coldest
+# is st-0 at -10, and the three regions all appear among them.
+#
+#   dg run --local examples/transform/jq-stream-through-storage.yaml
+#   dg run --local examples/transform/jq-stream-through-storage.yaml -p stations=200
+
+format: dirigent/v1
+kind: pipeline
+code: jq-stream-through-storage
+name: A value through storage
+description: |
+  Save a generated list to a file, read it back, and save the cold readings.
+
+  The list goes to storage, comes back as a value, and the smaller result is written out the
+  same way.
+
+tags: [transform, storage]
+
+requires:
+  blocks:
+    - transform.jq
+    - storage.read
+    - storage.write
+
+params:
+  type: object
+  additionalProperties: false
+  properties:
+    stations:
+      type: integer
+      minimum: 1
+      maximum: 100000
+      default: 2000
+      description: How many station readings to generate.
+
+steps:
+  generate:
+    block: transform.jq
+    config:
+      input:
+        count: ${params.stations}
+      # About 100KB at the default count.
+      program: |
+        [range(.count) as $i
+         | {station: "st-\($i)",
+            region: ["east", "west", "north"][$i % 3],
+            celsius: ($i % 40) - 10}]
+
+  store:
+    block: storage.write
+    depends_on: [generate]
+    config:
+      target: ${run.scratch}/readings.json
+      value: ${steps.generate.output.value}
+
+  reload:
+    block: storage.read
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      # The default is 1mb, and the generated list is well under it at every station count
+      # this document allows.
+      max_size: 8mb
+
+  cold:
+    block: transform.jq
+    depends_on: [reload]
+    config:
+      # readings.json is application/json, so the read decoded it and the value is the list
+      # itself rather than its text.
+      input: ${steps.reload.output.value}
+      program: |
+        [.[] | select(.celsius < 0) | {station, region, celsius}]
+
+  keep:
+    block: storage.write
+    depends_on: [cold]
+    config:
+      target: ${run.scratch}/cold.json
+      value: ${steps.cold.output.value}
+
+  summary:
+    block: transform.jq
+    depends_on: [cold]
+    config:
+      # No second read: the cold list is already a value in this run, and a write is for
+      # what leaves it. This output is small, so it inlines, and it is the run's answer.
+      input: ${steps.cold.output.value}
+      program: |
+        {cold_stations: length,
+         coldest: (min_by(.celsius) | .station),
+         regions: (map(.region) | unique)}

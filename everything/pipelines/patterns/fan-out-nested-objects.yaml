@@ -1,0 +1,110 @@
+# An item that is an object, and the fields of it a step reaches into.
+#
+# An element of a for_each list is any JSON value, and once it is an object the item stops
+# being a label and becomes a small record. ${item.code} reaches a field, ${item.limits.max_ms}
+# reaches a nested one, and ${item} on its own is still the whole object -- so one element can
+# carry everything one item's work needs instead of forcing three parallel lists that have to
+# stay in the same order.
+#
+# The reference rule that makes this work: a reference that is the ENTIRE value resolves to
+# the typed value, so "${item.limits.max_ms}" is the integer 2000 downstream and not the text
+# "2000". A reference inside a larger string interpolates as text instead, which is why the
+# URL below reads as a URL and the threshold reads as a number.
+#
+# A missing field is not an empty string. ${item.nickname} on an element that has no nickname
+# raises, and the engine settles that attempt as rejected rather than quietly proceeding with
+# nothing -- so every element in the list must carry every field the step names. Give the
+# optional ones a default in the list itself.
+#
+# Hop by hop:
+#
+#   probe    one item per feed. Each item takes its own feed's `takes` before answering and
+#            carries its own code and its own budget into its output, so the three items do
+#            genuinely different work from one step definition.
+#   verdict  a join over the batch, comparing how long each feed took against the budget that
+#            travelled with it.
+#
+# EXPECT THIS RUN TO SUCCEED in about two seconds, with three feeds and a verdict each. The
+# items run side by side, so the run costs the slowest feed rather than the sum of the three.
+# population is the one that is slow: it takes 1500ms against a 400ms budget.
+#
+# To change it: add a feed to the list, or raise population's budget past what it takes and
+# watch its verdict flip back. The budget lives on the element rather than in params because
+# it belongs to one feed and not to the run.
+#
+#   dg run --local examples/patterns/fan-out-nested-objects.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fan-out-nested-objects
+name: Items that are objects
+description: |
+  Check three feeds, each with its own time limit, and report which were slow.
+
+  A `for_each` element is any JSON value. Once it is an object, `${item.code}` reaches a
+  field and `${item.limits.max_ms}` a nested one, so one element carries everything one item's
+  work needs.
+
+  A whole reference resolves to the typed value; a missing field is a rejected attempt, not
+  an empty string.
+
+tags: [patterns, playground, transform, fan-out, references]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    tolerance_ms:
+      type: integer
+      description: Slack added to every feed's own threshold before the verdict is taken.
+      default: 500
+      minimum: 0
+      maximum: 5000
+
+steps:
+  probe:
+    block: playground.generate
+    # Three records, not three parallel lists. Nothing has to stay in step with anything.
+    for_each:
+      - {code: cases, takes: 200ms, limits: {max_ms: 2000}}
+      - {code: climate, takes: 300ms, limits: {max_ms: 2500}}
+      - {code: population, takes: 1500ms, limits: {max_ms: 400}}
+    config:
+      # Interpolated into a larger string, so the field is rendered as text inside the label.
+      delay: "${item.takes}"
+      input:
+        feed: "${item.code}"
+        # The nested field, carried into the step's own output. That is how a per-item value
+        # reaches the join: the join sees outputs, not elements, so anything an element knows
+        # has to be inside an item's output to survive the fan-in. A whole reference stays
+        # typed, so this arrives as the integer it was written as.
+        max_ms: "${item.limits.max_ms}"
+        label: "the ${item.code} feed"
+
+  verdict:
+    block: transform.jq
+    depends_on: [probe]
+    config:
+      input:
+        measured: "${steps.probe.output}"
+        tolerance_ms: "${params.tolerance_ms}"
+      # records[0] is the object the item carried into the node, unchanged, so max_ms is still
+      # a number here and needs no tonumber. A query string would have carried it as text.
+      program: |
+        .tolerance_ms as $tolerance
+        | {
+            feeds: [
+              .measured[]
+              | {
+                  feed: .records[0].feed,
+                  label: .records[0].label,
+                  took_ms: .delay_ms,
+                  budget_ms: (.records[0].max_ms + $tolerance)
+                }
+              | .verdict = (if .took_ms <= .budget_ms then "within budget" else "slow" end)
+            ]
+          }

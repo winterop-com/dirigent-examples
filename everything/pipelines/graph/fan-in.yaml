@@ -1,0 +1,86 @@
+# Fan-in: reading a whole fan-out back as one list, in one downstream step.
+#
+# fan-out.yaml maps a step over a list. This is the other half: what the step *after* it
+# sees. Three rules, and they are the whole of it:
+#
+#   1. A fan-out step's output is the list of its items' outputs, in item order.
+#      ${steps.fetch.output} is a JSON array here, not an object.
+#   2. The downstream step runs ONCE, not once per item. It has no for_each of its own, so
+#      it is one attempt that reads the whole batch.
+#   3. Only items that SUCCEEDED are in that list. Under items: continue a failed item is
+#      absent rather than null, so the list can be shorter than the input, and index 0 is
+#      the first item that worked rather than the first one asked for.
+#
+# The list can be indexed: ${steps.fetch.output.0.records} is the first item's rows. Bear rule 3
+# in mind before using it -- with one failure upstream, index 0 is a different dataset than
+# it was yesterday. Reading the whole list is the honest form.
+#
+# Note the deliberate asymmetry with the CLI, where `-p regions.0=east` is refused. Reading
+# an existing structure by index is unambiguous: the value is there, and it is either a list
+# or it is not. Writing into one that may not exist is not: a dotted path cannot tell the
+# index 0 from an object key named "0", and cannot say how long the array should be.
+#
+# Two edges worth knowing. A fan-out that tolerated a failure still counts as succeeded, so
+# the default rule: all_success runs this step; the run ends completed_with_errors. But if
+# *every* item fails the step itself failed, and a downstream step forced to run anyway
+# with rule: all_done is refused -- there is no stored output to read, and the attempt
+# settles as rejected rather than silently receiving an empty list.
+#
+# One block, used twice, and it reaches nothing at all, so this one runs offline:
+#
+#   dg run --local examples/graph/fan-in.yaml
+#   dg run --local examples/graph/fan-in.yaml -p datasets='["temperature","humidity"]'
+#
+# The latency point: four slow reads cost four parked rows and nothing else. The engine
+# is not holding four workers for the duration; it is holding four rows in the database.
+
+format: dirigent/v1
+kind: pipeline
+code: fan-in
+name: Branches that join
+description: Read several datasets in parallel, then hand the whole batch on in one step.
+
+tags: [graph, playground]
+
+requires:
+  blocks:
+    - playground.generate
+
+params:
+  type: object
+  properties:
+    datasets:
+      type: array
+      default: [temperature, humidity, pressure, wind]
+      items:
+        type: string
+
+steps:
+  fetch:
+    block: playground.generate
+    for_each: "${params.datasets}"
+    items: continue
+    config:
+      # The element is the input, so each item's output carries its own dataset. A fan-in
+      # reads outputs and never elements, so anything an element knows has to be in there.
+      input: "${item}"
+      seed: 5
+      fields:
+        station: license_plate
+        celsius:
+          provider: pyfloat
+          args:
+            min_value: -10
+            max_value: 30
+            right_digits: 1
+
+  report:
+    block: playground.generate
+    depends_on: [fetch]
+    config:
+      # A fan-out step's output is the list of its elements' outputs, in the order the
+      # elements were created, so one reference collects the whole fan and an index
+      # reaches one element of it.
+      input:
+        collected: "${steps.fetch.output}"
+        first_dataset: "${steps.fetch.output.0.records.0.value}"

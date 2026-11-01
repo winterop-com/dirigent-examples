@@ -1,0 +1,90 @@
+# A service that fails until the attempt it is told this is, asked three times.
+#
+# In:  a list of attempt numbers and the attempt the service fails until.
+# Out: one row per attempt, with the status the service answered and what it decided.
+#
+# NEEDS AN INSTANCE TO CALL. /playground/unreliable is served by a dirigent instance under
+# /api/v1/playground, unauthenticated. Start one first, in this directory:
+#
+#   uv run dg dev
+#
+# The route remembers nothing between requests, so the caller says which attempt this is:
+# it answers 503 while attempt <= fail_until, and 200 after. That makes every answer
+# reproducible from its query alone, which is what lets this document ask for a failure and
+# a success side by side instead of waiting for a retry to find one.
+#
+# A retry is not what this shows: a retried step is not told its attempt number in a query.
+# The node's fail_until reads the engine's own attempt instead, which is what echo-alert
+# fails on. This is the HTTP half, where the status is the service's and the step decides
+# what to make of it.
+#
+# Hop by hop:
+#
+#   ask      one GET per attempt number. success_status lists 503 beside 200, so a 503 is
+#            an answer this step keeps rather than a failure it raises, and the status lands
+#            in the item's output.
+#   tally    the join: attempt, status and outcome per row, in the order they were asked.
+#
+# EXPECT THIS RUN TO SUCCEED, with attempts 1 and 2 answered 503 and attempt 3 answered 200.
+#
+#   uv run dg run playground-unreliable --watch
+#   uv run dg run playground-unreliable --watch -p fail_until=0     # every attempt answers 200
+
+format: dirigent/v1
+kind: pipeline
+code: playground-unreliable
+name: Failing until the named attempt
+description: |
+  The playground's unreliable route, asked for attempts 1, 2 and 3 with fail_until 2: two
+  503s and a 200, each status kept as a row rather than raised as a failure.
+
+tags: [playground, http, failure, fan-out]
+
+requires:
+  blocks:
+    - http.request
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:4444/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    attempts:
+      type: array
+      items:
+        type: integer
+        minimum: 1
+      minItems: 1
+      maxItems: 10
+      default: [1, 2, 3]
+      description: The attempt numbers the service is told, one call each.
+    fail_until:
+      type: integer
+      minimum: 0
+      default: 2
+      description: The last attempt the service answers with its failing status.
+
+steps:
+  ask:
+    block: http.request
+    for_each: ${params.attempts}
+    config:
+      url: ${params.playground}/unreliable
+      method: GET
+      query:
+        attempt: ${item}
+        fail_until: ${params.fail_until}
+      # Without this a 503 fails the item, classed transient. Listed, it is an answer, and
+      # the status is read out of the output instead of out of the failure.
+      success_status: [200, 503]
+
+  tally:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output}
+      program: |
+        map({attempt: .body.attempt, status, outcome: .body.outcome})

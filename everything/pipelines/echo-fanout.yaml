@@ -1,0 +1,120 @@
+# One reading per station, and a station that is down does not take the others with it.
+#
+# In:  a list of stations, each with the reading it reports and how many of its attempts fail.
+# Out: one summary naming the stations that answered and the one that did not.
+#
+# THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, and
+# `fail_until` makes it fail on cue -- so this document reaches nothing: no connection, no
+# URL, no network. Replacing `ask` with an http.request whose answer the join reads changes
+# that one step and nothing under it.
+#
+# for_each maps one step over a list, with one run item per element. The grid is expanded
+# when the run is created, so it may read params, run and item -- never another step's
+# output, because the width has to be known before anything executes.
+#
+# items: continue is the whole lesson. Under the default, fail_fast, the first item that
+# fails fails the step and every station after it is abandoned. Under continue the failure
+# is recorded against its own item, the other stations finish, the step still counts as
+# succeeded, and the run settles completed_with_errors -- a third status, not a shade of
+# failed.
+#
+# The sharp edge comes with it: a failed item is ABSENT from the step's output list, not
+# null. So the list the join reads is shorter than the grid that was asked for, index 0 is
+# the first station that answered rather than the first one asked, and a join that counts
+# rows is counting survivors. That is why the join below is handed the grid as well as the
+# answers, and computes the difference instead of assuming three.
+#
+# Hop by hop:
+#
+#   ask      one playground.generate per station, carrying that station's own reading.
+#            fail_until is read off the element, so oslo-blindern fails its one attempt and
+#            the other two do not -- which station is down is visible in the list rather
+#            than hidden in a branch.
+#   report   the join. It has no for_each of its own, which is the entire mechanism: one
+#            attempt, and the batch arrives as a JSON array of the items' outputs.
+#
+# EXPECT THIS RUN TO END completed_with_errors, with two succeeded items, one failed item,
+# a succeeded step, and oslo-blindern named under missing.
+#
+#   uv run dg run --local pipelines/echo-fanout.yaml
+#   uv run dg run --local pipelines/echo-fanout.yaml \
+#     -p stations='[{"station":"bergen-florida","reading":"12.4","fail_until":0}]'
+
+format: dirigent/v1
+kind: pipeline
+code: echo-fanout
+name: One reading per station
+description: |
+  A fan-out over a list of stations, one generated reading each, tolerating the station
+  whose service is down.
+
+  A failed item is absent from the step's output, so the join is computed from what
+  answered rather than from the width that was asked for.
+
+tags: [graph, playground, transform, fan-out]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    stations:
+      type: array
+      description: One item, one reading, per element.
+      minItems: 1
+      maxItems: 16
+      default:
+        - { station: bergen-florida, reading: "12.4", fail_until: 0 }
+        # fail_until above this item's attempt count is how one element of the grid fails
+        # without anything else in the document changing. There is no retry policy here,
+        # so 1 is enough.
+        - { station: oslo-blindern, reading: "3.1", fail_until: 1 }
+        - { station: tromso-langnes, reading: "-6.8", fail_until: 0 }
+      items:
+        type: object
+        required: [station, reading, fail_until]
+        properties:
+          station:
+            type: string
+            minLength: 1
+          reading:
+            type: string
+          fail_until:
+            type: integer
+            minimum: 0
+            maximum: 9
+        additionalProperties: false
+
+steps:
+  ask:
+    block: playground.generate
+    # ${item} is the element itself, so an element that is an object is reached into with a
+    # dot the same way a step's output is.
+    for_each: ${params.stations}
+    items: continue
+    config:
+      fail_until: ${item.fail_until}
+      # No fields: are named, so the input travels through untouched and becomes this item's
+      # one record.
+      input:
+        station: ${item.station}
+        reading: ${item.reading}
+
+  report:
+    block: transform.jq
+    depends_on: [ask]
+    config:
+      # Both the grid and the answers, because the difference between them is the point.
+      input:
+        asked: ${params.stations}
+        answered: ${steps.ask.output}
+      program: |
+        (.asked | map(.station)) as $asked
+        | [.answered[].records[].station] as $answered
+        | {asked: ($asked | length),
+           answered: ($answered | length),
+           stations: $answered,
+           missing: ($asked - $answered)}

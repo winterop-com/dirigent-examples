@@ -1,0 +1,139 @@
+# A payload well past the inline threshold, and the two places size actually matters.
+#
+# In:  a row count, defaulting to 5000 rows -- a few hundred kilobytes of JSON.
+# Out: one large file in the run's scratch space, a csv beside it, and a small summary read
+#      back out of the first.
+#
+# Two different caps get confused with each other, and only one of them is a decision this
+# document makes:
+#
+#   inline_artifact_max   an instance setting, 16KB by default. Every successful attempt
+#                         keeps its whole structured output, whatever its size, so
+#                         ${steps.x.output.*} never pays a storage round trip. What the cap
+#                         governs is where the artifact copy of that output lives: at or
+#                         below it, inlined in the attempt's reference row; above it,
+#                         streamed to the run's scratch prefix with the row holding the URI
+#                         instead. Nothing in a document says any of this, and the file it
+#                         leaves behind is named after the attempt rather than after
+#                         anything a person was looking for.
+#   max_size              what this document says, on the storage.read below. A value comes
+#                         back into the run only through a read, and a read holds what it
+#                         reads, so the step names the ceiling it will hold and an object
+#                         above it is refused rather than truncated.
+#
+# So the write is not an optimisation of the threshold, it is the alternative to relying on
+# it: a result worth keeping is a result named, written and read back deliberately, and a
+# result nobody names a file for is one the engine spills for you and nobody finds.
+#
+# Five hops, and what each one hands on:
+#   generate  transform.jq, the big list. Its output is far past the threshold, so this is
+#             the attempt whose artifact copy the engine spills for you.
+#   store     storage.write, the same value under a name a person can look for.
+#   as_csv    convert.std, URI to URI. The codec never holds the list in either direction.
+#   reread    storage.read, the file back as a value, bounded by max_size.
+#   summary   transform.jq, a handful of numbers -- the shape that belongs in a step output,
+#             which is read by a person on a run page and by a reference in another step's
+#             config, and neither of those wants a megabyte.
+#
+# To change it: -p rows=200000 makes the file tens of megabytes. Past 32mb the reread is
+# refused naming the object and the cap, and raising max_size is the deliberate act that
+# allows it.
+#
+#   dg run --local examples/recipes/large-output-to-storage.yaml
+#   dg run --local examples/recipes/large-output-to-storage.yaml -p rows=50000
+
+format: dirigent/v1
+kind: pipeline
+code: large-output-to-storage
+name: A large result through storage
+description: |
+  Write a large generated result to a named file, and report a small summary.
+
+  The payload goes far past the inline artifact threshold. It is written to storage under a name
+  of its own, with a csv beside it, and read back into a bounded summary, the shape that belongs
+  in a step output.
+
+tags: [recipes, storage, transform]
+
+requires:
+  blocks:
+    - transform.jq
+    - storage.write
+    - convert.std
+    - storage.read
+
+params:
+  type: object
+  properties:
+    rows:
+      type: integer
+      minimum: 1
+      default: 5000
+      description: How many rows are generated; 5000 is a few hundred kilobytes of JSON.
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the file is named for.
+
+steps:
+  generate:
+    block: transform.jq
+    config:
+      input:
+        rows: ${params.rows}
+        day: ${params.day}
+      program: |
+        . as {$rows, $day}
+        | [range($rows)
+           | {id: "row-\(.)",
+              day: $day,
+              station: "st-\(. % 250)",
+              celsius: ((. % 37) - 12),
+              note: "generated for the storage recipe"}]
+
+  store:
+    block: storage.write
+    depends_on: [generate]
+    config:
+      target: ${run.scratch}/large-${params.day}.json
+      value: ${steps.generate.output.value}
+
+  as_csv:
+    block: convert.std
+    depends_on: [store]
+    config:
+      source: ${steps.store.output.uri}
+      target: ${run.scratch}/large-${params.day}.csv
+      from: json
+      to: csv
+
+  reread:
+    block: storage.read
+    depends_on: [store, as_csv]
+    config:
+      source: ${steps.store.output.uri}
+      # Written out here because this is the step where a bigger -p rows would meet it.
+      max_size: 32mb
+
+  summary:
+    block: transform.jq
+    depends_on: [reread]
+    config:
+      input: ${steps.reread.output.value}
+      program: |
+        {rows: length,
+         stations: ([.[].station] | unique | length),
+         mean_celsius: ([.[].celsius] | add / length)}
+
+  sizes:
+    block: transform.jq
+    depends_on: [store, as_csv, summary]
+    config:
+      input:
+        json_bytes: ${steps.store.output.bytes_written}
+        csv_bytes: ${steps.as_csv.output.bytes_written}
+        summary: ${steps.summary.output.value}
+      program: |
+        . + {inline_threshold_bytes: 16384,
+             json_over_threshold: (.json_bytes > 16384)}

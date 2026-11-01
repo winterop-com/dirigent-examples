@@ -1,0 +1,124 @@
+# on_timeout: skip -- the wait that ran out and did not make the run red.
+#
+# WHICH CLOCK on_timeout GOVERNS IS THE WHOLE POINT OF THIS FILE. It governs an expired
+# DEADLINE, which is how long a step may keep waiting. It has nothing to say about an expired
+# `timeout`, which bounds one block call and always fails the step as a transient failure --
+# timeout-fails-the-step.yaml is that one, and there is no spelling of it that skips.
+#
+# So this is the pair to read together. The same waiting step, one word apart:
+#
+#   on_timeout: fail   (the default)  the deadline passing is a broken pipeline.
+#                                     deadline-on-a-sensor.yaml, the same sensor.
+#   on_timeout: skip                  the deadline passing is a quiet day. This file.
+#
+# skip is the right answer whenever "it never showed up" is an ordinary outcome: no export
+# was published today, no drop landed, the upstream had nothing to say. Failing there trains
+# people to ignore red runs, which is worse than the day with no data.
+#
+# Hop by hop:
+#
+#   drop            writes a few hundred bytes into this run's scratch space, standing in for
+#                   a producer that has begun uploading and is not finished.
+#   upstream_ready  storage.exists is a sensor: each poke is one cheap look, "not yet" is the
+#                   expected answer, and the run parks between pokes rather than holding a
+#                   worker. min_size is the floor an object has to clear before it counts as
+#                   landed, and ten megabytes is a floor this drop never clears, so the
+#                   six-second deadline expires.
+#   ingest          the default all_success edge, and a skipped prerequisite does not satisfy
+#                   it, so the skip carries down the branch.
+#   close_out       all_done, so the run still reports what it did with the day.
+#
+# EXPECT THIS RUN TO SUCCEED, in about six seconds, with upstream_ready and ingest both
+# skipped and close_out green. A run that did nothing is not a run that went wrong.
+#
+# To change it: -p min_size=100b is a floor the drop clears on the first poke and the whole
+# branch runs. Drop the on_timeout line and the identical run fails instead.
+#
+#   dg run --local examples/patterns/timeout-skips-the-step.yaml                    # succeeds, having skipped
+#   dg run --local examples/patterns/timeout-skips-the-step.yaml -p min_size=100b   # succeeds, having worked
+
+format: dirigent/v1
+kind: pipeline
+code: timeout-skips-the-step
+name: A wait that skips instead of failing
+description: |
+  Wait for a file, and skip the work without failing if it never arrives.
+
+  `on_timeout: skip` turns an expired **deadline** into a skipped step rather than a failed
+  one, and the skip carries down the branch through the default `all_success` edges.
+
+  It governs the deadline only: an expired `timeout` always fails. As written the sensor
+  never sees a drop that clears its floor, everything below it skips, and the run reports
+  `succeeded`.
+
+tags: [patterns, playground, storage, sensor, timeout]
+
+requires:
+  blocks:
+    - playground.generate
+    - storage.write
+    - storage.exists
+    - value.const
+
+params:
+  type: object
+  properties:
+    min_size:
+      type: string
+      description: The floor the drop has to clear; 10mb never lands, 100b lands at once.
+      default: 10mb
+
+steps:
+  produce:
+    block: playground.generate
+    # Stands in for the upstream producer. A few hundred bytes, which is the point: it is
+    # there, and it is not yet what the sensor below is waiting for.
+    config:
+      rows: 3
+      seed: 21
+
+  drop:
+    block: storage.write
+    depends_on: [produce]
+    config:
+      target: "${run.scratch}/drops/export.json"
+      value: "${steps.produce.output.records}"
+
+  upstream_ready:
+    block: storage.exists
+    depends_on: [drop]
+    # Two seconds between pokes, so three of them fit inside the deadline and the parking
+    # between them is visible in the log. A real readiness check on an hourly export uses
+    # minutes here, because each poke costs a scheduled row and nothing else.
+    poll: 2s
+    # Short so the example finishes while you watch it. This is the clock on_timeout is about.
+    deadline: 6s
+    # The one line this file is about.
+    on_timeout: skip
+    config:
+      # A sensor names a target and nothing else: it looks, and an object that is not there
+      # yet is "not yet" rather than an error -- a sensor observing an absence has observed
+      # correctly.
+      uri: "${run.scratch}/drops/*.json"
+      # A configured size is humane and carries no _bytes suffix: the type says the unit.
+      min_size: "${params.min_size}"
+
+  ingest:
+    block: playground.generate
+    depends_on: [upstream_ready]
+    # No rule written, so all_success, which a skipped prerequisite does not satisfy. That
+    # propagation is what makes on_timeout: skip a branch-level decision rather than a
+    # step-level one.
+    config:
+      input:
+        ingested_from: "${steps.upstream_ready.output.uri}"
+
+  close_out:
+    block: value.const
+    depends_on: [ingest]
+    # all_done, so the run has an outcome either way: a skipped day is a fact worth recording,
+    # not an absence.
+    rule: all_done
+    config:
+      value:
+        note: nothing to ingest is a normal day
