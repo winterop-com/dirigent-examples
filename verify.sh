@@ -90,10 +90,10 @@ curl -sf "http://127.0.0.1:$port/health/ready" >/dev/null
 
 # DG_URL beats the local profile, whose url is the default port; without it every command
 # below would address an instance this script did not start. The token comes from dg dev's
-# own admin: on an empty state that is the fixture dev / dirigent-dev, and dg auth login
+# own admin: on an empty state that is the fixture admin / admin, and dg auth login
 # mints a token of its own from it.
 export DG_URL="http://127.0.0.1:$port"
-DG_TOKEN=$(uv run dg auth login --username dev --password dirigent-dev --json \
+DG_TOKEN=$(uv run dg auth login --username admin --password admin --json \
   | jq -r 'select(.kind == "token.issued") | .token')
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]

@@ -38,7 +38,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite
 file under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what
 a fresh clone has, because the state directory is not in the repository -- it migrates the
-schema, makes its own admin `dev`, mints that admin one token, and prints the `export
+schema, makes its own admin `admin`, mints that admin one token, and prints the `export
 DG_TOKEN=` line to paste. The UI is at `http://127.0.0.1:3333`, which is the address the
 `local` profile in `.dirigent/profiles.yaml` holds; `dg dev --port` moves the instance and
 `DG_URL` is how you tell the CLI where it went.
@@ -53,7 +53,7 @@ uv run dg runs report <the run id> --markdown
 
 `./verify.sh` does all of that unattended, asserting that as many bytes came back as went out
 and that the rendered page carries the table the template wrote. It picks a free port of its
-own, mints its token with `dg auth login --username dev --password dirigent-dev`, and stops
+own, mints its token with `dg auth login --username admin --password admin`, and stops
 the instance it started by pid.
 
 ## What you see
@@ -72,7 +72,7 @@ uv run dg validate pipelines/echo-storage.yaml
       save  (storage.write)
         back  (storage.read)
           summary  (transform.jq)
-2026-09-26T12:51:00.535+02:00 [info    ] valid                          [validated] documents=1 invalid=0
+2026-09-26T12:51:00.535+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 ```bash
@@ -133,43 +133,45 @@ uv run dg run echo-storage --watch
 ```
 
 ```text
-2026-09-26T12:51:04.853+02:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a0dd57-0d10-709e-ba58-fba77ef6170e local=false
-2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step readings] block=playground.generate attempt=1
-2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
-2026-09-26T12:51:05.367+02:00 [info    ] playground generated           [log readings] rows=4 seed=274114847 locale=en_US drift=none
-2026-09-26T12:51:05.367+02:00 [info    ] succeeded                      [step readings] block=playground.generate attempt=1 duration_ms=38
-2026-09-26T12:51:04.851+02:00 [info    ] queued                         [step back] block=storage.read attempt=1
-2026-09-26T12:51:05.886+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json bytes_written=206 content_type=application/json
-2026-09-26T12:51:05.888+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=18
-2026-09-26T12:51:06.397+02:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json bytes_read=206 content_type=application/json
-2026-09-26T12:51:06.399+02:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=12
-2026-09-26T12:51:06.941+02:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=41
-2026-09-26T12:51:06.947+02:00 [info    ] finished                       [log summary] duration_ms=31 output_bytes=85
-2026-09-26T12:51:07.315+02:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a0dd57-0d10-709e-ba58-fba77ef6170e pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=1612 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0dd57-0d10-709e-ba58-fba77ef6170e
+2026-11-01T14:20:03.253+01:00 [info    ] started                        [run] pipeline=echo-storage run_id=01a19744-6045-7382-a8a4-13818002802e local=false
+2026-11-01T14:20:03.619+01:00 [info    ] playground generated           [log readings] rows=4 seed=874240655 locale=en_US drift=none
+2026-11-01T14:20:03.620+01:00 [info    ] succeeded                      [step readings] block=playground.generate attempt=1 duration_ms=377
+2026-11-01T14:20:03.697+01:00 [info    ] running                        [step save] block=storage.write attempt=1
+2026-11-01T14:20:03.207+01:00 [info    ] queued                         [step back] block=storage.read attempt=1
+2026-11-01T14:20:03.735+01:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a19744-6045-7382-a8a4-13818002802e/readings-2026-01-01.json bytes_written=206 content_type=application/json
+2026-11-01T14:20:03.819+01:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=122
+2026-11-01T14:20:03.826+01:00 [info    ] running                        [step back] block=storage.read attempt=1
+2026-11-01T14:20:03.207+01:00 [info    ] queued                         [step summary] block=transform.jq attempt=1
+2026-11-01T14:20:03.843+01:00 [info    ] read                           [log back] uri=file://./.dirigent/state/artifacts/runs/01a19744-6045-7382-a8a4-13818002802e/readings-2026-01-01.json bytes_read=206 content_type=application/json
+2026-11-01T14:20:03.856+01:00 [info    ] succeeded                      [step back] block=storage.read attempt=1 duration_ms=30
+2026-11-01T14:20:03.861+01:00 [info    ] running                        [step summary] block=transform.jq attempt=1
+2026-11-01T14:20:03.919+01:00 [info    ] succeeded                      [step summary] block=transform.jq attempt=1 duration_ms=58
+2026-11-01T14:20:03.926+01:00 [info    ] finished                       [log summary] duration_ms=35 output_bytes=85
+2026-11-01T14:20:04.012+01:00 [info    ] succeeded                      [run] pipeline=echo-storage run_id=01a19744-6045-7382-a8a4-13818002802e pipeline_version=1 triggered_by="admin (token dev)" duration_ms=677 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a19744-6045-7382-a8a4-13818002802e
 pipeline      echo-storage (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
-duration      1.6s
+triggered by  admin (token dev)
+duration      0.7s
 items         -
 
 steps
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step     ┃ block               ┃ outcome   ┃ after    ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ readings │ playground.generate │ succeeded │ -        │ 1        │ 0.0s     │ -     │
-│ save     │ storage.write       │ succeeded │ readings │ 1        │ 0.0s     │ -     │
+│ readings │ playground.generate │ succeeded │ -        │ 1        │ 0.4s     │ -     │
+│ save     │ storage.write       │ succeeded │ readings │ 1        │ 0.1s     │ -     │
 │ back     │ storage.read        │ succeeded │ save     │ 1        │ 0.0s     │ -     │
-│ summary  │ transform.jq        │ succeeded │ back     │ 1        │ 0.0s     │ -     │
+│ summary  │ transform.jq        │ succeeded │ back     │ 1        │ 0.1s     │ -     │
 └──────────┴─────────────────────┴───────────┴──────────┴──────────┴──────────┴───────┘
 
 outputs
 ┏━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step     ┃ output                                                                                ┃
 ┡━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ readings │ records=[4 items]  rows=4  seed=274114847  locale=en_US  fields={3 keys}  drift=none  │
-│          │ delay_ms=0  attempt=1  fail_until=0  input_rows=4                                     │
-│ save     │ uri=file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/rea… │
+│ readings │ records=[4 items]  rows=4  seed=874240655  locale=en_US  fields={3 keys}  drift=none  │
+│          │ delay_ms=0  attempt=1  fail_until=0  fail_as=transient  input_rows=4                  │
+│ save     │ uri=file://./.dirigent/state/artifacts/runs/01a19744-6045-7382-a8a4-13818002802e/rea… │
 │          │ bytes_written=206  content_type=application/json                                      │
 │ back     │ content_type=application/json  value={2 keys}  bytes_read=206                         │
 │ summary  │ value={4 keys}                                                                        │
@@ -182,27 +184,27 @@ transaction that settled the run. Into a pipe `dg runs report --markdown` is one
 as text; at a terminal the same command writes that page as-is, to go into a file or a ticket.
 
 ```bash
-uv run dg runs report 01a0dd57-0d10-709e-ba58-fba77ef6170e --markdown | jq -r .document
+uv run dg runs report 01a19744-6045-7382-a8a4-13818002802e --markdown | jq -r .document
 ```
 
 ```text
-# echo-storage on 2026-09-26T10:51:05.328851+00:00
+# echo-storage on 2026-11-01T13:20:03.242885+00:00
 
-**succeeded** in 1s612ms, started by dev (token cli-dev).
+**succeeded** in 677ms, started by admin (token dev).
 
-The batch landed at `file://./.dirigent/state/artifacts/runs/01a0dd57-0d10-709e-ba58-fba77ef6170e/readings-2026-01-01.json`, 206b of canonical JSON.
+The batch landed at `file://./.dirigent/state/artifacts/runs/01a19744-6045-7382-a8a4-13818002802e/readings-2026-01-01.json`, 206b of canonical JSON.
 
 | Day | Rows | Coldest | Mean |
 | --- | --- | --- | --- |
 | 2026-01-01 | 4 | tromso-langnes | 2.5 |
 
-- **readings** (playground.generate) succeeded after 1 attempt(s), 38ms
-- **save** (storage.write) succeeded after 1 attempt(s), 18ms
-- **back** (storage.read) succeeded after 1 attempt(s), 12ms
-- **summary** (transform.jq) succeeded after 1 attempt(s), 41ms
+- **readings** (playground.generate) succeeded after 1 attempt(s), 377ms
+- **save** (storage.write) succeeded after 1 attempt(s), 122ms
+- **back** (storage.read) succeeded after 1 attempt(s), 30ms
+- **summary** (transform.jq) succeeded after 1 attempt(s), 58ms
 ```
 
-`1s612ms` and `206b` are the `duration` and `bytes` filters: the template was handed
+`677ms` and `206b` are the `duration` and `bytes` filters: the template was handed
 milliseconds and bytes and asked for them the way a person reads them.
 
 
