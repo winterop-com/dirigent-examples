@@ -1,0 +1,82 @@
+# The same gate with the one line fixed, and the schema still carried in the document.
+#
+# reading is text matching a decimal, which is what a decimal written into a query string looks
+# like at the far end -- and it would still catch `warm`. Give up on checking a value and you get
+# nothing; check what it really is and you get the gate you wanted.
+#
+# A server stores no schema a document carries, exactly as it stores no connection a document
+# carries: a schema is a thing the instance holds and a document names, so that two pipelines
+# gating on the same shape are gating on the same shape. Applying this document is therefore
+# refused, on purpose, and pipelines/echo-gate.yaml is the form an instance takes. A carried
+# schema is still worth having, because a local run seeds what the document brought, and a local
+# run is the fast loop.
+#
+# NEEDS AN INSTANCE TO CALL. A local run seeds the schema but mounts no API, and the playground
+# this calls is served by a dirigent instance under /api/v1/playground. Start one with `dg dev`.
+#
+#   dg run --local echo-gate-carried.yaml      # succeeded
+#   dg apply echo-gate-carried.yaml            # refused, 422
+
+format: dirigent/v1
+kind: pipeline
+code: echo-gate-carried
+name: The gate, carried
+description: The same gate with its schema carried in the document, which a local run seeds and a server refuses.
+
+tags: [http, validate]
+
+requires:
+  blocks:
+    - http.request
+    - validate.schema
+
+params:
+  type: object
+  properties:
+    # Every URL in this document is built on this one value, so an instance on another port is
+    # a flag on the run rather than an edit.
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/request
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+  check:
+    block: validate.schema
+    depends_on: [ask]
+    config:
+      input: ${steps.ask.output.body.request}
+      schema: playground-answer
+
+schemas:
+  playground-answer:
+    title: The reading, as the playground answers it
+    type: object
+    required: [args, url]
+    properties:
+      args:
+        type: object
+        required: [station, reading]
+        properties:
+          station:
+            type: string
+            minLength: 1
+          reading:
+            type: string
+            pattern: "^-?[0-9]+(\\.[0-9]+)?$"
+        additionalProperties: false
+      url:
+        type: string
