@@ -50,7 +50,7 @@ else
   dg_version=""
   echo "dg is not on PATH. The examples all run through 'uv run dg', so this is not fatal;"
   echo "if you want the bare command too, run this now, while the network is up:"
-  echo '    uv tool install "dirigent-cli>=0.29,<0.30"'
+  echo '    uv tool install "dirigent-cli>=0.30,<0.31"'
 fi
 echo
 

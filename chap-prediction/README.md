@@ -25,17 +25,13 @@ What you learn here:
 
 ## What you need
 
-- Docker, and about 15 GB of disk for the two Chap images (`chap-core` 2.3 GB, `chap-worker`
-  11.8 GB), pulled on the first start. The images are built for `linux/amd64` only, so an arm64
+- Docker, and about 15 GB of disk for the two Chap images (`chap-core` 2.4 GB, `chap-worker`
+  11.9 GB), pulled on the first start. The images are built for `linux/amd64` only, so an arm64
   Mac runs them under emulation; the stack is up in under a minute on an M-series machine and
   holds about 2 GB of memory while it runs.
 - Port 8710 free on 127.0.0.1 (`CHAP_PORT` moves it).
 
-The images are pinned by digest to Chap's master build of 2026-10-30, chap-core `2.6.0.dev0`
-at `d78b4c23`, and not to a release. The newest release, v2.5.1, answers `GET /v1/jobs/{id}`
-with a bare status string; the job-backed `chap.*` blocks read the whole job from that route,
-so against v2.5.1 an import, a backtest and a forecast never settle. The first Chap release
-after v2.5.1 carries the change; pin to it when it ships.
+The images are Chap's v2.5.1 release.
 
 ## Run it
 

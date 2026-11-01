@@ -340,9 +340,9 @@ runs
 
 A new run starts every five or six seconds, each one the moment the source has its batch, and
 each run takes seven seconds to work it, so the runs overlap: the run started at 14:11:40 began
-before the one from 14:11:34 had finished. A worker looks for the sources that are due every five
-seconds, which is what sets the pace here rather than the wait itself. The run list fills the way
-a consumed topic does.
+before the one from 14:11:34 had finished. A worker pokes the source again the moment a batch
+arrives, so the five-second wait is what sets the pace. The run list fills the way a consumed
+topic does.
 
 `uv run dg source pause echo-stream-source arrive` stops the poking and keeps where the last
 batch ended. The source reads `draining` while its runs still work, then `paused`:
