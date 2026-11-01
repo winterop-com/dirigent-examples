@@ -27,7 +27,7 @@ uv run dg dev
 `dg dev` is one process holding the API, the web UI, the scheduler, one worker and a SQLite file
 under `.dirigent/state/`. It keeps running; leave it. On an empty state -- which is what a fresh
 clone has, because the state directory is not in the repository -- it migrates the schema, makes
-its own admin `dev`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
+its own admin `admin`, mints that admin one token, and prints the `export DG_TOKEN=` line to paste.
 The UI is at `http://127.0.0.1:3333`, which is the address the `local` profile in
 `.dirigent/profiles.yaml` holds and the address every document's `playground` parameter defaults
 to; `dg dev --port` moves the instance, `DG_URL` is how you tell the CLI where it went, and
@@ -188,11 +188,11 @@ uv run dg run echo-gate --watch
 2026-09-26T12:35:35.028+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=32
 2026-09-26T12:35:35.534+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=7
 2026-09-26T12:35:35.538+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=420
-2026-09-26T12:35:35.571+02:00 [info    ] succeeded                      [run] pipeline=echo-gate run_id=01a0dd48-dcc7-7604-b3b6-3b75e6626e6d pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=539 items_total=0 items_failed=0 exit_code=0 priority=normal
+2026-09-26T12:35:35.571+02:00 [info    ] succeeded                      [run] pipeline=echo-gate run_id=01a0dd48-dcc7-7604-b3b6-3b75e6626e6d pipeline_version=1 triggered_by="admin (token dev)" duration_ms=539 items_total=0 items_failed=0 exit_code=0 priority=normal
 run 01a0dd48-dcc7-7604-b3b6-3b75e6626e6d
 pipeline      echo-gate (version 1)
 status        succeeded
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      0.5s
 items         -
 
@@ -233,11 +233,11 @@ uv run dg run echo-gate --watch -p station=
 2026-09-26T12:35:37.054+02:00 [info    ] succeeded                      [step ask] block=http.request attempt=1 duration_ms=11
 2026-09-26T12:35:37.564+02:00 [info    ] failed                         [step check] block=validate.schema attempt=1 duration_ms=10
 2026-09-26T12:35:37.568+02:00 [error   ] failed                         [log check] duration_ms=0 error_class=rejected error_code=base.value_refused error="at $.args.station: '' should be non-empty"
-2026-09-26T12:35:38.093+02:00 [error   ] failed                         [run] pipeline=echo-gate run_id=01a0dd48-e3d2-71a8-8b4a-6cec46142f46 pipeline_version=1 triggered_by="dev (token cli-dev)" duration_ms=521 items_total=0 items_failed=0 exit_code=1 priority=normal
+2026-09-26T12:35:38.093+02:00 [error   ] failed                         [run] pipeline=echo-gate run_id=01a0dd48-e3d2-71a8-8b4a-6cec46142f46 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=521 items_total=0 items_failed=0 exit_code=1 priority=normal
 run 01a0dd48-e3d2-71a8-8b4a-6cec46142f46
 pipeline      echo-gate (version 1)
 status        failed
-triggered by  dev (token cli-dev)
+triggered by  admin (token dev)
 duration      0.5s
 items         -
 
