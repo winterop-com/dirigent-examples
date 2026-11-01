@@ -407,3 +407,16 @@ These are batches and polls: a sensor asks on a cadence and a step gets a whole 
 whole body, once it is there. The source makes that continuous -- one run after another, each with
 its batch -- but each run still carries a whole batch through the DAG. Nothing here is a stream
 flowing through the DAG record by record; that is a separate design round.
+
+## Where to go next
+
+- [`dhis2-read-gate-send`](../dhis2-read-gate-send/README.md) is what comes next: the same
+  three moves as the basics against the DHIS2 play demo, with a pack's blocks, a connection
+  and a rehearsed import.
+- [**Queues**](https://winterop-com.github.io/dirigent/queues/) is the family the Kafka half
+  of this one belongs to: what the consume sensor's cursor carries, when an offset is
+  committed, and a topic as a pipeline's source.
+- [**The basics**](https://winterop-com.github.io/dirigent/basics/) is the tutorial these
+  examples follow: one read, a schema gate on the answer, and a send built from the value
+  that passed.
+- [**The examples**](../README.md): every example in order, and what you need once.
