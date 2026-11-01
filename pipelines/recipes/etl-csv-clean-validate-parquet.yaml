@@ -35,9 +35,8 @@
 # Everything downstream of the gate reads ${steps.gate.output.value}, which is the input
 # unchanged. That reference is the document's proof that no unchecked row reached the file.
 #
-# To change it: -p min_celsius=-50 loosens the range the schema allows; -p strict=true makes
-# the sorter refuse a duplicate key instead of keeping the first, which fails the run rather
-# than quietly preferring one row over another.
+# To change it: -p strict=true makes the sorter refuse a duplicate key instead of keeping the
+# first, which fails the run rather than quietly preferring one row over another.
 #
 # The schema is carried in the document, so no server stores this one: it runs with
 # `dg run --local`, and on an instance the same shape is created once with `dg schema create`.
@@ -49,7 +48,11 @@ format: dirigent/v1
 kind: pipeline
 code: etl-csv-clean-validate-parquet
 name: CSV to checked parquet
-description: Parse a messy csv, clean and type it, sort out the unloadable rows, hold the rest to a schema, and write parquet.
+description: |
+  Clean a messy csv, check it against a schema, and write it to parquet.
+
+  The csv is parsed, cleaned and typed, the unloadable rows are sorted out, and the rest are held
+  to a schema before the parquet is written.
 
 tags: [recipes, storage, transform, validate, parquet]
 
@@ -64,6 +67,11 @@ requires:
 
 schemas:
   recipe-reading-rows:
+    title: Cleaned reading rows
+    description: |
+      Cleaned csv rows: an `st-` station id, a `day`, a `celsius` between -90 and 60, and an
+      `active` flag. `etl-csv-clean-validate-parquet` holds the rows to it before writing
+      parquet.
     type: array
     minItems: 1
     items:

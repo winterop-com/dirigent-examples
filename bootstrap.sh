@@ -5,6 +5,13 @@
 # and DIRIGENT_SECRET_KEY from the environment or .env and needs no server. The server-side
 # half (the token, the schemas, the alert rule, the apply) needs DG_URL answering.
 
+# The unsafe blocks the documents use: shell.run for the execute shelf, and the docker family
+# for org-units-to-pdf and the docker and git shelves. The s3:// scheme echo-s3 writes to is
+# served by the `artifacts` connection. Both are in the environment because dg does not read
+# them from a dirigent.yaml or .env in the working directory.
+export DIRIGENT_ENABLED_UNSAFE_BLOCKS='["shell.run","docker.run","docker.build","docker.compose.up","docker.compose.down"]'
+export DIRIGENT_STORAGE_CONNECTIONS='s3=artifacts'
+
 S3_IMAGE="${DIRIGENT_S3_IMAGE:-rustfs/rustfs:1.0.0-rc.4}"
 S3_ACCESS_KEY=everything-s3-key
 S3_SECRET_KEY=everything-s3-secret
@@ -152,7 +159,7 @@ wait_ready() {
 }
 
 login() {
-  uv run dg auth login --username dev --password dirigent-dev --json \
+  uv run dg auth login --username admin --password admin --json \
     | jq -r 'select(.kind == "token.issued") | .token'
 }
 

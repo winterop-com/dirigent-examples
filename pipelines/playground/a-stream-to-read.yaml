@@ -43,10 +43,10 @@ kind: pipeline
 code: a-stream-to-read
 name: A stream to read
 description: |
-  The playground's streaming route, read by a step and split back into its lines.
+  Read a streaming response to its end and split it back into lines.
 
-  One JSON record per line, the request facts on the first one, and an end a reader can tell
-  from a cut connection.
+  The playground's streaming route, read by a step: one JSON record per line, the request facts
+  on the first one, and an end a reader can tell from a cut connection.
 
 tags: [playground, http, transform, jq]
 
@@ -58,10 +58,10 @@ requires:
 params:
   type: object
   properties:
-    playground:
+    instance:
       type: string
-      default: http://127.0.0.1:4444/api/v1/playground
-      description: The playground routes on the instance this calls; `dg dev` serves them here.
+      description: Where this instance's API answers; `dg dev` serves it here.
+      default: http://127.0.0.1:4444
     messages:
       type: integer
       description: How many messages the stream sends after the envelope.
@@ -79,7 +79,7 @@ steps:
     config:
       # No connection and no credential: the playground is served by the instance to itself,
       # and a step calling it must not need a token.
-      url: ${params.playground}/stream
+      url: ${params.instance}/api/v1/playground/stream
       method: GET
       query:
         messages: ${params.messages}

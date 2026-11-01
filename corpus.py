@@ -91,7 +91,7 @@ SKIPPED: dict[str, str] = {
 #: Started first: they wait on the topic the producers write to, and
 #: kafka-consume-then-transform reads it from the latest offset, so it has to be waiting before
 #: anything is produced.
-CONSUMERS = ("kafka-consume-then-transform", "kafka-watch-then-transform")
+CONSUMERS = ("kafka-consume-then-transform",)
 
 #: Started once the consumers are waiting: they produce to the topic the consumers read.
 PRODUCERS = ("report-to-kafka", "kafka-produce-then-consume")

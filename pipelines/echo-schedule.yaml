@@ -1,23 +1,24 @@
-# The two things that start a run without anybody typing a command: a clock, and a POST.
+# The thing that starts a run without anybody typing a command: a clock.
 #
-# In:  a station and its reading, from a parameter, a schedule, or a webhook's payload.
+# In:  a station and its reading, from a parameter or a schedule.
 # Out: the reading, with the run it arrived in beside it.
 #
 # THE READ IS A NODE, NOT A CALL. playground.generate takes an `input` and hands it back, so
 # this document reaches nothing: no connection, no URL, no network. That matters more here
-# than anywhere else, because a trigger cannot be handed anything after it was applied -- a
-# schedule's parameters are pinned in this document and a webhook's come out of the payload,
-# so a document with an address in it is a document whose triggered runs are stuck with the
-# address it was written with.
+# than anywhere else, because a schedule cannot be handed anything after it was applied -- its
+# parameters are pinned in this document, so a document with an address in it is a document
+# whose scheduled runs are stuck with the address it was written with.
 #
-# Both triggers travel with the document, so one file is one deployable unit and `dg apply`
-# materialises the clock and mints the hook's token. What stays behind on the instance is
-# the operational half -- whether a schedule is paused, when it last fired, what the token
-# is, and every delivery a hook took -- and none of that belongs in git, so none of it is
-# here.
+# The schedule travels with the document, so one file is one deployable unit and `dg apply`
+# materialises the clock. What stays behind on the instance is the operational half --
+# whether the schedule is paused and when it last fired -- and none of that belongs in git,
+# so none of it is here.
 #
-# A trigger only fires on an instance this document has been applied to. The pipeline runs
-# anywhere: `dg run --local` needs neither.
+# The other way a run starts unattended, a POST, is pipelines/echo-endpoint.yaml: a pipeline
+# that starts at a source carries no schedule, so the two are two documents.
+#
+# A schedule only fires on an instance this document has been applied to. The pipeline runs
+# anywhere: `dg run --local` needs none.
 #
 # Hop by hop:
 #
@@ -25,7 +26,7 @@
 #   record  that record, with the run's own id beside it, so a run says out loud what it
 #           was asked for.
 #
-# EXPECT THIS RUN TO SUCCEED in under a second, whichever of the three started it.
+# EXPECT THIS RUN TO SUCCEED in under a second, whether the clock or a person started it.
 #
 #   uv run dg run --local pipelines/echo-schedule.yaml
 #   uv run dg apply && uv run dg run echo-schedule --watch -p station=oslo-blindern
@@ -33,14 +34,14 @@
 format: dirigent/v1
 kind: pipeline
 code: echo-schedule
-name: Started by a clock, and by a POST
+name: Started by a clock
 description: |
-  One reading, carrying both trigger kinds: a rolling one-minute schedule, and an inbound
-  webhook that maps a payload onto the pipeline's parameters.
+  One reading on a rolling one-minute schedule, which pins its own parameters over the
+  pipeline's defaults.
 
-  The document declares them; the instance holds the token, the pause flag and the history.
+  The document declares the schedule; the instance holds the pause flag and the history.
 
-tags: [triggers, playground, transform, webhook, schedule]
+tags: [triggers, playground, transform, schedule]
 
 requires:
   blocks:
@@ -105,17 +106,3 @@ triggers:
         station: oslo-blindern
         reading: "3.1"
 
-  webhooks:
-    # The mapping is the whole declaration: each parameter names a JSONPath into the
-    # payload. Anything the payload carries that is not named here is ignored, and what is
-    # named is validated against params above like any other run's -- so a caller cannot
-    # reach a parameter this mapping does not mention, whatever it POSTs.
-    #
-    # Applying this refuses a mapping that could never fire: a path that does not parse, a
-    # name params does not declare, or a required parameter with no default that nothing
-    # maps. Both parameters here carry defaults, so neither is required.
-    - code: upstream-reading
-      name: Upstream reading
-      params_from_payload:
-        station: "$.station.code"
-        reading: "$.station.reading"

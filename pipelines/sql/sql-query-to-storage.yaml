@@ -37,7 +37,11 @@ format: dirigent/v1
 kind: pipeline
 code: sql-query-to-storage
 name: Write a query result to storage
-description: Read a table with sql.query and hand its rows to storage.write, which is how a result becomes a file.
+description: |
+  Read a SQLite table and save its rows to a file.
+
+  `sql.query` reads the table and hands its rows to `storage.write`, which is how a result
+  becomes a file.
 
 tags: [sql, storage]
 
@@ -49,6 +53,10 @@ requires:
 
 connections:
   work-db:
+    name: SQLite work database
+    description: |
+      A SQLite file, `demo.db`, in the run's work directory, so it needs nothing on the host.
+      Used by `sql-sqlite-roundtrip` and `sql-query-to-storage`.
     kind: sql
     config:
       # Relative, so the database lands in this run's work directory and needs nothing on the

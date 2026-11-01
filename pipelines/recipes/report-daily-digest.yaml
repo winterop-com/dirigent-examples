@@ -33,7 +33,10 @@
 #   csv        the artifact somebody actually opens, converted from that object under a
 #              dated name.
 #   digest     the human sentence, derived from the aggregate.
-#   notify     the delivery, on rule all_done so a failed report still says something.
+#   notify     the delivery, carrying the numbers. Skipped when a step above it failed.
+#   notify_failure  the delivery on the other path, on rule one_failed so a failed report still
+#              says something. A failed step leaves no output to read, so this body carries
+#              only what every run has: the day and the run id.
 #
 # A digest has to say what it does not know. The empty_regions field is there because a
 # region that reported nothing looks exactly like a region that reported zero once the
@@ -49,7 +52,11 @@ format: dirigent/v1
 kind: pipeline
 code: report-daily-digest
 name: A daily digest report
-description: Compute a day's numbers once, write them to storage and convert them into a csv artifact, derive a digest line, and post the summary to a receiver.
+description: |
+  Summarise a day's readings, save a csv, and post the digest to a receiver.
+
+  The day's numbers are computed once, written to storage and converted into a csv artifact, a
+  digest line is derived from them, and the summary is posted.
 
 tags: [recipes, storage, transform, webhook]
 
@@ -62,6 +69,11 @@ requires:
 
 connections:
   playground-receiver:
+    name: Playground webhook receiver
+    description: |
+      The playground as the receiver a report or a notification is posted to. Used by
+      `report-daily-digest`, `report-to-webhook`, `webhook-post-hmac` and
+      `webhook-post-summary`; `webhook-post-hmac` also seals a signing secret on it.
     kind: http
     config:
       base_url: http://127.0.0.1:4444/api/v1/playground
@@ -179,11 +191,25 @@ steps:
   notify:
     block: webhook.post
     depends_on: [digest]
-    rule: all_done
     config:
       connection: playground-receiver
       path: /request
       body: ${steps.digest.output.value}
+      success_status: [200, 202, 204]
+
+  notify_failure:
+    block: webhook.post
+    # Every step above, because one_failed reads only its own prerequisites and a step below
+    # the failure settles as skipped rather than failed.
+    depends_on: [window, readings, aggregate, rows_file, csv, digest]
+    rule: one_failed
+    config:
+      connection: playground-receiver
+      path: /request
+      body:
+        day: ${params.day}
+        run: ${run.id}
+        text: "the digest for ${params.day} did not finish; see run ${run.id}"
       success_status: [200, 202, 204]
 
   delivered:

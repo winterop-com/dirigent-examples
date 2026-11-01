@@ -8,7 +8,7 @@
 # this recipe is built around, and it cuts both ways:
 #
 #   What you get. The item grid exists from the moment the run is visible, so a person
-#   watching sees six pages and their statuses rather than a step that might turn into six
+#   watching sees four pages and their statuses rather than a step that might turn into four
 #   later. Items run concurrently, each with its own status, error and retry budget, so one
 #   slow page does not serialise the rest and one failed page is recorded against itself.
 #   What you give up. The pages have to be known up front. When the count really is unknown,
@@ -19,7 +19,7 @@
 # items decides what one bad page means. Under the default, fail_fast, any failed item fails
 # the step. Under continue, the step succeeds as long as one item did, the failures are
 # recorded against their own items, and the run reports completed_with_errors -- which is
-# the setting for a report that is worth producing from five pages out of six, and the wrong
+# the setting for a report that is worth producing from three pages out of four, and the wrong
 # setting for a load that must be whole.
 #
 # The fan-in reads ${steps.pages.output} -- the list of the items' outputs, in item order --
@@ -49,7 +49,11 @@ format: dirigent/v1
 kind: pipeline
 code: pagination-by-fan-out
 name: Pagination as a fan-out
-description: Fetch a literal list of pages concurrently with for_each, each item its own attempt, then stitch the pages into one list.
+description: |
+  Fetch several pages at once, then stitch them into one list.
+
+  The page numbers are a parameter. for_each makes each page an item of its own, with its own
+  status and retry budget, and the items run concurrently.
 
 tags: [recipes, http, transform, graph]
 

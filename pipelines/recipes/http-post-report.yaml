@@ -69,7 +69,11 @@ format: dirigent/v1
 kind: pipeline
 code: http-post-report
 name: POST a batch and report on it
-description: POST a generated batch to the playground, summarise the receipt, and render the run's own markdown report from the run's facts and its steps' outputs.
+description: |
+  Post a generated batch, summarise the reply, and write a page about the run.
+
+  The batch goes to the playground, the receipt is summarised, and the run's own markdown report
+  is rendered from the run's facts and its steps' outputs.
 
 tags: [recipes, http, transform, report, starter]
 
@@ -114,7 +118,9 @@ steps:
            readings: [range($days) as $day
                       | range($stations) as $station
                       | {station: "st-\($station)",
-                         day: ("2026-01-0" + ($day + 1 | tostring)),
+                         # Counted from a real date, so -p days=10 still builds real dates.
+                         day: ("2026-01-01T00:00:00Z" | fromdateiso8601 | . + $day * 86400
+                               | strftime("%Y-%m-%d")),
                          # Fixed arithmetic, so the same parameters POST the same bytes.
                          celsius: ((($station * 7) + ($day * 3)) % 19) - 4}]}
 

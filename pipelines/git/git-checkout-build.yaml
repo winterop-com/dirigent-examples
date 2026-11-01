@@ -42,7 +42,7 @@ format: dirigent/v1
 kind: pipeline
 code: git-checkout-build
 name: Build a checked-out project
-description: Check a public repository out, build the Dockerfile it ships, and run the image once.
+description: Check out a public repository, build its Dockerfile, and run the image once.
 
 tags: [git, execute]
 
@@ -56,6 +56,10 @@ requires:
 
 connections:
   helloworld-demo-node:
+    name: Docker Node sample repository
+    description: |
+      `dockersamples/helloworld-demo-node` on GitHub: a Node server with a Dockerfile at its
+      root. Public, so no credential. Used by `git-checkout-build`.
     kind: git
     config:
       # Docker's own sample project: a Node server with no dependencies and a Dockerfile at

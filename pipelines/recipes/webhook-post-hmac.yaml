@@ -19,11 +19,12 @@
 # bytes the receiver never sees, and every delivery would fail verification for a reason
 # nobody could find.
 #
-# The signature is HMAC-SHA256 over the raw body, hex, in X-Dirigent-Signature. A receiver
-# verifies by computing the same HMAC over the body exactly as it arrived -- before parsing,
-# never after re-serialising -- and comparing in constant time. Dirigent's own inbound
-# webhook trigger does precisely that, so an instance can hand work to another instance with
-# nothing shared but the secret.
+# The signature is HMAC-SHA256, hex, in X-Dirigent-Signature, over the Unix seconds in
+# X-Dirigent-Timestamp, a dot, and the raw body. A receiver verifies by computing the same HMAC
+# over that timestamp, a dot, and the body exactly as it arrived -- before parsing, never after
+# re-serialising -- and comparing in constant time. Dirigent's own endpoint
+# source with `auth: {kind: hmac}` does precisely that, so an instance can hand work to
+# another instance's /endpoints route with nothing shared but the secret.
 #
 # sign_with names a connection, not a secret. The secret is that connection's hmac_secret, a
 # SecretStr sealed at rest and redacted in every response, and a connection without one
@@ -55,7 +56,11 @@ format: dirigent/v1
 kind: pipeline
 code: webhook-post-hmac
 name: A signed webhook delivery
-description: POST an event with an HMAC-SHA256 signature over the exact bytes sent, using a secret that lives on a connection.
+description: |
+  Post an event with a signature the receiver can check, and once without.
+
+  The signature is HMAC-SHA256 over the timestamp sent beside it and the exact bytes of the body,
+  using a secret that lives on a connection.
 
 tags: [recipes, transform, webhook]
 
@@ -68,6 +73,11 @@ requires:
 # string in a public file and protects nothing.
 connections:
   playground-receiver:
+    name: Playground webhook receiver
+    description: |
+      The playground as the receiver a report or a notification is posted to. Used by
+      `report-daily-digest`, `report-to-webhook`, `webhook-post-hmac` and
+      `webhook-post-summary`; `webhook-post-hmac` also seals a signing secret on it.
     kind: http
     config:
       base_url: http://127.0.0.1:4444/api/v1/playground

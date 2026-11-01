@@ -115,7 +115,7 @@ uv run dg pipeline list --json | jq -r -s '[.[] | select(.kind == "pipeline") | 
 
 cat <<EOF
 
-Ready: $DG_URL, logged in as dev / dirigent-dev.
+Ready: $DG_URL, logged in as admin / admin.
 In this directory, dg reads the token from .env; a shell exporting another DG_TOKEN wins, so:
 
   unset DG_TOKEN DG_URL

@@ -7,7 +7,8 @@
 # ports and on a throwaway state of its own, so it neither needs nor touches the demo instance
 # setup.sh leaves on 4444. Every document is applied, the pipelines beside the shelves are run
 # one by one with their own assertions, corpus.py runs every pipeline on a shelf, the three
-# tutorial documents are run locally, and both of echo-schedule's triggers are waited on.
+# tutorial documents are run locally, echo-schedule's clock is waited on and echo-endpoint's
+# endpoint is called.
 # Everything it started is stopped on the way out.
 #
 # Needs docker, uv, jq, curl, and the network for the DHIS2 play demos and the open-data APIs.
@@ -69,8 +70,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 220 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 220 and all(.invalid == 0)'
+expect "all 224 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 224 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -128,14 +129,15 @@ expect "only the four documents without what they need refused" "$WORK/seed.ndjs
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 215 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 215'
-# The walk creates a watch paused, as it does a schedule, so nothing arms runs on its own.
-for watched in watch-a-sensor watch-fan-out-per-message kafka-watch-then-transform; do
-  uv run dg watch show "$watched" follow --json > "$WORK/watch.ndjson"
-  expect "$watched's watch created paused, with nothing waiting" "$WORK/watch.ndjson" \
-    'map(select(.kind == "watch")) | last | .fields | .paused and .waiting_run_id == null'
-done
+expect "all 219 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 219'
+# The walk creates a source a worker polls or holds paused, as it does a schedule, so nothing
+# starts runs on its own; an endpoint stays listening, because it only acts when it is called.
+uv run dg source list --json > "$WORK/sources.ndjson"
+expect "every polled and held source paused, and every endpoint listening" "$WORK/sources.ndjson" '
+  map(select(.kind == "source") | .fields)
+  | (map(select(.kind != "endpoint")) | length > 0 and all(.state == "paused"))
+    and (map(select(.kind == "endpoint")) | length > 0 and all(.state == "listening"))'
 
 # The clock started with the apply; its first firing is looked for once everything else has run.
 newest_scheduled() {
@@ -204,23 +206,30 @@ expect "four readings filtered to three and reduced" "$WORK/r.ndjson" "$step_map
     and $step.summary.output.value.warmest == "bergen-florida"'
 passed+=(echo-transform)
 
-say "echo-schedule, by hand and by its webhook"
+say "echo-schedule, by hand"
 run echo-schedule "$WORK/r.ndjson"
 expect "echo-schedule to succeed by hand" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
-hook="$(uv run dg webhook rotate-token echo-schedule upstream-reading --json | jq -r '.url')"
-curl -fsS -X POST "$hook" -H 'content-type: application/json' \
-  -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}' > "$WORK/hook.json"
-expect "the hook to accept the payload" "$WORK/hook.json" '.[0].outcome == "accepted"'
-delivered="$(jq -r '.run_id' "$WORK/hook.json")"
+
+say "echo-endpoint, by a POST"
+# The apply showed the source's token once; rotating it is how a script gets one to send.
+rotated="$(uv run dg source rotate-token echo-endpoint upstream --json)"
+token="$(printf '%s\n' "$rotated" | jq -r 'select(.kind == "source.token_rotated") | .token')"
+url="$(printf '%s\n' "$rotated" | jq -r 'select(.kind == "source.token_rotated") | .url')"
+curl -fsS -X POST "$url" -H "authorization: Bearer $token" -H 'content-type: application/json' \
+  -d '{"station": {"code": "tromso-langnes", "reading": "-6.8"}, "sender": "ignored"}' > "$WORK/endpoint.json"
+expect "the endpoint to queue a run" "$WORK/endpoint.json" '.[0].status == "queued"'
+delivered="$(jq -r '.run_id' "$WORK/endpoint.json")"
 for _ in $(seq 1 30); do
   uv run dg runs show "$delivered" --json > "$WORK/show.ndjson"
   jq -e -s '.[0].fields.run.status | IN("succeeded", "failed", "completed_with_errors", "cancelled")' \
     "$WORK/show.ndjson" > /dev/null && break
   sleep 2
 done
-expect "the webhook's run to be mapped to tromso-langnes" "$WORK/show.ndjson" '
-  .[0].fields.run as $run
-  | $run.triggered_by_kind == "webhook" and $run.params.station == "tromso-langnes" and $run.status == "succeeded"'
+expect "the POST's run to read tromso-langnes from the body" "$WORK/show.ndjson" '
+  .[0].fields as $f
+  | $f.run.triggered_by_kind == "source" and $f.run.status == "succeeded"
+    and ($f.attempts[] | select(.step_name == "record") | .output.value.station) == "tromso-langnes"'
+passed+=(echo-endpoint)
 
 say "echo-alert, and the alert it raises"
 run echo-alert "$WORK/r.ndjson"
@@ -272,7 +281,7 @@ expect "the 302 kept, and the same call followed to the destination" "$WORK/r.nd
 passed+=(http-follow-redirects)
 
 say "a-stream-to-read"
-run a-stream-to-read "$WORK/r.ndjson" -p "playground=$playground"
+run a-stream-to-read "$WORK/r.ndjson" -p "instance=$DG_URL"
 expect "the envelope, five messages and the close, split back into lines" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
     and $step.count_lines.output.value.lines == 7
@@ -416,7 +425,8 @@ expect "the clock's run to be pinned to oslo-blindern" "$WORK/show.ndjson" '
 passed+=(echo-schedule)
 
 echo
-echo "everything: 208 pipelines applied; the corpus $corpus"
-echo "verified ${#passed[@]} one by one: the 21 beside the shelves, two playground routes on them, and tutorial/:"
+applied="$(jq -s '[.[] | select(.kind == "pipeline")] | length' "$WORK/pipelines.ndjson")"
+echo "everything: $applied pipelines applied; the corpus $corpus"
+echo "verified ${#passed[@]} one by one: the 22 beside the shelves, two playground routes on them, and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

@@ -11,8 +11,8 @@
 #      dg apply examples/s3/s3-copy-and-verify.yaml
 #      dg run s3-copy-and-verify -p day=2026-01-01 --watch
 #
-# The first two steps exist so the example carries its own input: a real pipeline starts at
-# seed, with the incoming object written by whatever produced it.
+# The first three steps exist so the example carries its own input: a real pipeline starts at
+# promote, with the incoming object written by whatever produced it.
 #
 # Hop by hop:
 #
@@ -30,7 +30,11 @@ format: dirigent/v1
 kind: pipeline
 code: s3-copy-and-verify
 name: Copy and verify
-description: Promote an object to a published prefix, and prove it landed before reading it.
+description: |
+  Copy a file to a published folder in S3, and check it landed before reading it.
+
+  The object is promoted to a published prefix, and `storage.exists` proves it landed before
+  anything reads it.
 
 tags: [s3, sensor, storage, transform]
 

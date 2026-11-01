@@ -18,13 +18,10 @@ port: 4444
 log_level: "INFO"
 worker_concurrency: 8
 
-# The unsafe blocks the documents use: shell.run for the execute shelf, and the docker family
-# for org-units-to-pdf and the docker and git shelves.
-enabled_unsafe_blocks: ["shell.run", "docker.run", "docker.build", "docker.compose.up", "docker.compose.down"]
-
-# The s3:// scheme echo-s3 writes to is served by the `artifacts` connection.
-storage_connections:
-  s3: artifacts
+# The unsafe blocks the documents use, and the connection serving s3://, are named in the
+# process environment, not here: this file travels with a checkout, so dg does not read either
+# from it. bootstrap.sh exports both for setup.sh and verify.sh, and the README shows the export
+# for an instance started by hand.
 
 # The tag the docker and git shelves' documents require of the worker that runs them.
 worker_tags: ["docker"]

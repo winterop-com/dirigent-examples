@@ -40,6 +40,8 @@ kind: pipeline
 code: world-bank-population-trend
 name: World Bank population trend
 description: |
+  Work out a country's yearly population growth and save it as a csv file.
+
   One country's population series from the **World Bank indicator API**, with year-on-year
   growth computed in jq, checked against a carried schema and written as csv.
 
@@ -60,6 +62,11 @@ requires:
 # decoration: a year outside them, or a negative population, means the API moved under us.
 schemas:
   population-trend-row:
+    title: Population trend rows
+    description: |
+      One country's population by year: `country`, `iso3`, `year`, `population`, and the
+      year-on-year `growth_pct` computed in jq. The gate in `world-bank-population-trend` holds
+      the rows to it before they are written as csv.
     type: array
     minItems: 1
     items:
