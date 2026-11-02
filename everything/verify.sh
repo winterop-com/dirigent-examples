@@ -122,15 +122,16 @@ check_connections
 say "the schemas, the documents, and echo-alert's rule"
 ensure_schemas
 apply_all "$WORK/seed.ndjson"
-# The four documents this project cannot give what they need, and nothing else, are refused.
-expect "only the four documents without what they need refused" "$WORK/seed.ndjson" '
+# The five documents this project cannot give what they need, and nothing else, are refused.
+expect "only the five documents without what they need refused" "$WORK/seed.ndjson" '
   map(select(.kind == "seed.refused" and .pass == 2) | .document | split("/") | last)
-  | sort == ["docker-build-push.yaml", "docker-remote-daemon.yaml", "odk-central-submissions.yaml",
+  | sort == ["docker-build-push.yaml", "docker-remote-daemon.yaml", "kobo-submissions-to-csv.yaml",
+             "odk-central-submissions.yaml",
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 219 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 219'
+expect "all 218 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 218'
 # The walk creates a source a worker polls or holds paused, as it does a schedule, so nothing
 # starts runs on its own; an endpoint stays listening, because it only acts when it is called.
 uv run dg source list --json > "$WORK/sources.ndjson"
