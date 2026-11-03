@@ -16,7 +16,10 @@ in one document and side by side, because none of them waits on another:
   part of the collection.
 
 A second document, `dhis2-reads-capped`, is the same tracker read with a bound it is sure to
-reach, and it fails on purpose.
+reach, and it fails on purpose. A third, `dhis2-reads-more`, is five more reads with the blocks
+and forms the pack added for 0.34: a data value set exported as CSV and as ADX, a data store
+namespace and its first key, a stored SQL view, and validation rule analysis that stores
+nothing.
 
 Everything below was run against the public DHIS2 demo, `https://play.dhis2.org/2.42`, the
 newest 2.42 demo (**2.42.7.1** when this was written) -- the Sierra Leone database, with the
@@ -54,26 +57,34 @@ lines name the basic pair whole, so the command asks for nothing. Leave the pass
 terminal and it asks for it without echoing; in a script it refuses instead and names the
 flags each credential needs.
 
-`./verify.sh` runs both documents locally and asserts on their records.
+`./verify.sh` runs all three documents locally and asserts on their records.
 
 ## What you see
 
 `uv run dg validate`:
 
 ```text
-2026-11-03T14:25:16.466+01:00 [info    ] valid                          [validation] code=dhis2-reads-capped document=pipelines/dhis2-reads-capped.yaml checked="document and installed blocks"
+2026-11-03T18:21:00.045+01:00 [info    ] valid                          [validation] code=dhis2-reads-capped document=pipelines/dhis2-reads-capped.yaml checked="document and installed blocks"
   each step under the last one it waits for
     children  (dhis2.tracker)
-2026-11-03T14:25:16.480+01:00 [info    ] valid                          [validation] code=dhis2-reads document=pipelines/dhis2-reads.yaml checked="document and installed blocks"
+2026-11-03T18:21:00.051+01:00 [info    ] valid                          [validation] code=dhis2-reads-more document=pipelines/dhis2-reads-more.yaml checked="document and installed blocks"
+  each step under the last one it waits for
+    csv  (dhis2.data_value_set_export)
+    adx  (dhis2.data_value_set_export)
+    keys  (dhis2.data_store)
+      first  (dhis2.data_store)
+    view  (dhis2.sql_view)
+    validate  (dhis2.validation_run)
+2026-11-03T18:21:00.053+01:00 [info    ] valid                          [validation] code=dhis2-reads document=pipelines/dhis2-reads.yaml checked="document and installed blocks"
   each step under the last one it waits for
     info  (dhis2.system_info)
     holdings  (dhis2.metadata_export)
     changed  (dhis2.data_value_set_export)
     children  (dhis2.tracker)
-2026-11-03T14:25:16.481+01:00 [info    ] valid                          [validated] documents=2 invalid=0 skipped=0
+2026-11-03T18:21:00.054+01:00 [info    ] valid                          [validated] documents=3 invalid=0 skipped=0
 ```
 
-Four steps, none under another: they are queued together and run at once.
+In `dhis2-reads`, four steps, none under another: they are queued together and run at once.
 
 `uv run dg run --local pipelines/dhis2-reads.yaml --connections connections.yaml`:
 
@@ -185,10 +196,6 @@ Ten values, across five periods from 201708 to 202608, every one with a `lastUpd
 date. The body is the data value set DHIS2 wrote, the document a `dhis2.data_value_set_import`
 takes whole.
 
-The step names two data sets where one would do. With exactly one data set and no period,
-DHIS2's answer names no data set, and dirigent-dhis2 0.33 reads that as an org unit outside the
-account's data scope and refuses the export as `dhis2.export.empty_answer`.
-
 ### Every page, or none
 
 `children` reads ten rows a page and follows the pages to the end:
@@ -227,6 +234,116 @@ uv run dg run --local pipelines/dhis2-reads-capped.yaml --connections connection
 
 One attempt, though the step allows three: the failure is `rejected`, and a rejected failure
 spends no retry, because reading again would reach the same bound.
+
+## Five more reads
+
+`dhis2-reads-more` runs six steps, five of them at once, and only `first` waits, for the key
+`keys` found:
+
+```bash
+uv run dg run --local pipelines/dhis2-reads-more.yaml --connections connections.yaml
+```
+
+```text
+2026-11-03T18:19:59.142+01:00 [info    ] sql view read                  [log view] sql_view=qMYMT0iUGkG rows=13 duration_ms=1808
+2026-11-03T18:19:59.142+01:00 [info    ] data store keys read           [log keys] namespace=capture keys=2
+2026-11-03T18:19:59.159+01:00 [info    ] data value set exported        [log adx] format=adx content_bytes=5080 duration_ms=1925
+2026-11-03T18:19:59.210+01:00 [info    ] data value set exported        [log csv] format=csv content_bytes=5368 duration_ms=1912
+2026-11-03T18:19:59.377+01:00 [info    ] validation rule analysis run   [log validate] violations=50 duration_ms=2056
+2026-11-03T18:19:59.977+01:00 [info    ] data store key read            [log first] namespace=capture key=useNewDashboard found=true
+2026-11-03T18:20:00.054+01:00 [info    ] succeeded                      [run] pipeline=dhis2-reads-more run_id=01a1a26c-bae7-71c2-b162-e536c716de4a exit_code=0
+```
+
+*The log lines alone; the queued, running and succeeded lines of each step are left out.*
+
+### A data value set as text
+
+`format: csv` asks `/api/dataValueSets.csv` for the selection a JSON export reads, and the
+answer is not parsed: it is streamed into the run's storage, and the step answers where it went
+(`uri`), how large it is (`content_bytes`), and its head inline (`text`), with `truncated`
+saying whether the head was cut. `data_element_id_scheme: CODE` writes each data element by its
+code; the org unit and the combos stay uids, because only the data element scheme was named:
+
+```text
+dataelement,period,orgunit,categoryoptioncombo,attributeoptioncombo,value,storedby,lastupdated,comment,followup,deleted
+DE_36,202507,DiszpKrYNg8,hEFKSsPV5et,HllvX50cXC0,23,system,2014-02-28T18:06:49.000+0000,,false,null
+DE_36,202507,DiszpKrYNg8,V6L425pT3A0,HllvX50cXC0,23,system,2014-02-28T18:06:48.000+0000,,false,null
+DE_36,202507,DiszpKrYNg8,psbwp3CQEhs,HllvX50cXC0,23,system,2014-02-28T18:06:47.000+0000,,false,null
+```
+
+`format: adx` is the same month as ADX, which is written in codes throughout:
+
+```xml
+<adx xmlns="urn:ihe:qrph:adx:2015"><group dataSet="DS_359711" period="2025-07-01/P1M" orgUnit="OU_559"><dataValue dataElement="DE_36" EPI_NUTR_AGE="&gt;1y" LOC_FIX_OUTREACH="OUTREACH&#xa;OUTREACH" value="23"/>...
+```
+
+2.41 and 2.42 export ADX. 2.43 and later answer an ADX request with JSON, so on those the step
+is refused with `dhis2.export.format_unsupported` before it asks, rather than handing on JSON
+labelled ADX; every version imports it. A later step reads the whole file from `uri`, never
+from `text`: [`dhis2-writes-rehearsed`](../dhis2-writes-rehearsed) sends a CSV export back as a
+rehearsed import.
+
+### The data store
+
+`keys` lists a namespace and `first` reads the first key it found. The capture app's namespace
+on the demo holds two:
+
+```json
+{ "action": "keys", "namespace": "capture", "found": true, "rows": ["useNewDashboard", "bulkDataEntry"] }
+{ "action": "get", "namespace": "capture", "key": "useNewDashboard", "found": true, "value": {} }
+```
+
+`first` names the key as `${steps.keys.output.rows.0}`. A reference reads a list element as a
+dotted segment; written `rows[0]` it is refused at plan with `document.reference_bracket_index`,
+which names the dotted form to write instead. A key the namespace does not hold answers
+`found: false` and a null value, not a failure.
+
+### A SQL view
+
+`view` runs the demo's one stored SQL view, *Data element by value type*, a `QUERY` view whose
+`${valueType}` placeholder is filled from `variables`. Thirteen data elements are `LONG_TEXT`,
+each row an object keyed by the view's 27 column names:
+
+```json
+{ "title": "Data element by value type", "rows": 13, "first names": ["Other Symptoms", "MCH Visit Comment", "MCH Delivery Comment"] }
+```
+
+*Shortened from `output.rows`, `output.columns` and `output.title`.* The block runs a view by
+uid and sends no SQL of its own, and it reads every row unless `paging` asks for one page.
+
+### Validation rules, stored nowhere
+
+`validate` runs validation rule analysis over Ngelehun CHC for 2025 and answers each place a
+rule does not hold, capped at `max_results: 50`:
+
+```json
+{
+  "validation_rule": "ZoG4yXZi3c3",
+  "validation_rule_description": "ANC 2 cannot be higher than ANC 1",
+  "importance": "MEDIUM",
+  "org_unit": "DiszpKrYNg8",
+  "org_unit_name": "Ngelehun CHC",
+  "period": "202501",
+  "attribute_option_combo": "HllvX50cXC0",
+  "left_side_value": 22.0,
+  "operator": "<=",
+  "right_side_value": 19.0
+}
+```
+
+DHIS2 runs the analysis in the one request; there is no job to follow. `persist` and
+`notification` are its two writes, storing each violation and sending each rule's
+notifications, and both are off, so on a shared demo this is a read. `fail_on_violations: true`
+would turn the step into a gate that fails on the first violation.
+
+### What is not here
+
+The pack added three more blocks for DHIS2's own jobs. `dhis2.resource_tables_run` rebuilds the
+resource tables, a job that changes the shared demo for everybody on it, and
+`dhis2.predictor_run` writes predicted values, with no dry run in DHIS2 for either;
+`dhis2.task_wait` follows a job something else started. None is run against the play demo, and
+no example here has a DHIS2 of its own for them. The pack's own shelf documents show each:
+`uv run dg examples show dhis2-resource-tables` and `uv run dg examples show dhis2-task-wait`.
 
 ## Where next
 

@@ -1,0 +1,132 @@
+# Five more reads of the DHIS2 play demo, the ones dirigent-dhis2 0.34 added, none of them
+# waiting on another but one:
+#
+#   csv       dhis2.data_value_set_export, format: csv. One month of one data set as CSV, data
+#             elements written by their code rather than their uid. A text export is not
+#             parsed: the whole of it lands in the run's storage at output.uri, and its head is
+#             inlined as output.text.
+#   adx       The same month as ADX, the SDMX-based XML another statistics system reads. 2.41
+#             and 2.42 export it; 2.43 and later answer JSON in its place, which the step
+#             refuses rather than mislabels.
+#   keys      dhis2.data_store, keys. The key names one data store namespace holds.
+#   first     dhis2.data_store, get. The first of those keys, read back as the value stored. It
+#             names the key as ${steps.keys.output.rows.0}: a reference reads a list element as
+#             a dotted segment, and plan refuses rows[0].
+#   view      dhis2.sql_view. A stored SQL view run by uid, its placeholder filled from a
+#             variable, every row keyed by column name. The block sends no SQL of its own.
+#   validate  dhis2.validation_run. Validation rule analysis over a facility for a year,
+#             answering each place a rule does not hold. persist and notification are off, as
+#             they are by default, so DHIS2 stores nothing and tells nobody: it is a read.
+#
+# The other two blocks 0.34 added for DHIS2's jobs, dhis2.resource_tables_run and
+# dhis2.task_wait, are not here: rebuilding the resource tables is a job that changes the
+# shared demo for everyone on it, and task_wait follows a job something else started.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-reads-more
+name: Five more reads of the play demo
+description: A month of data values as CSV and as ADX, a data store namespace and its first key, a SQL view, and validation rule analysis that stores nothing.
+
+tags: [dhis2, csv, adx, data-store, sql-view, validation]
+
+requires:
+  blocks:
+    - dhis2.data_value_set_export
+    - dhis2.data_store
+    - dhis2.sql_view
+    - dhis2.validation_run
+  connections:
+    - play
+
+params:
+  type: object
+  properties:
+    period:
+      type: string
+      format: dhis2-period
+      default: "202507"
+      description: The month the two exports read.
+    org_unit:
+      type: string
+      format: dhis2-uid
+      default: DiszpKrYNg8
+      description: The facility read from. Ngelehun CHC by default.
+    namespace:
+      type: string
+      default: capture
+      description: The data store namespace listed and read; the Capture app's own on the demo.
+    value_type:
+      type: string
+      default: LONG_TEXT
+      description: The value type the SQL view lists data elements of, such as LONG_TEXT or NUMBER.
+
+steps:
+  csv:
+    block: dhis2.data_value_set_export
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      # Child Health at the facility for the month: about fifty values.
+      data_set: BfMAe6Itzgt
+      period: ${params.period}
+      org_unit: ${params.org_unit}
+      format: csv
+      # Every identifier is a uid unless an id scheme says otherwise. CODE here is what a
+      # system keyed on codes reads, and what an import of this file has to be told too.
+      data_element_id_scheme: CODE
+
+  adx:
+    block: dhis2.data_value_set_export
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      data_set: BfMAe6Itzgt
+      period: ${params.period}
+      org_unit: ${params.org_unit}
+      format: adx
+
+  keys:
+    block: dhis2.data_store
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      action: keys
+      namespace: ${params.namespace}
+
+  first:
+    block: dhis2.data_store
+    depends_on: [keys]
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      # get is the default action; a key the namespace does not hold answers found: false and
+      # a null value rather than failing the step.
+      action: get
+      namespace: ${params.namespace}
+      key: ${steps.keys.output.rows.0}
+
+  view:
+    block: dhis2.sql_view
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      # "Data element by value type", a QUERY view on the demo:
+      #   select * from dataelement where valuetype='${valueType}';
+      sql_view: qMYMT0iUGkG
+      variables:
+        valueType: ${params.value_type}
+
+  validate:
+    block: dhis2.validation_run
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      org_unit: ${params.org_unit}
+      start_date: "2025-01-01"
+      end_date: "2025-12-31"
+      max_results: 50
+      # The defaults, written out because they are what makes this a read: no violation is
+      # stored under /api/validationResults and no rule's notification is sent.
+      persist: false
+      notification: false

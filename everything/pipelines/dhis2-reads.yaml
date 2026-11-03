@@ -76,10 +76,6 @@ steps:
       # An export needs what, where and when. What: the monthly Child Health and Reproductive
       # Health data sets. Where: one facility. When: last_updated stands in for a period, so
       # the read is every period whose values changed since the date, not one month's.
-      #
-      # Two data sets rather than one: with a single data set and no period, dirigent-dhis2
-      # 0.33 reads DHIS2's answer, which then names no data set, as an export outside the
-      # account's scope and refuses it.
       data_set: [BfMAe6Itzgt, QX4ZTUbOt3a]
       org_unit: ${params.org_unit}
       last_updated: ${params.since}

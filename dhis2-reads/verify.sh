@@ -3,7 +3,7 @@
 # anything it claims stops being true.
 #
 # Every assertion below reads records rather than rendered text: --json asks for the records
-# even at a terminal, and a table is only a rendering of one. Both documents run locally, so
+# even at a terminal, and a table is only a rendering of one. Every document runs locally, so
 # nothing here starts an instance or holds a port.
 set -euo pipefail
 
@@ -22,7 +22,7 @@ say "every document, checked offline"
 uv run dg validate --json > "$WORK/validate.ndjson"
 jq -se '
   map(select(.kind == "validated")) | last
-  | if .documents == 2 and .invalid == 0 then true
+  | if .documents == 3 and .invalid == 0 then true
     else error("\(.invalid) of \(.documents) document(s) refused") end
 ' "$WORK/validate.ndjson" > /dev/null
 
@@ -71,4 +71,31 @@ jq -se '
     else true end
 ' "$WORK/capped.ndjson" > /dev/null
 
-say "ok: dhis2-reads read four ways, and the capped read refused to answer part of a collection"
+say "five more reads: CSV and ADX, the data store, a SQL view, validation rules"
+uv run dg run --local pipelines/dhis2-reads-more.yaml \
+  --connections connections.yaml --json > "$WORK/more.ndjson" || true
+
+jq -se '
+  (map(select(.kind == "run" and has("exit_code"))) | last) as $run
+  | ($run.steps | map({key: .step, value: .output}) | from_entries) as $out
+  | if $run.message != "succeeded" then
+      error("the run settled \($run.message): \($run.failures // [] | map("\(.step): \(.error)") | join("; "))")
+    # A text export is not parsed: it is in storage at uri, its head inline, and no body.
+    elif [$out.csv, $out.adx] | any(.body != null or .uri == null or .content_bytes == 0) then error("a text export left no file")
+    elif ($out.csv.text | split("\n") | first | startswith("dataelement,period,orgunit") | not) then error("the CSV has no header row")
+    # data_element_id_scheme: CODE writes codes, not the uid s46m5MS0hxu of BCG doses given.
+    elif ($out.csv.text | split("\n") | .[1] | startswith("DE_") | not) then error("the CSV names data elements by uid")
+    elif ($out.adx.text | startswith("<adx ") | not) then error("the ADX export is not ADX")
+    # The data store: a namespace listed, and its first key read back by a dotted index.
+    elif ($out.keys.rows | length) == 0 then error("the namespace holds no key")
+    elif $out.first.key != $out.keys.rows[0] or $out.first.found != true then error("the first key was not read")
+    # The SQL view: rows keyed by column, every one of the value type asked for.
+    elif ($out.view.rows | length) == 0 then error("the SQL view answered no rows")
+    elif ($out.view.rows | any(.valuetype != "LONG_TEXT")) then error("the SQL view ignored its variable")
+    # Validation rules: violations named, at most max_results.
+    elif $out.validate.count != ($out.validate.violations | length) or $out.validate.count > 50 then error("the analysis count is off")
+    elif ($out.validate.violations | any(.validation_rule == null or .period == null)) then error("a violation names no rule or period")
+    else true end
+' "$WORK/more.ndjson" > /dev/null
+
+say "ok: dhis2-reads read four ways and five more, and the capped read refused to answer part of a collection"
