@@ -75,6 +75,10 @@
 # DIRIGENT_MCP_MAX_SESSIONS
 # mcp_max_sessions: 256
 
+# How many of those sessions one API token may hold; a new one past it is answered 503.
+# DIRIGENT_MCP_MAX_SESSIONS_PER_TOKEN
+# mcp_max_sessions_per_token: 32
+
 # A built web UI bundle to serve, instead of the one installed with the server.
 # Host only.
 # DIRIGENT_UI_DIR

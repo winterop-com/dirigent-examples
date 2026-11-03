@@ -23,7 +23,7 @@ What you learn here:
 - that a value reaches an expression only as a variable: the limit is a parameter, bound under
   `variables` and read as `%limit`, never spliced into the expression's text.
 
-`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.30, and
+`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.31, and
 `uv sync` installs them like any other pack.
 
 ## Run it

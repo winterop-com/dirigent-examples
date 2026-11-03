@@ -3,7 +3,7 @@
 Small, independent example projects for dirigent, one folder each in this repository, that
 follow [The basics](https://winterop-com.github.io/dirigent/basics/) and the
 [DHIS2 tutorial](https://winterop-com.github.io/dirigent-dhis2/tutorial/). Every example was
-made with `dg init`, runs on dirigent 0.30, and carries a README in the tutorials' voice, its
+made with `dg init`, runs on dirigent 0.31, and carries a README in the tutorials' voice, its
 documents commented hop by hop, a `verify.sh` that runs it end to end without asking anything,
 and the `AGENTS.md` a coding agent reads before it works there.
 
@@ -20,7 +20,7 @@ uv sync
 ## What you need once
 
 - Python 3.13 and [uv](https://docs.astral.sh/uv/), `jq`, and `curl`.
-- The CLI: `uv tool install "dirigent-cli>=0.30,<0.31"`, the range every example pins, so `dg --version` says 0.30.
+- The CLI: `uv tool install "dirigent-cli>=0.31,<0.32"`, the range every example pins, so `dg --version` says 0.31.
 - Docker, for `echo-s3` (a local rustfs container), for `echo-stream` (a local Redpanda container) and for the PDF document in
   `dhis2-org-units-to-markdown` (a pandoc container), and for the three pack examples below,
   which each start the outside system they talk to: `chap-prediction` a Chap stack,

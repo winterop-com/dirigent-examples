@@ -100,7 +100,7 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-202 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.30.0.
+202 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.31.0.
 A document with a required parameter or a `${run.window}` reference says so in its command, and
 one that starts at a source a worker polls or holds says how to resume that source.
 Two changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`; and
