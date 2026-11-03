@@ -180,13 +180,11 @@ export DG_TOKEN
 
 say "the connections, checked: each reads /metadata and reports FHIR 4.0.1"
 # Neither carries a secret, and each names the port this run started its server on, so both
-# are written again on every run.
+# are written again on every run, in place: a connection an applied pipeline names cannot be
+# deleted, and ensure creates it or brings what is stored to what is given.
 for pair in "fhir-source=$SOURCE" "fhir-target=$TARGET"; do
   code="${pair%%=*}"
-  if uv run dg connection list --json | jq -e --arg code "$code" 'select(.fields.code == $code)' > /dev/null; then
-    uv run dg connection delete "$code" --json > /dev/null
-  fi
-  uv run dg connection create fhir "$code" --set base_url="${pair#*=}" --set timeout=1m --json > /dev/null
+  uv run dg connection ensure fhir "$code" --set base_url="${pair#*=}" --set timeout=1m --json > /dev/null
   uv run dg connection check "$code" --json > "$WORK/check.ndjson"
   jq -se --arg code "$code" '
     map(select(.kind == "connection.checked")) | last
