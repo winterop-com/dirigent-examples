@@ -61,8 +61,15 @@ uv run dg alerts rules create echo-failed \
     --template '{{ pipeline.code }} run {{ run.status }}' \
     --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.'
 
+uv run dg alerts rules create echo-failed-log \
+    --name "Echo failures to the log" \
+    --event run_failed \
+    --pipeline echo-alert
+
 uv run dg run echo-alert --watch
 uv run dg alerts queue
+uv run dg runs summary --since 1h
+uv run dg audit --since 1h
 ```
 
 At a terminal, `dg connection create` asks only for a secret the kind cannot do without, and
@@ -73,8 +80,10 @@ The rule is created after the pipeline because `--pipeline` scopes it to one, an
 naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
 keeps the key on a line in the gitignored `.env` so its second run can still read what its
 first run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
---username admin --password admin`, writes the connection and the rule, fails a run,
-waits for the notification to be delivered, and stops the instance it started by pid.
+--username admin --password admin`, writes the connection and both rules, fails a run,
+waits for both notifications to be delivered, reads the log rule's line back out of
+`.dirigent/state/dev.log`, reads the runs summary and the audit trail, and stops the instance it
+started by pid.
 
 ### If the key was lost
 
@@ -118,12 +127,12 @@ uv run dg validate pipelines/echo-alert.yaml
 ```
 
 ```text
-2026-09-26T13:09:01.001+02:00 [info    ] valid                          [validation] code=echo-alert document=pipelines/echo-alert.yaml checked="document and installed blocks"
+2026-11-03T14:25:51.641+01:00 [info    ] valid                          [validation] code=echo-alert document=pipelines/echo-alert.yaml checked="document and installed blocks"
   each step under the last one it waits for
     ask  (playground.generate)
       publish  (playground.generate)
         note  (log.write)
-2026-09-26T13:09:01.005+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
+2026-11-03T14:25:51.651+01:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 ```bash
@@ -131,27 +140,32 @@ uv run dg run --local pipelines/echo-alert.yaml
 ```
 
 ```text
-2026-09-26T13:09:02.610+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0dd67-7f0d-7498-92e6-580aa1e0c4a7 local=true scratch=file:///tmp/dirigent-local-z2fbr9w1/artifacts/runs/01a0dd67-7f0d-7498-92e6-580aa1e0c4a7 root=/tmp/dirigent-local-z2fbr9w1
-2026-09-26T13:09:02.605+02:00 [info    ] queued                         [step ask] block=playground.generate attempt=1
-2026-09-26T13:09:02.680+02:00 [info    ] playground generated           [log ask] rows=1 seed=1596481576 locale=en_US drift=none
-2026-09-26T13:09:02.680+02:00 [info    ] succeeded                      [step ask] block=playground.generate attempt=1 duration_ms=37
-2026-09-26T13:09:02.737+02:00 [info    ] failed                         [step publish] block=playground.generate attempt=1 duration_ms=4
-2026-09-26T13:09:02.741+02:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 1 on purpose, because fail_until is 3; attempt 4 will succeed"
-2026-09-26T13:09:03.618+02:00 [info    ] queued                         [step publish] block=playground.generate attempt=2
-2026-09-26T13:09:03.683+02:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=10
-2026-09-26T13:09:03.683+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
-2026-09-26T13:09:03.686+02:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 2 on purpose, because fail_until is 3; attempt 4 will succeed"
-2026-09-26T13:09:04.139+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0dd67-7f0d-7498-92e6-580aa1e0c4a7 exit_code=1
+2026-11-03T14:25:58.033+01:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a1a196-8284-77c1-9e87-d01f14fada9a local=true scratch=file:///tmp/dirigent-local-gyszk9lz/artifacts/runs/01a1a196-8284-77c1-9e87-d01f14fada9a root=/tmp/dirigent-local-gyszk9lz
+2026-11-03T14:25:57.908+01:00 [info    ] queued                         [step ask] block=playground.generate attempt=1
+2026-11-03T14:25:58.131+01:00 [info    ] running                        [step ask] block=playground.generate attempt=1
+2026-11-03T14:25:58.283+01:00 [info    ] playground generated           [log ask] rows=1 seed=1527358980 locale=en_US drift=none
+2026-11-03T14:25:58.288+01:00 [info    ] succeeded                      [step ask] block=playground.generate attempt=1 duration_ms=157
+2026-11-03T14:25:58.288+01:00 [info    ] queued                         [step publish] block=playground.generate attempt=1
+2026-11-03T14:25:58.302+01:00 [info    ] running                        [step publish] block=playground.generate attempt=1
+2026-11-03T14:25:58.324+01:00 [info    ] failed                         [step publish] block=playground.generate attempt=1 duration_ms=22
+2026-11-03T14:25:58.345+01:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error="the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed"
+2026-11-03T14:25:59.351+01:00 [info    ] queued                         [step publish] block=playground.generate attempt=2
+2026-11-03T14:25:59.372+01:00 [info    ] running                        [step publish] block=playground.generate attempt=2
+2026-11-03T14:25:59.387+01:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error="the playground failed attempt 2 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed"
+2026-11-03T14:25:59.383+01:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=11
+2026-11-03T14:25:59.383+01:00 [info    ] skipped                        [step note] block=log.write attempt=1
+2026-11-03T14:25:59.455+01:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a1a196-8284-77c1-9e87-d01f14fada9a exit_code=1
 steps
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step            ┃ block               ┃ outcome   ┃ after   ┃ duration ┃ output                  ┃
 ┡━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask             │ playground.generate │ succeeded │ -       │ 0.0s     │ records=[1 items]       │
-│                 │                     │           │         │          │ rows=1  seed=1596481576 │
+│ ask             │ playground.generate │ succeeded │ -       │ 0.2s     │ records=[1 items]       │
+│                 │                     │           │         │          │ rows=1  seed=1527358980 │
 │                 │                     │           │         │          │ locale=en_US  fields={3 │
 │                 │                     │           │         │          │ keys}  drift=none       │
 │                 │                     │           │         │          │ delay_ms=0  attempt=1   │
 │                 │                     │           │         │          │ fail_until=0            │
+│                 │                     │           │         │          │ fail_as=transient       │
 │                 │                     │           │         │          │ input_rows=1            │
 │ publish  1 warn │ playground.generate │ failed    │ ask     │ 0.0s     │ -                       │
 │ publish  1 warn │ playground.generate │ failed    │ ask     │ 0.0s     │ -                       │
@@ -159,12 +173,14 @@ steps
 └─────────────────┴─────────────────────┴───────────┴─────────┴──────────┴─────────────────────────┘
 
 publish failed  playground.generate, attempt 1, transient
-  the playground failed attempt 1 on purpose, because fail_until is 3; attempt 4 will succeed
+  the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the
+first that would succeed
   last log lines:
     error: failed
 
 publish failed  playground.generate, attempt 2, transient
-  the playground failed attempt 2 on purpose, because fail_until is 3; attempt 4 will succeed
+  the playground failed attempt 2 on purpose as transient, because fail_until is 3; attempt 4 is the
+first that would succeed
   last log lines:
     error: failed
 (exit 1)
@@ -187,7 +203,7 @@ uv run dg connection create webhook echo-sink \
 ```
 
 ```text
-2026-09-26T13:09:07.973+02:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="The instance's own playground, which answers 200 to whatever is POSTed." config={"url":"http://127.0.0.1:3333/api/v1/playground/request","bearer_token":null,"headers":{},"verify_tls":true,"timeout":"15s"}
+2026-11-03T14:26:37.648+01:00 [info    ] created                        [connection.created] code=echo-sink connection_kind=webhook name="The alert sink" description="The instance's own playground, which answers 200 to whatever is POSTed." config={"url":"http://127.0.0.1:3333/api/v1/playground/request","bearer_token":null,"credential":null,"credential_header":null,"credential_query":null,"credential_scheme":null,"headers":{},"verify_tls":true,"timeout":"15s"}
 ```
 
 ```bash
@@ -209,7 +225,7 @@ uv run dg alerts rules create echo-failed \
 ```
 
 ```text
-2026-09-26T13:09:10.467+02:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
+2026-11-03T14:26:43.353+01:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
 ```
 
 `throttle=0s` is the default and it means no throttle: every failed run of `echo-alert` raises
@@ -219,6 +235,21 @@ pipeline failing every minute is one message rather than sixty.
 Both templates are compiled when the rule is created, so one that does not compile is refused
 here with the line it broke on rather than at the failure it was written for.
 
+A second rule on the same event names no connection at all, and a rule with no connection
+delivers to the **process log**: the `log` notifier, which needs no credential and is always
+there. It is the channel that works on a fresh install, and the one a log shipper already reads:
+
+```bash
+uv run dg alerts rules create echo-failed-log \
+    --name "Echo failures to the log" \
+    --event run_failed \
+    --pipeline echo-alert
+```
+
+```text
+2026-11-03T14:26:46.467+01:00 [info    ] created                        [alert_rule.created] code=echo-failed-log name="Echo failures to the log" event=run_failed scope=echo-alert notifier=log template=false body=false throttle=0s
+```
+
 Then the failure, and what it raises:
 
 ```bash
@@ -226,24 +257,28 @@ uv run dg run echo-alert --watch
 ```
 
 ```text
-2026-09-26T13:09:11.843+02:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a0dd67-a31d-7218-a27d-62c2cb13765b local=false
-2026-09-26T13:09:11.839+02:00 [info    ] queued                         [step ask] block=playground.generate attempt=1
-2026-09-26T13:09:11.839+02:00 [info    ] queued                         [step publish] block=playground.generate attempt=1
-2026-09-26T13:09:12.011+02:00 [info    ] playground generated           [log ask] rows=1 seed=2111780573 locale=en_US drift=none
-2026-09-26T13:09:12.011+02:00 [info    ] succeeded                      [step ask] block=playground.generate attempt=1 duration_ms=52
-2026-09-26T13:09:12.520+02:00 [info    ] failed                         [step publish] block=playground.generate attempt=1 duration_ms=5
-2026-09-26T13:09:12.524+02:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 1 on purpose, because fail_until is 3; attempt 4 will succeed"
-2026-09-26T13:09:12.525+02:00 [info    ] queued                         [step publish] block=playground.generate attempt=2
-2026-09-26T13:09:14.037+02:00 [info    ] skipped                        [step note] block=log.write attempt=1
-2026-09-26T13:09:14.037+02:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=4
-2026-09-26T13:09:14.040+02:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error_code=playground.failed_on_purpose error="the playground failed attempt 2 on purpose, because fail_until is 3; attempt 4 will succeed"
-2026-09-26T13:09:14.037+02:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
-2026-09-26T13:09:14.289+02:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a0dd67-a31d-7218-a27d-62c2cb13765b pipeline_version=1 triggered_by="admin (token dev)" duration_ms=2078 items_total=0 items_failed=0 exit_code=1 priority=normal
-run 01a0dd67-a31d-7218-a27d-62c2cb13765b
+2026-11-03T14:26:50.730+01:00 [info    ] started                        [run] pipeline=echo-alert run_id=01a1a197-502d-7544-978d-7e7a568d6e8a local=false
+2026-11-03T14:26:50.676+01:00 [info    ] queued                         [step ask] block=playground.generate attempt=1
+2026-11-03T14:26:50.837+01:00 [info    ] running                        [step ask] block=playground.generate attempt=1
+2026-11-03T14:26:50.676+01:00 [info    ] queued                         [step publish] block=playground.generate attempt=1
+2026-11-03T14:26:50.975+01:00 [info    ] playground generated           [log ask] rows=1 seed=1418202095 locale=en_US drift=none
+2026-11-03T14:26:50.979+01:00 [info    ] succeeded                      [step ask] block=playground.generate attempt=1 duration_ms=142
+2026-11-03T14:26:50.991+01:00 [info    ] running                        [step publish] block=playground.generate attempt=1
+2026-11-03T14:26:51.011+01:00 [info    ] failed                         [step publish] block=playground.generate attempt=1 duration_ms=20
+2026-11-03T14:26:51.030+01:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error="the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed"
+2026-11-03T14:26:51.032+01:00 [info    ] queued                         [step publish] block=playground.generate attempt=2
+2026-11-03T14:26:52.564+01:00 [info    ] running                        [step publish] block=playground.generate attempt=2
+2026-11-03T14:26:52.573+01:00 [info    ] skipped                        [step note] block=log.write attempt=1
+2026-11-03T14:26:52.573+01:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=10
+2026-11-03T14:26:52.582+01:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error="the playground failed attempt 2 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed"
+2026-11-03T14:26:52.573+01:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
+2026-11-03T14:26:52.573+01:00 [info    ] alert 'echo-failed-log' queued for delivery through 'log' [log] event=run_failed notifier=log
+2026-11-03T14:26:52.719+01:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a1a197-502d-7544-978d-7e7a568d6e8a pipeline_version=1 triggered_by="admin (token dev)" duration_ms=1737 items_total=0 items_failed=0 exit_code=1 priority=normal
+run 01a1a197-502d-7544-978d-7e7a568d6e8a
 pipeline      echo-alert (version 1)
 status        failed
 triggered by  admin (token dev)
-duration      2.1s
+duration      1.7s
 items         -
 
 steps
@@ -253,17 +288,21 @@ steps
 │ ask             │ playground.gen… │ succeeded │ -       │ 1        │ 0.1s     │ -                │
 │ publish  2 warn │ playground.gen… │ failed    │ ask     │ 1        │ 0.0s     │ the playground   │
 │                 │                 │           │         │          │          │ failed attempt 1 │
-│                 │                 │           │         │          │          │ on purpose,      │
+│                 │                 │           │         │          │          │ on purpose as    │
+│                 │                 │           │         │          │          │ transient,       │
 │                 │                 │           │         │          │          │ because          │
 │                 │                 │           │         │          │          │ fail_until is 3; │
-│                 │                 │           │         │          │          │ attempt 4 will   │
+│                 │                 │           │         │          │          │ attempt 4 is the │
+│                 │                 │           │         │          │          │ first that would │
 │                 │                 │           │         │          │          │ succeed          │
 │ publish  2 warn │ playground.gen… │ failed    │ ask     │ 2        │ 0.0s     │ the playground   │
 │                 │                 │           │         │          │          │ failed attempt 2 │
-│                 │                 │           │         │          │          │ on purpose,      │
+│                 │                 │           │         │          │          │ on purpose as    │
+│                 │                 │           │         │          │          │ transient,       │
 │                 │                 │           │         │          │          │ because          │
 │                 │                 │           │         │          │          │ fail_until is 3; │
-│                 │                 │           │         │          │          │ attempt 4 will   │
+│                 │                 │           │         │          │          │ attempt 4 is the │
+│                 │                 │           │         │          │          │ first that would │
 │                 │                 │           │         │          │          │ succeed          │
 │ note            │ log.write       │ skipped   │ publish │ 1        │ -        │ -                │
 └─────────────────┴─────────────────┴───────────┴─────────┴──────────┴──────────┴──────────────────┘
@@ -272,27 +311,29 @@ outputs
 ┏━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step ┃ output                                                                                    ┃
 ┡━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ask  │ records=[1 items]  rows=1  seed=2111780573  locale=en_US  fields={3 keys}  drift=none     │
-│      │ delay_ms=0  attempt=1  fail_until=0  input_rows=1                                         │
+│ ask  │ records=[1 items]  rows=1  seed=1418202095  locale=en_US  fields={3 keys}  drift=none     │
+│      │ delay_ms=0  attempt=1  fail_until=0  fail_as=transient  input_rows=1                      │
 └──────┴───────────────────────────────────────────────────────────────────────────────────────────┘
 
 publish failed  playground.generate, attempt 1, transient
-  the playground failed attempt 1 on purpose, because fail_until is 3; attempt 4 will succeed
+  the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the
+first that would succeed
   last log lines:
     error: failed
     error: failed
 
 publish failed  playground.generate, attempt 2, transient
-  the playground failed attempt 2 on purpose, because fail_until is 3; attempt 4 will succeed
+  the playground failed attempt 2 on purpose as transient, because fail_until is 3; attempt 4 is the
+first that would succeed
   last log lines:
     error: failed
     error: failed
 ```
 
-The line worth finding in that stream is `alert 'echo-failed' queued for delivery through
-'webhook'`. Queued, not sent: the notification goes on a queue, is leased by a worker and is
-POSTed from there, so an alert never runs inside the transaction that settles the run. The
-queue says how it went afterwards:
+The lines worth finding in that stream are the two `alert ... queued for delivery` ones, one per
+rule. Queued, not sent: a notification goes on a queue, is leased by a worker and is delivered
+from there, so an alert never runs inside the transaction that settles the run. The queue says
+how each went afterwards:
 
 ```bash
 uv run dg alerts queue
@@ -303,20 +344,30 @@ notifications
 ┏━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━┓
 ┃ subject               ┃ notifier ┃ status ┃ tries ┃ sent                ┃ error ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━┩
-│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-09-26 13:09:14 │ -     │
+│ echo-alert run failed │ log      │ sent   │ 1     │ 2026-11-03 14:26:52 │ -     │
+│ echo-alert run failed │ webhook  │ sent   │ 1     │ 2026-11-03 14:26:52 │ -     │
 └───────────────────────┴──────────┴────────┴───────┴─────────────────────┴───────┘
 ```
 
-`echo-alert run failed` is the subject template, rendered. **sent** on the first try means the
-POST answered, and the record says which notifier and which connection carried it:
+`echo-alert run failed` is the webhook rule's subject template, rendered; the log rule has no
+template of its own and says the same by default. **sent** on the first try means the POST
+answered, or the line was written, and each record says which rule, notifier and connection
+carried it:
 
 ```bash
-uv run dg alerts queue --json | jq '.fields | {event, rule, notifier, connection, status, attempt, run_pipeline}'
+uv run dg alerts queue --json | jq '.fields | {rule, notifier, connection, status, attempt, run_pipeline}'
 ```
 
 ```json
 {
-  "event": "run_failed",
+  "rule": "echo-failed-log",
+  "notifier": "log",
+  "connection": null,
+  "status": "sent",
+  "attempt": 1,
+  "run_pipeline": "echo-alert"
+}
+{
   "rule": "echo-failed",
   "notifier": "webhook",
   "connection": "echo-sink",
@@ -334,22 +385,157 @@ uv run dg connection show echo-sink --json | jq '.fields.config'
 {
   "url": "http://127.0.0.1:3333/api/v1/playground/request",
   "bearer_token": null,
+  "credential": null,
+  "credential_header": null,
+  "credential_query": null,
+  "credential_scheme": null,
   "headers": {},
   "verify_tls": true,
   "timeout": "15s"
 }
 ```
 
-That is the delivery, end to end: the run failed, the rule fired, the webhook notifier POSTed
-the alert as JSON, and the instance's own playground took it. Every field the notifier declares
-secret -- `bearer_token` here -- is encrypted at rest and comes back redacted from every read;
-this connection has none set, so it reads as null.
+That is the webhook delivery, end to end: the run failed, the rule fired, the webhook notifier
+POSTed the alert as JSON, and the instance's own playground took it. Every field the notifier
+declares secret -- `bearer_token` and `credential` here -- is encrypted at rest and comes back
+redacted from every read; this connection has none set, so they read as null.
 
 `dg alerts queue` is the one place a notifier that has quietly stopped delivering is visible,
 because the thing that would otherwise tell you is the notifier. `dg alerts test --connection
 echo-sink` sends one message through the same queue, which is the only way to prove an endpoint
 accepts an alert -- `dg connection check` sends a HEAD and proves only that it is reachable.
+Deleting a rule keeps what it already sent: each delivery names its rule by code, so the queue
+still says what went out after the rule is gone.
 
+### The log rule's line
+
+The `log` notifier writes one structured line per alert, at `warning`, under the `dirigent.alert`
+logger. The terminal running `dg dev` shows it as it happens, and `dg dev` also keeps its whole
+log as NDJSON in `.dirigent/state/dev.log`, whatever the terminal is, so the line can be read
+back after the fact:
+
+```bash
+grep '"logger": "dirigent.alert"' .dirigent/state/dev.log | uv run dg format
+```
+
+```text
+2026-11-03T14:26:52.658+01:00 [warning ] echo-alert failed at publish   [log dirigent.alert] event_kind=run_failed run_id=01a1a197-502d-7544-978d-7e7a568d6e8a pipeline=echo-alert status=failed failing_step=publish error="the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed" error_code=playground.failed_on_purpose trigger="admin (token dev)" duration_ms=1737
+```
+
+The message says what happened in a few words, and the facts are fields rather than a rendered
+body: which step failed, what it failed with and under which code, and who started the run. A
+log shipper or an `jq` filter selects on `failing_step` and `error_code` without parsing
+English:
+
+```bash
+grep '"logger": "dirigent.alert"' .dirigent/state/dev.log | jq '{event, failing_step, error, error_code, trigger}'
+```
+
+```json
+{
+  "event": "echo-alert failed at publish",
+  "failing_step": "publish",
+  "error": "the playground failed attempt 1 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed",
+  "error_code": "playground.failed_on_purpose",
+  "trigger": "admin (token dev)"
+}
+```
+
+`.dirigent/state/` is not in the repository, so the file is never committed, and `dg dev
+--wipe-state` clears it with everything else.
+
+### How the pipeline has been doing
+
+An alert is about one run. The **runs summary** is about all of them: one row per pipeline that
+ran in a window, with the newest run's state, a count per state, the recent runs as a strip, and
+the median duration. Run the same document green once, so there is more than one state to count:
+
+```bash
+uv run dg run echo-alert -p fail_until=0 --watch
+uv run dg runs summary --since 1h
+```
+
+```text
+2026-11-03T14:27:09.180+01:00 [info    ] 1 pipelines ran                [runs.summary] window_start=2026-11-03T12:27:09.175058+00:00 window_end=2026-11-03T13:27:09.175058+00:00
+runs per pipeline
+┏━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━┓
+┃ pipeline   ┃ latest    ┃ runs                  ┃ recent ┃ last ran            ┃ median ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━┩
+│ echo-alert │ succeeded │ 1 failed, 1 succeeded │ ●●     │ 2026-11-03 14:27:06 │ 0.1s   │
+└────────────┴───────────┴───────────────────────┴────────┴─────────────────────┴────────┘
+```
+
+The table is a rendering of one `runs.summary` record, which carries every pipeline under
+`pipelines`:
+
+```bash
+uv run dg runs summary --since 1h --json \
+  | jq '.pipelines[0] | {pipeline, latest: .latest.status, counts, recent: [.recent[].status], median_duration_ms}'
+```
+
+```json
+{
+  "pipeline": "echo-alert",
+  "latest": "succeeded",
+  "counts": {
+    "failed": 1,
+    "succeeded": 1
+  },
+  "recent": [
+    "failed",
+    "succeeded"
+  ],
+  "median_duration_ms": 90
+}
+```
+
+`--latest failed` narrows it to the pipelines whose newest run failed, which is the question a
+morning starts with. The Runs screen's *By pipeline* view is the same answer, at
+`/runs?group=pipeline&window=24h`.
+
+### Who changed what
+
+Every administrative change this walkthrough made -- the connection, the pipeline, both rules --
+is a row in the instance's **audit trail**, written in the same transaction as the change. It
+names who acted and through which token, never a value:
+
+```bash
+uv run dg audit --since 1h
+```
+
+```text
+2026-11-03T14:26:46.455+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed-log actor="admin (token dev)"
+2026-11-03T14:26:43.347+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed actor="admin (token dev)"
+2026-11-03T14:26:40.376+01:00 [info    ] created                        [audit] subject_kind=pipeline subject=echo-alert actor="admin (token dev)"
+2026-11-03T14:26:37.645+01:00 [info    ] created                        [audit] subject_kind=connection subject=echo-sink actor="admin (token dev)"
+2026-11-03T14:26:21.671+01:00 [info    ] created                        [audit] subject_kind=token subject=admin/dev actor="dg dev"
+2026-11-03T14:26:21.661+01:00 [info    ] created                        [audit] subject_kind=user subject=admin actor="dg dev"
+```
+
+Newest first. The bottom two are `dg dev` seeding its own admin and that admin's token on the
+empty state; a change no account made is named by the host command that made it. Each line is
+an `audit` record with the row under `fields`, and `--kind`, `--subject`, `--actor` and
+`--action` narrow it:
+
+```bash
+uv run dg audit --since 1h --kind connection --json \
+  | jq '.fields | {action, subject_kind, subject_code, actor_label, fields}'
+```
+
+```json
+{
+  "action": "created",
+  "subject_kind": "connection",
+  "subject_code": "echo-sink",
+  "actor_label": "admin (token dev)",
+  "fields": []
+}
+```
+
+`fields` is empty for a create; an update lists the names of the fields it changed, and still
+never their values, so a rotated secret is visible as having changed without being readable
+here. The audit trail is an admin's read, and the Audit screen under Admin in the UI is the same
+rows.
 
 ## The document, hop by hop
 
