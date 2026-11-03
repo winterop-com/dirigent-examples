@@ -97,6 +97,29 @@ this directory travels with a checkout, so `dg` does not read the allowlist from
 decision of whoever starts the instance and never the document's: a document that names an unsafe
 block still applies cleanly on an instance that refuses to run it, and fails at that step.
 
+The block catalog says which blocks are unsafe and whether this instance runs them. Against the
+instance just started, in the first terminal once the token below is exported:
+
+```bash
+uv run dg blocks show docker.run
+```
+
+```text
+block docker.run
+kind                     operator
+plugin                   block-execute
+summary                  Run a container on the worker.
+idempotent               no
+runs code on the worker  yes
+unsafe                   unsafe, enabled
+```
+
+`uv run dg blocks list` marks the five unsafe blocks the same way, `docker.run` *enabled* and
+`docker.build`, `docker.compose.up`, `docker.compose.down` and `shell.run` *not enabled*, and the
+Blocks screen wears the same chip. `uv run dg blocks show docker.run --local` reads the settings
+this shell has instead, which name nothing, and says `unsafe, not enabled`. In the records the
+two facts are `unsafe` and `unsafe_enabled`, which is what `verify.sh` asserts on.
+
 Back in the first terminal, mint a token for that admin, whose password is `admin`.
 The command answers with the `export DG_TOKEN=` line to paste into this terminal, and that
 line is the one output this page does not print, because it is a credential:

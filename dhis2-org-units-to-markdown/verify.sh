@@ -200,6 +200,20 @@ DG_TOKEN="$(uv run dg auth login --username admin --password admin --json \
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]
 
+say "the catalog marks docker.run unsafe, and says whether this instance runs it"
+# The instance was started with docker.run named, so its catalog says enabled. The settings
+# this shell reads name nothing, so the same block read --local says not enabled.
+uv run dg blocks show docker.run --json | jq -se '
+  map(select(.kind == "block")) | last | .fields
+  | if .unsafe != true then error("docker.run is not marked unsafe")
+    elif .unsafe_enabled != true then error("the instance does not run docker.run")
+    else true end
+' > /dev/null
+env -u DIRIGENT_ENABLED_UNSAFE_BLOCKS uv run dg blocks show docker.run --local --json | jq -se '
+  map(select(.kind == "block")) | last | .fields
+  | if .unsafe != true or .unsafe_enabled != false then error("--local reads docker.run as enabled") else true end
+' > /dev/null
+
 say "the shape the instance holds"
 # A read writes the row under fields, so the stored body is fields.body. There is no
 # `dg schema update`: a schema changes by being deleted and created, so a body that no longer
