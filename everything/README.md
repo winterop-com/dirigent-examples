@@ -100,7 +100,7 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-202 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.30.0.
+202 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.31.0.
 A document with a required parameter or a `${run.window}` reference says so in its command, and
 one that starts at a source a worker polls or holds says how to resume that source.
 Two changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`; and
@@ -191,7 +191,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | [`gdacs-disaster-updates`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/gdacs-disaster-updates.yaml) | Fetch GDACS disaster alerts and post the ones the previous day did not have. | `uv run dg run gdacs-disaster-updates --watch --window START..END` |
 | [`github-releases-relay`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/github-releases-relay.yaml) | Pass on new releases of a public GitHub repository, when there are any. | `uv run dg run github-releases-relay --watch` |
 | [`hdx-dataset-watch`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/hdx-dataset-watch.yaml) | Watch an HDX dataset and publish its file links when the dataset changes. | `uv run dg run hdx-dataset-watch --watch` |
-| [`kobo-submissions-to-csv`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/kobo-submissions-to-csv.yaml) | Fetch the submissions for a KoboToolbox form and save them as a csv file. | `uv run dg run kobo-submissions-to-csv --watch -p asset_uid=... -p token=...` |
+| [`kobo-submissions-to-csv`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/kobo-submissions-to-csv.yaml) | Fetch the submissions for a KoboToolbox form and save them as a csv file. | not applied: needs kobo, a connection holding a KoboToolbox account's token |
 | [`nominatim-geocode-facilities`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/nominatim-geocode-facilities.yaml) | Look up the coordinates of a few facility names, one request per second. | `uv run dg run nominatim-geocode-facilities --watch` |
 | [`odk-central-submissions`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/odk-central-submissions.yaml) | Fetch the submissions for an ODK Central form and save them as a csv file. | not applied: needs odk-central, an ODK Central server and an account on it |
 | [`open-meteo-weekly-report`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/open-data/open-meteo-weekly-report.yaml) | Fetch a week of daily weather for one place and save it as a csv file. | `uv run dg run open-meteo-weekly-report --watch --window START..END` |
@@ -423,6 +423,7 @@ rather than spelling out the port, so a run on another instance is a flag.
 | --- | --- |
 | `docker/docker-build-push` | Needs `ghcr`, a registry connection with a push credential. |
 | `docker/docker-remote-daemon` | Needs `build-daemon`, a remote Docker daemon over TCP and TLS. |
+| `open-data/kobo-submissions-to-csv` | Needs `kobo`, a connection holding a KoboToolbox account's token. |
 | `open-data/odk-central-submissions` | Needs `odk-central`, an ODK Central server and an account on it. |
 | `preview/s3-parquet-to-ingestion` | A preview: it needs an adapter pack's `modelling-api` and `ops-webhook`. |
 
@@ -447,5 +448,4 @@ echo-schedule's clock; and stops what it started. Expect about ten minutes. It d
 
 | Pipeline | Why |
 | --- | --- |
-| `kobo-submissions-to-csv` | Needs a KoboToolbox account: an `asset_uid` and a token. |
-| the four above | They are not applied. |
+| the five above | They are not applied. |

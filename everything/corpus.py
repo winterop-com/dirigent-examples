@@ -77,6 +77,7 @@ REQUIRED_VALUES: dict[str, str] = {"day": "2026-01-01", "region": "east", "datas
 NOT_APPLIED: dict[str, str] = {
     "docker-build-push": "needs ghcr, a registry connection with a push credential",
     "docker-remote-daemon": "needs build-daemon, a remote Docker daemon over TCP and TLS",
+    "kobo-submissions-to-csv": "needs kobo, a connection holding a KoboToolbox account's token",
     "odk-central-submissions": "needs odk-central, an ODK Central server and an account on it",
     "s3-parquet-to-ingestion": "a preview: needs an adapter pack's modelling-api and ops-webhook",
 }
@@ -85,7 +86,6 @@ NOT_APPLIED: dict[str, str] = {
 SKIPPED: dict[str, str] = {
     "http-follow-redirects": "verify.sh runs it with the other playground routes",
     "a-stream-to-read": "verify.sh runs it with the other playground routes",
-    "kobo-submissions-to-csv": "needs a KoboToolbox account: an asset_uid and a token",
 }
 
 #: Started first: they wait on the topic the producers write to, and
