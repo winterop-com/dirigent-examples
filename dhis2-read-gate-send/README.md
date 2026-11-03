@@ -12,7 +12,7 @@ of the read, and every step past it provably received the shape. The write is re
 against its data element's value type, reports what it would have done, and persists nothing.
 
 Everything below was run against the public DHIS2 demo,
-`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written) -- the Sierra Leone database,
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.7.1** when this was written) -- the Sierra Leone database,
 with the published `admin` / `district` credential.
 
 ## Run it
@@ -89,10 +89,15 @@ uv run dg apply
 uv run dg run dhis2-read-gate-send --watch
 ```
 
-`dg connection create` asks only for a secret the kind cannot do without, and only when the
-command did not say what it wants. This one carries `--set`, and `api_token` is optional, so it
-completes without a prompt and leaves that field unset -- which is what it has to be, because a
-`dhis2` connection takes an `api_token` or basic credentials, not both.
+`dg connection create` asks for a credential only when the command gave none. A `dhis2`
+connection takes an `api_token` or a `basic_username` and `basic_password`, never both; this
+one names the basic pair with `--set`, so it completes without a prompt and leaves `api_token`
+unset.
+
+Creating a connection is an admin's, and so is its secret, but the settings alone are not: an
+operator, or an agent over MCP, may create the same connection without `basic_password`. It is
+then listed as awaiting secrets, nothing may use it, and an admin completes it at a terminal
+with `uv run dg connection set-secret play`, which asks for the password without echoing it.
 
 The import summary is in the run rather than on the screen, and every command writes records
 into a pipe, so the whole of it is one `jq` away:
@@ -145,12 +150,12 @@ uv run dg connection ensure dhis2 play \
 `uv run dg validate pipelines/dhis2-read-gate-send.yaml`:
 
 ```text
-2026-09-17T15:03:01.867+02:00 [info    ] valid                          [validation] code=dhis2-read-gate-send document=pipelines/dhis2-read-gate-send.yaml checked="document and installed blocks"
+2026-11-03T14:23:46.514+01:00 [info    ] valid                          [validation] code=dhis2-read-gate-send document=pipelines/dhis2-read-gate-send.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
         send  (dhis2.data_value_set_import)
-2026-09-17T15:03:01.870+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
+2026-11-03T14:23:46.526+01:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: that tree is the graph the document already
@@ -159,27 +164,29 @@ holds, each step under the last one it waits for.
 `uv run dg run --local ...`:
 
 ```text
-2026-09-26T15:05:42.542+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f local=true scratch=file:///tmp/dirigent-local-wfem4yaq/artifacts/runs/01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f root=/tmp/dirigent-local-wfem4yaq
-2026-09-26T15:05:42.537+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-26T15:05:42.579+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-26T15:05:43.774+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1182
-2026-09-26T15:05:43.776+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1197
-2026-09-26T15:05:43.788+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
-2026-09-26T15:05:43.791+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=469
-2026-09-26T15:05:43.840+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
-2026-09-26T15:05:44.469+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
-2026-09-26T15:05:44.471+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=631
-2026-09-26T15:05:44.545+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd2-4e8a-727f-a11b-e7f96ef17c6f exit_code=0
+2026-11-03T14:23:49.045+01:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a1a194-8aaf-7764-a4b8-9c868da4d199 local=true scratch=file:///tmp/dirigent-local-ycq6nljm/artifacts/runs/01a1a194-8aaf-7764-a4b8-9c868da4d199 root=/tmp/dirigent-local-ycq6nljm
+2026-11-03T14:23:48.914+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:23:49.095+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:23:50.902+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=6 duration_ms=1793
+2026-11-03T14:23:50.909+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1814
+2026-11-03T14:23:50.909+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:23:50.914+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:23:50.928+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=13
+2026-11-03T14:23:50.928+01:00 [info    ] queued                         [step send] block=dhis2.data_value_set_import attempt=1
+2026-11-03T14:23:50.941+01:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=447
+2026-11-03T14:23:50.958+01:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
+2026-11-03T14:23:51.930+01:00 [info    ] import summary                 [log send] status=SUCCESS imported=2 updated=0 ignored=0 deleted=0 conflict_count=0
+2026-11-03T14:23:51.931+01:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=973
+2026-11-03T14:23:52.049+01:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a1a194-8aaf-7764-a4b8-9c868da4d199 exit_code=0
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ block                       ┃ outcome   ┃ after ┃ duration ┃ output                      ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ dhis2.metadata              │ succeeded │ -     │ 1.2s     │ body={1 keys}               │
-│       │                             │           │       │          │ duration_ms=1182            │
-│ check │ validate.schema             │ succeeded │ read  │ 0.0s     │ value={1 keys}              │
-│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 0.6s     │ status=SUCCESS  imported=0  │
-│       │                             │           │       │          │ updated=2  ignored=0        │
-│       │                             │           │       │          │ deleted=0                   │
+│ read  │ dhis2.metadata              │ succeeded │ -     │ 1.8s     │ rows=[6 items]              │
+│       │                             │           │       │          │ duration_ms=1793            │
+│ check │ validate.schema             │ succeeded │ read  │ 0.0s     │ value=[6 items]             │
+│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 1.0s     │ status=SUCCESS  sent=2      │
+│       │                             │           │       │          │ counts={4 keys}             │
 └───────┴─────────────────────────────┴───────────┴───────┴──────────┴─────────────────────────────┘
 ```
 
@@ -190,7 +197,7 @@ stored schema read-gate-send-org-units
 ```
 
 ```text
-2026-09-17T15:03:12.605+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-11-03T14:24:02.502+01:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -199,11 +206,11 @@ after it.
 `uv run dg connection check play`:
 
 ```text
-2026-09-17T15:03:14.654+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.6
+2026-11-03T14:24:06.944+01:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.7.1
 ```
 
 One line, four facts: the URL resolves, TLS is as configured, the credential is accepted,
-and the instance's version is **2.42.6** -- its own word for itself, read from
+and the instance's version is **2.42.7.1** -- its own word for itself, read from
 `/api/system/info` rather than guessed from an `/api/N` path. That version is why
 `dhis2.metadata` can refuse a collection name this instance does not publish instead of
 sending a request that will 404.
@@ -217,41 +224,43 @@ create dhis2-read-gate-send  version 1 (/home/you/dhis2-read-gate-send/pipelines
 `uv run dg run dhis2-read-gate-send --watch`:
 
 ```text
-2026-09-26T15:06:39.861+02:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec local=false
-2026-09-26T15:06:39.859+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-26T15:06:40.100+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-26T15:06:41.160+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1042
-2026-09-26T15:06:41.164+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1065
-2026-09-26T15:06:41.669+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
-2026-09-26T15:06:41.674+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=469
-2026-09-26T15:06:42.172+02:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
-2026-09-26T15:06:43.282+02:00 [info    ] import summary                 [log send] status=SUCCESS imported=0 updated=2 ignored=0 deleted=0 conflict_count=0
-2026-09-26T15:06:43.285+02:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=1113
-2026-09-26T15:06:43.989+02:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a0ddd3-2e71-75d5-9632-1cb6d40056ec pipeline_version=1 triggered_by="admin (token dev)" duration_ms=3185 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0ddd3-2e71-75d5-9632-1cb6d40056ec
+2026-11-03T14:24:11.419+01:00 [info    ] started                        [run] pipeline=dhis2-read-gate-send run_id=01a1a194-e213-717b-b5fa-c8d8a207e519 local=false
+2026-11-03T14:24:11.417+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:24:11.414+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:24:12.391+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=6 duration_ms=954
+2026-11-03T14:24:12.394+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=976
+2026-11-03T14:24:12.401+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:24:11.414+01:00 [info    ] queued                         [step send] block=dhis2.data_value_set_import attempt=1
+2026-11-03T14:24:12.421+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=20
+2026-11-03T14:24:12.429+01:00 [info    ] finished                       [log check] duration_ms=3 output_bytes=447
+2026-11-03T14:24:12.438+01:00 [info    ] running                        [step send] block=dhis2.data_value_set_import attempt=1
+2026-11-03T14:24:13.376+01:00 [info    ] import summary                 [log send] status=SUCCESS imported=2 updated=0 ignored=0 deleted=0 conflict_count=0
+2026-11-03T14:24:13.379+01:00 [info    ] succeeded                      [step send] block=dhis2.data_value_set_import attempt=1 duration_ms=942
+2026-11-03T14:24:13.475+01:00 [info    ] succeeded                      [run] pipeline=dhis2-read-gate-send run_id=01a1a194-e213-717b-b5fa-c8d8a207e519 pipeline_version=1 triggered_by="admin (token cli-admin)" duration_ms=1962 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a1a194-e213-717b-b5fa-c8d8a207e519
 pipeline      dhis2-read-gate-send (version 1)
 status        succeeded
-triggered by  admin (token dev)
-duration      3.2s
+triggered by  admin (token cli-admin)
+duration      2.0s
 items         -
 
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block                       ┃ outcome   ┃ after ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ read  │ dhis2.metadata              │ succeeded │ -     │ 1        │ 1.1s     │ -     │
+│ read  │ dhis2.metadata              │ succeeded │ -     │ 1        │ 1.0s     │ -     │
 │ check │ validate.schema             │ succeeded │ read  │ 1        │ 0.0s     │ -     │
-│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 1        │ 1.1s     │ -     │
+│ send  │ dhis2.data_value_set_import │ succeeded │ check │ 1        │ 0.9s     │ -     │
 └───────┴─────────────────────────────┴───────────┴───────┴──────────┴──────────┴───────┘
 
 outputs
-┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step  ┃ output                                                      ┃
-┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ body={1 keys}  duration_ms=1042                             │
-│ check │ value={1 keys}                                              │
-│ send  │ status=SUCCESS  imported=0  updated=2  ignored=0  deleted=0 │
-└───────┴─────────────────────────────────────────────────────────────┘
+┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step  ┃ output                                  ┃
+┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ read  │ rows=[6 items]  duration_ms=954         │
+│ check │ value=[6 items]                         │
+│ send  │ status=SUCCESS  sent=2  counts={4 keys} │
+└───────┴─────────────────────────────────────────┘
 ```
 
 `uv run dg runs show ... | jq ...`:
@@ -259,27 +268,31 @@ outputs
 ```json
 {
   "status": "SUCCESS",
-  "imported": 0,
-  "updated": 2,
-  "ignored": 0,
-  "deleted": 0,
+  "sent": 2,
+  "counts": {
+    "imported": 2,
+    "updated": 0,
+    "ignored": 0,
+    "deleted": 0
+  },
   "conflicts": []
 }
 ```
 
-DHIS2's import summary is the step's output, parsed: a status, the four counts, and the
-conflicts. `updated=2` means the instance resolved both values, checked each against its
-data element's value type, decided it would have revised two existing values -- and then
-threw the result away, because `dry_run` was on. The output above was recorded on a demo that
-already held both values; 2.42.6 does not, so there the same rehearsal says `imported=2`, and
-still writes nothing. A refused value would be a row in
+DHIS2's import summary is the step's output, parsed: a status, how many values were `sent`,
+the four `counts`, and the conflicts. `imported=2` means the instance resolved both values,
+checked each against its data element's value type, decided it would have stored two new
+values -- and then threw the result away, because `dry_run` was on. On a demo that already
+held both values the same rehearsal says `updated=2`, and still writes nothing. Every DHIS2
+import block answers in this one shape, so a check written against `counts` here reads the
+same on a metadata or tracker import. A refused value would be a row in
 `conflicts` in the instance's own words, and a summary whose status is `ERROR` fails the
 step rather than reporting success with bad news inside it.
 
 `uv run dg run dhis2-read-gate-send --watch -p parent=ImspTQPwCq`:
 
 ```text
-2026-09-17T15:03:23.287+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-read-gate-send/$run
+2026-11-03T14:24:18.333+01:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-read-gate-send/$run
 ```
 
 Ten characters instead of eleven. Nothing ran.
@@ -367,7 +380,8 @@ refused, and a collection name this version does not publish are `rejected` and 
 budget at all, because the instance will answer the same way in two seconds and in two
 hours.
 
-**Hop two, `check`.** The gate. It names the schema by code, and the code resolves to the one
+**Hop two, `check`.** The gate. A read answers the rows it found under `rows`, a list,
+whichever collection it read, and the gate holds that list itself. It names the schema by code, and the code resolves to the one
 the instance holds -- so two pipelines gating on the same shape gate on the same shape, and
 it is corrected in one place. A mismatch is `rejected`: the same value against the same
 schema will never pass, so it is not retried.
@@ -377,7 +391,7 @@ schema will never pass, so it is not retried.
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: read-gate-send-org-units
 ```
 
@@ -385,7 +399,7 @@ schema will never pass, so it is not retried.
 out the order from them.
 
 **Hop three, `send`.** The write, rehearsed. A reference walks a value with dots, and an
-array index is a dot too, so `${steps.check.output.value.organisationUnits.0.id}` is the
+array index is a dot too, so `${steps.check.output.value.0.id}` is the
 first validated unit's uid -- Benkeh MCHP, because the read is ordered by name. It reads out
 of the gate rather than out of the read, so the write goes where the validated answer says
 and nowhere else.
@@ -399,7 +413,7 @@ and nowhere else.
       data_values:
         dataSet: BfMAe6Itzgt
         period: ${params.period}
-        orgUnit: ${steps.check.output.value.organisationUnits.0.id}
+        orgUnit: ${steps.check.output.value.0.id}
         dataValues:
           - dataElement: s46m5MS0hxu
             categoryOptionCombo: Prlt0C1RF0s
@@ -434,23 +448,17 @@ it is addressed by, `title` its name, `description` its body.
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "read-gate-send-org-units",
   "title": "Organisation units, as this project reads them",
-  "description": "An organisationUnits read projected to id, code, name and level, with the identifiers held to the pack's own dhis2-uid and dhis2-code formats.",
-  "type": "object",
-  "required": ["organisationUnits"],
-  "properties": {
-    "organisationUnits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["id", "code", "name", "level"],
-        "properties": {
-          "id": { "type": "string", "format": "dhis2-uid" },
-          "code": { "type": "string", "format": "dhis2-code" },
-          "name": { "type": "string" },
-          "level": { "type": "integer", "minimum": 1 }
-        }
-      }
+  "description": "The rows of an organisationUnits read projected to id, code, name and level, with the identifiers held to the pack's own dhis2-uid and dhis2-code formats.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["id", "code", "name", "level"],
+    "properties": {
+      "id": { "type": "string", "format": "dhis2-uid" },
+      "code": { "type": "string", "format": "dhis2-code" },
+      "name": { "type": "string" },
+      "level": { "type": "integer", "minimum": 1 }
     }
   }
 }
@@ -460,8 +468,7 @@ it is addressed by, `title` its name, `description` its body.
 pack's formats, and they assert because the pack is installed: in JSON Schema a `format`
 annotates and nothing more, but dirigent always hands its validator a checker and every
 installed pack's formats join it. Drop `code` from the read's `fields` line -- the kind of
-edit that looks harmless -- and this gate fails with `at $.organisationUnits[0]: 'code' is a
-required property`, which is the whole point of it.
+edit that looks harmless -- and this gate fails with `at $[0]: 'code' is a required property`, which is the whole point of it.
 
 `connections.yaml` is what a `--local` run is handed, because a local run starts on a
 throwaway instance holding nothing. The credential in it is the play demo's own, published so

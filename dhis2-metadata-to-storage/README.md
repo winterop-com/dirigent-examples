@@ -16,7 +16,7 @@ cell nobody reads. A snapshot costs one read and one file, and turns "when did t
 into a diff.
 
 Everything below was run against the public DHIS2 demo,
-`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written) -- the Sierra Leone database,
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.7.1** when this was written) -- the Sierra Leone database,
 with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
@@ -96,10 +96,10 @@ uv run dg apply
 uv run dg run dhis2-metadata-to-storage --watch
 ```
 
-`dg connection create` asks only for a secret the kind cannot do without, and only when the
-command did not say what it wants. This one carries `--set`, and `api_token` is optional, so it
-completes without a prompt and leaves that field unset -- which is what it has to be, because a
-`dhis2` connection takes an `api_token` or basic credentials, not both.
+`dg connection create` asks for a credential only when the command gave none. A `dhis2`
+connection takes an `api_token` or a `basic_username` and `basic_password`, never both; this
+one names the basic pair with `--set`, so it completes without a prompt and leaves `api_token`
+unset.
 
 The snapshot's URI and the count are in the run rather than on the screen, and every command
 writes records into a pipe, so each of them is one `jq` away:
@@ -155,7 +155,7 @@ uv run dg connection ensure dhis2 play \
 `uv run dg validate pipelines/dhis2-metadata-to-storage.yaml`:
 
 ```text
-2026-09-17T15:08:41.999+02:00 [info    ] valid                          [validation] code=dhis2-metadata-to-storage document=pipelines/dhis2-metadata-to-storage.yaml checked="document and installed blocks"
+2026-11-03T14:26:46.113+01:00 [info    ] valid                          [validation] code=dhis2-metadata-to-storage document=pipelines/dhis2-metadata-to-storage.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -163,7 +163,7 @@ uv run dg connection ensure dhis2 play \
           load  (storage.read)
             count  (transform.jq)
               say  (log.write)  also after save
-2026-09-17T15:08:42.010+02:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
+2026-11-03T14:26:46.137+01:00 [info    ] valid                          [validated] documents=1 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: that tree is the graph the document already
@@ -173,39 +173,49 @@ holds, each step under the last one it waits for, and `also after save` is the s
 `uv run dg run --local ...`:
 
 ```text
-2026-09-17T15:08:43.693+02:00 [info    ] started                        [run] pipeline=dhis2-metadata-to-storage run_id=01a0af7b-d62a-775c-96bd-b86dbb6c338d local=true scratch=file:///tmp/dirigent-local-8ax8yhd7/artifacts/runs/01a0af7b-d62a-775c-96bd-b86dbb6c338d root=/tmp/dirigent-local-8ax8yhd7
-2026-09-17T15:08:43.689+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:08:43.726+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:08:44.950+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1215
-2026-09-17T15:08:44.951+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1226
-2026-09-17T15:08:44.963+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=7
-2026-09-17T15:08:44.967+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=902
-2026-09-17T15:08:45.025+02:00 [info    ] wrote                          [log save] uri=dhis2/organisation-units-level-2.json bytes_written=892 content_type=application/json
-2026-09-17T15:08:45.026+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=10
-2026-09-17T15:08:45.087+02:00 [info    ] read                           [log load] uri=dhis2/organisation-units-level-2.json bytes_read=892 content_type=application/json
-2026-09-17T15:08:45.089+02:00 [info    ] succeeded                      [step load] block=storage.read attempt=1 duration_ms=14
-2026-09-17T15:08:45.189+02:00 [info    ] succeeded                      [step count] block=transform.jq attempt=1 duration_ms=51
-2026-09-17T15:08:45.192+02:00 [info    ] finished                       [log count] duration_ms=42 output_bytes=67
-2026-09-17T15:08:45.223+02:00 [info    ] the snapshot at file:///tmp/dirigent-local-8ax8yhd7/artifacts/runs/01a0af7b-d62a-775c-96bd-b86dbb6c338d/dhis2/organisation-units-level-2.json holds 13 organisation units, Bo to Western Area [log say]
-2026-09-17T15:08:45.223+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=6
-2026-09-17T15:08:45.425+02:00 [info    ] succeeded                      [run] pipeline=dhis2-metadata-to-storage run_id=01a0af7b-d62a-775c-96bd-b86dbb6c338d exit_code=0
+2026-11-03T14:26:51.517+01:00 [info    ] started                        [run] pipeline=dhis2-metadata-to-storage run_id=01a1a197-5376-7525-9481-668ae0770ff2 local=true scratch=file:///tmp/dirigent-local-mdcf14ff/artifacts/runs/01a1a197-5376-7525-9481-668ae0770ff2 root=/tmp/dirigent-local-mdcf14ff
+2026-11-03T14:26:51.288+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:26:51.600+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:26:53.541+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=13 duration_ms=1917
+2026-11-03T14:26:53.543+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1943
+2026-11-03T14:26:53.543+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:26:53.568+01:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=880
+2026-11-03T14:26:53.582+01:00 [info    ] wrote                          [log save] uri=dhis2/organisation-units-level-2.json bytes_written=870 content_type=application/json
+2026-11-03T14:26:53.602+01:00 [info    ] read                           [log load] uri=dhis2/organisation-units-level-2.json bytes_read=870 content_type=application/json
+2026-11-03T14:26:53.549+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:26:53.559+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=10
+2026-11-03T14:26:53.559+01:00 [info    ] queued                         [step save] block=storage.write attempt=1
+2026-11-03T14:26:53.570+01:00 [info    ] running                        [step save] block=storage.write attempt=1
+2026-11-03T14:26:53.583+01:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=13
+2026-11-03T14:26:53.583+01:00 [info    ] queued                         [step load] block=storage.read attempt=1
+2026-11-03T14:26:53.586+01:00 [info    ] running                        [step load] block=storage.read attempt=1
+2026-11-03T14:26:53.604+01:00 [info    ] succeeded                      [step load] block=storage.read attempt=1 duration_ms=18
+2026-11-03T14:26:53.604+01:00 [info    ] queued                         [step count] block=transform.jq attempt=1
+2026-11-03T14:26:53.607+01:00 [info    ] running                        [step count] block=transform.jq attempt=1
+2026-11-03T14:26:53.654+01:00 [info    ] succeeded                      [step count] block=transform.jq attempt=1 duration_ms=46
+2026-11-03T14:26:53.654+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:26:53.656+01:00 [info    ] finished                       [log count] duration_ms=39 output_bytes=67
+2026-11-03T14:26:53.660+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:26:53.677+01:00 [info    ] the snapshot at file:///tmp/dirigent-local-mdcf14ff/artifacts/runs/01a1a197-5376-7525-9481-668ae0770ff2/dhis2/organisation-units-level-2.json holds 13 organisation units, Bo to Western Area [log say]
+2026-11-03T14:26:53.678+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=18
+2026-11-03T14:26:53.848+01:00 [info    ] succeeded                      [run] pipeline=dhis2-metadata-to-storage run_id=01a1a197-5376-7525-9481-668ae0770ff2 exit_code=0
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after       ┃ duration ┃ output                            ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ dhis2.metadata  │ succeeded │ -           │ 1.2s     │ body={1 keys}  duration_ms=1215   │
-│ check │ validate.schema │ succeeded │ read        │ 0.0s     │ value={1 keys}                    │
+│ read  │ dhis2.metadata  │ succeeded │ -           │ 1.9s     │ rows=[13 items]  duration_ms=1917 │
+│ check │ validate.schema │ succeeded │ read        │ 0.0s     │ value=[13 items]                  │
 │ save  │ storage.write   │ succeeded │ check       │ 0.0s     │ uri=dhis2/organisation-units-lev… │
-│       │                 │           │             │          │ bytes_written=892                 │
+│       │                 │           │             │          │ bytes_written=870                 │
 │       │                 │           │             │          │ content_type=application/json     │
 │ load  │ storage.read    │ succeeded │ save        │ 0.0s     │ content_type=application/json     │
-│       │                 │           │             │          │ value={1 keys}  bytes_read=892    │
-│ count │ transform.jq    │ succeeded │ load        │ 0.1s     │ value={4 keys}                    │
+│       │                 │           │             │          │ value=[13 items]  bytes_read=870  │
+│ count │ transform.jq    │ succeeded │ load        │ 0.0s     │ value={4 keys}                    │
 │ say   │ log.write       │ succeeded │ count, save │ 0.0s     │ -                                 │
 └───────┴─────────────────┴───────────┴─────────────┴──────────┴───────────────────────────────────┘
 ```
 
-892 bytes written and 892 bytes read: the file is the proof, and the line `say` wrote is the
+870 bytes written and 870 bytes read: the file is the proof, and the line `say` wrote is the
 count of what came back out of it.
 
 `uv run dg schema create ...` and `uv run dg connection create ...`:
@@ -215,7 +225,7 @@ stored schema metadata-snapshot-org-units
 ```
 
 ```text
-2026-09-17T15:08:52.544+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-11-03T14:27:07.233+01:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -224,11 +234,11 @@ after it.
 `uv run dg connection check play`:
 
 ```text
-2026-09-17T15:08:54.742+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.6
+2026-11-03T14:27:13.834+01:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.7.1
 ```
 
 One line, four facts: the URL resolves, TLS is as configured, the credential is accepted, and
-the instance's version is **2.42.6** -- its own word for itself, read from `/api/system/info`
+the instance's version is **2.42.7.1** -- its own word for itself, read from `/api/system/info`
 rather than guessed from an `/api/N` path.
 
 `uv run dg apply`:
@@ -240,40 +250,47 @@ create dhis2-metadata-to-storage  version 1 (/home/you/dhis2-metadata-to-storage
 `uv run dg run dhis2-metadata-to-storage --watch`:
 
 ```text
-2026-09-17T15:08:57.181+02:00 [info    ] started                        [run] pipeline=dhis2-metadata-to-storage run_id=01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52 local=false
-2026-09-17T15:08:57.179+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:08:57.247+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-17T15:08:57.179+02:00 [info    ] queued                         [step save] block=storage.write attempt=1
-2026-09-17T15:08:57.863+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=607
-2026-09-17T15:08:57.865+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=618
-2026-09-17T15:08:58.267+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T15:08:58.270+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=902
-2026-09-17T15:08:57.179+02:00 [info    ] queued                         [step count] block=transform.jq attempt=1
-2026-09-17T15:08:58.775+02:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52/dhis2/organisation-units-level-2.json bytes_written=892 content_type=application/json
-2026-09-17T15:08:58.776+02:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=7
-2026-09-17T15:08:59.283+02:00 [info    ] read                           [log load] uri=file://./.dirigent/state/artifacts/runs/01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52/dhis2/organisation-units-level-2.json bytes_read=892 content_type=application/json
-2026-09-17T15:08:59.284+02:00 [info    ] succeeded                      [step load] block=storage.read attempt=1 duration_ms=8
-2026-09-17T15:08:59.842+02:00 [info    ] succeeded                      [step count] block=transform.jq attempt=1 duration_ms=57
-2026-09-17T15:08:59.844+02:00 [info    ] finished                       [log count] duration_ms=43 output_bytes=67
-2026-09-17T15:09:00.325+02:00 [info    ] the snapshot at file://./.dirigent/state/artifacts/runs/01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52/dhis2/organisation-units-level-2.json holds 13 organisation units, Bo to Western Area [log say]
-2026-09-17T15:09:00.325+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-17T15:09:01.318+02:00 [info    ] succeeded                      [run] pipeline=dhis2-metadata-to-storage run_id=01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=3079 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52
+2026-11-03T14:27:23.346+01:00 [info    ] started                        [run] pipeline=dhis2-metadata-to-storage run_id=01a1a197-cfc8-76b3-8b31-d55c1af37c9b local=false
+2026-11-03T14:27:23.344+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:27:23.340+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:27:24.415+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=13 duration_ms=1049
+2026-11-03T14:27:24.422+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1079
+2026-11-03T14:27:24.578+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:27:23.340+01:00 [info    ] queued                         [step save] block=storage.write attempt=1
+2026-11-03T14:27:24.611+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=33
+2026-11-03T14:27:24.628+01:00 [info    ] finished                       [log check] duration_ms=7 output_bytes=880
+2026-11-03T14:27:24.687+01:00 [info    ] running                        [step save] block=storage.write attempt=1
+2026-11-03T14:27:23.340+01:00 [info    ] queued                         [step load] block=storage.read attempt=1
+2026-11-03T14:27:24.721+01:00 [info    ] wrote                          [log save] uri=file://./.dirigent/state/artifacts/runs/01a1a197-cfc8-76b3-8b31-d55c1af37c9b/dhis2/organisation-units-level-2.json bytes_written=870 content_type=application/json
+2026-11-03T14:27:24.722+01:00 [info    ] succeeded                      [step save] block=storage.write attempt=1 duration_ms=35
+2026-11-03T14:27:24.740+01:00 [info    ] running                        [step load] block=storage.read attempt=1
+2026-11-03T14:27:23.340+01:00 [info    ] queued                         [step count] block=transform.jq attempt=1
+2026-11-03T14:27:24.761+01:00 [info    ] read                           [log load] uri=file://./.dirigent/state/artifacts/runs/01a1a197-cfc8-76b3-8b31-d55c1af37c9b/dhis2/organisation-units-level-2.json bytes_read=870 content_type=application/json
+2026-11-03T14:27:24.773+01:00 [info    ] succeeded                      [step load] block=storage.read attempt=1 duration_ms=33
+2026-11-03T14:27:24.804+01:00 [info    ] running                        [step count] block=transform.jq attempt=1
+2026-11-03T14:27:23.340+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:27:24.976+01:00 [info    ] succeeded                      [step count] block=transform.jq attempt=1 duration_ms=172
+2026-11-03T14:27:25.049+01:00 [info    ] finished                       [log count] duration_ms=122 output_bytes=67
+2026-11-03T14:27:25.275+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:27:25.287+01:00 [info    ] the snapshot at file://./.dirigent/state/artifacts/runs/01a1a197-cfc8-76b3-8b31-d55c1af37c9b/dhis2/organisation-units-level-2.json holds 13 organisation units, Bo to Western Area [log say]
+2026-11-03T14:27:25.287+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=13
+2026-11-03T14:27:25.638+01:00 [info    ] succeeded                      [run] pipeline=dhis2-metadata-to-storage run_id=01a1a197-cfc8-76b3-8b31-d55c1af37c9b pipeline_version=1 triggered_by="admin (token cli-admin)" duration_ms=1944 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a1a197-cfc8-76b3-8b31-d55c1af37c9b
 pipeline      dhis2-metadata-to-storage (version 1)
 status        succeeded
-triggered by  admin (token dev)
-duration      3.1s
+triggered by  admin (token cli-admin)
+duration      1.9s
 items         -
 
 steps
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
 ┃ step  ┃ block           ┃ outcome   ┃ after       ┃ attempts ┃ duration ┃ error ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ read  │ dhis2.metadata  │ succeeded │ -           │ 1        │ 0.6s     │ -     │
+│ read  │ dhis2.metadata  │ succeeded │ -           │ 1        │ 1.1s     │ -     │
 │ check │ validate.schema │ succeeded │ read        │ 1        │ 0.0s     │ -     │
 │ save  │ storage.write   │ succeeded │ check       │ 1        │ 0.0s     │ -     │
 │ load  │ storage.read    │ succeeded │ save        │ 1        │ 0.0s     │ -     │
-│ count │ transform.jq    │ succeeded │ load        │ 1        │ 0.1s     │ -     │
+│ count │ transform.jq    │ succeeded │ load        │ 1        │ 0.2s     │ -     │
 │ say   │ log.write       │ succeeded │ count, save │ 1        │ 0.0s     │ -     │
 └───────┴─────────────────┴───────────┴─────────────┴──────────┴──────────┴───────┘
 
@@ -281,11 +298,11 @@ outputs
 ┏━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step  ┃ output                                                                                   ┃
 ┡━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read  │ body={1 keys}  duration_ms=607                                                           │
-│ check │ value={1 keys}                                                                           │
-│ save  │ uri=file://./.dirigent/state/artifacts/runs/01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52/dhis2/… │
-│       │ bytes_written=892  content_type=application/json                                         │
-│ load  │ content_type=application/json  value={1 keys}  bytes_read=892                            │
+│ read  │ rows=[13 items]  duration_ms=1049                                                        │
+│ check │ value=[13 items]                                                                         │
+│ save  │ uri=file://./.dirigent/state/artifacts/runs/01a1a197-cfc8-76b3-8b31-d55c1af37c9b/dhis2/… │
+│       │ bytes_written=870  content_type=application/json                                         │
+│ load  │ content_type=application/json  value=[13 items]  bytes_read=870                          │
 │ count │ value={4 keys}                                                                           │
 │ say   │ -                                                                                        │
 └───────┴──────────────────────────────────────────────────────────────────────────────────────────┘
@@ -299,8 +316,8 @@ temporary one that is about to be deleted.
 
 ```json
 {
-  "uri": "file://./.dirigent/state/artifacts/runs/01a0af7c-0ad9-75db-a3c9-f2bdff5fdc52/dhis2/organisation-units-level-2.json",
-  "bytes_written": 892,
+  "uri": "file://./.dirigent/state/artifacts/runs/01a1a197-cfc8-76b3-8b31-d55c1af37c9b/dhis2/organisation-units-level-2.json",
+  "bytes_written": 870,
   "content_type": "application/json"
 }
 ```
@@ -320,7 +337,7 @@ in.
 `uv run dg run dhis2-metadata-to-storage --watch -p level=9`:
 
 ```text
-2026-09-17T15:09:04.877+02:00 [error   ] parameter level is invalid: 9 is greater than the maximum of 4 [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"level","detail":"9 is greater than the maximum of 4"} instance=/api/v1/pipelines/dhis2-metadata-to-storage/$run
+2026-11-03T14:27:31.914+01:00 [error   ] parameter level is invalid: 9 is greater than the maximum of 4 [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"level","detail":"9 is greater than the maximum of 4"} instance=/api/v1/pipelines/dhis2-metadata-to-storage/$run
 ```
 
 Nothing ran. A parameter's schema is checked when the run is submitted, not when the call is
@@ -415,9 +432,12 @@ same value against the same schema will never pass, so it is not retried.
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: metadata-snapshot-org-units
 ```
+
+A read answers the rows it found under `rows`, a list, whichever collection it read, so the
+gate holds the list itself and the snapshot is that list.
 
 **Hop three, `save`.** The first of storage's two doors. `${run.scratch}` is this run's own
 directory under the artifact root; a target naming a bucket URI writes there instead and
@@ -463,10 +483,10 @@ would prove nothing about the file.
       input: ${steps.load.output.value}
       program: |
         {
-          level: (.organisationUnits[0].level),
-          units: (.organisationUnits | length),
-          first: (.organisationUnits[0].name),
-          last: (.organisationUnits[-1].name)
+          level: (.[0].level),
+          units: length,
+          first: (.[0].name),
+          last: (.[-1].name)
         }
 ```
 
@@ -492,25 +512,19 @@ it is addressed by, `title` its name, `description` its body.
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "metadata-snapshot-org-units",
   "title": "Organisation units, as a snapshot keeps them",
-  "description": "An organisationUnits read projected to id, code, name and level, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so the gate holds its shape without demanding it.",
-  "type": "object",
-  "required": ["organisationUnits"],
-  "properties": {
-    "organisationUnits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["id", "name", "level"],
-        "properties": {
-          "id": { "type": "string", "format": "dhis2-uid" },
-          "code": { "type": "string", "format": "dhis2-code" },
-          "name": { "type": "string", "minLength": 1 },
-          "level": { "type": "integer", "minimum": 1 }
-        },
-        "additionalProperties": false
-      }
-    }
+  "description": "The rows of an organisationUnits read projected to id, code, name and level, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so the gate holds its shape without demanding it.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["id", "name", "level"],
+    "properties": {
+      "id": { "type": "string", "format": "dhis2-uid" },
+      "code": { "type": "string", "format": "dhis2-code" },
+      "name": { "type": "string", "minLength": 1 },
+      "level": { "type": "integer", "minimum": 1 }
+    },
+    "additionalProperties": false
   }
 }
 ```

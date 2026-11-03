@@ -16,7 +16,7 @@ metadata tomorrow with nothing edited but a connection row.
 
 Everything below was run against two public DHIS2 demos: the source is
 `https://play.im.dhis2.org/dev`, version **2.44** (a development build), and the target is
-`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written), both with the published
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.7.1** when this was written), both with the published
 `admin` / `district` credential.
 
 **Both of them are the Sierra Leone demo database.** That makes this sync a rehearsal by
@@ -135,10 +135,10 @@ uv run dg run dhis2-to-other --watch
 uv run dg run other-to-dhis2 --watch
 ```
 
-`dg connection create` asks only for a secret the kind cannot do without, and only when the
-command did not say what it wants. Each of those two carries `--set`, and `api_token` is
-optional, so both complete without a prompt and leave that field unset -- which is what it has
-to be, because a `dhis2` connection takes an `api_token` or basic credentials, not both.
+`dg connection create` asks for a credential only when the command gave none. A `dhis2`
+connection takes an `api_token` or a `basic_username` and `basic_password`, never both; each of
+those two names the basic pair with `--set`, so both complete without a prompt and leave
+`api_token` unset.
 
 The import report is in the run rather than on the screen, and every command writes records
 into a pipe, so the whole of it is one `jq` away:
@@ -201,7 +201,7 @@ uv run dg connection ensure dhis2 source \
 `uv run dg validate`, with no argument, which is the project's own documents:
 
 ```text
-2026-09-26T13:17:50.664+02:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document and installed blocks"
+2026-11-03T14:30:47.267+01:00 [info    ] valid                          [validation] code=dhis2-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-dhis2.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -211,7 +211,7 @@ uv run dg connection ensure dhis2 source \
               say  (log.write)
                 verdict  (validate.schema)
     mode  (value.const)
-2026-09-26T13:17:50.668+02:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document and installed blocks"
+2026-11-03T14:30:47.304+01:00 [info    ] valid                          [validation] code=dhis2-to-other document=/home/you/dhis2-org-unit-sync/pipelines/dhis2-to-other.yaml checked="document and installed blocks"
   each step under the last one it waits for
     read  (dhis2.metadata)
       check  (validate.schema)
@@ -219,7 +219,7 @@ uv run dg connection ensure dhis2 source \
           batch  (transform.jq)
             send  (http.request)
               say  (log.write)
-2026-09-26T13:17:50.669+02:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document and installed blocks"
+2026-11-03T14:30:47.316+01:00 [info    ] valid                          [validation] code=other-to-dhis2 document=/home/you/dhis2-org-unit-sync/pipelines/other-to-dhis2.yaml checked="document and installed blocks"
   each step under the last one it waits for
     fetch  (playground.generate)
       shape  (transform.jq)
@@ -229,7 +229,7 @@ uv run dg connection ensure dhis2 source \
               say  (log.write)
                 verdict  (validate.schema)
     mode  (value.const)
-2026-09-26T13:17:50.670+02:00 [info    ] valid                          [validated] documents=3 invalid=0 skipped=0
+2026-11-03T14:30:47.317+01:00 [info    ] valid                          [validated] documents=3 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: those trees are the graphs the documents
@@ -242,75 +242,102 @@ carries.
 `uv run dg run --local pipelines/dhis2-to-dhis2.yaml ...`:
 
 ```text
-2026-09-17T16:04:50.825+02:00 [info    ] started                        [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-3705-76a9-8b01-4fd9f1fdd745 local=true scratch=file:///tmp/dirigent-local-82o4dqaj/artifacts/runs/01a0afaf-3705-76a9-8b01-4fd9f1fdd745 root=/tmp/dirigent-local-82o4dqaj
-2026-09-17T16:04:50.820+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-17T16:04:50.820+02:00 [info    ] queued                         [step mode] block=value.const attempt=1
-2026-09-17T16:04:50.881+02:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=11
-2026-09-17T16:04:50.881+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-17T16:04:50.885+02:00 [info    ] finished                       [log mode] duration_ms=0 output_bytes=110
-2026-09-17T16:04:52.110+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1213
-2026-09-17T16:04:52.111+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1230
-2026-09-17T16:04:52.154+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=7
-2026-09-17T16:04:52.157+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=2609
-2026-09-17T16:04:52.199+02:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=45
-2026-09-17T16:04:52.203+02:00 [info    ] finished                       [log shape] duration_ms=31 output_bytes=2219
-2026-09-17T16:04:52.502+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=346 duration_ms=264
-2026-09-17T16:04:52.504+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=270
-2026-09-17T16:04:52.533+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=17
-2026-09-17T16:04:52.535+02:00 [info    ] finished                       [log report] duration_ms=9 output_bytes=136
-2026-09-17T16:04:52.589+02:00 [info    ] VALIDATE on the target: OK, 0 created, 15 updated, 0 ignored, of 15 units -- no conflicts [log say]
-2026-09-17T16:04:52.589+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=6
-2026-09-17T16:04:52.606+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=16
-2026-09-17T16:04:52.610+02:00 [info    ] finished                       [log verdict] duration_ms=0 output_bytes=136
-2026-09-17T16:04:52.704+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-3705-76a9-8b01-4fd9f1fdd745 exit_code=0
+2026-11-03T14:30:52.238+01:00 [info    ] started                        [run] pipeline=dhis2-to-dhis2 run_id=01a1a19a-ffc1-73d6-86a0-304b651980a6 local=true scratch=file:///tmp/dirigent-local-tm9hj0jr/artifacts/runs/01a1a19a-ffc1-73d6-86a0-304b651980a6 root=/tmp/dirigent-local-tm9hj0jr
+2026-11-03T14:30:51.902+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:30:51.902+01:00 [info    ] queued                         [step mode] block=value.const attempt=1
+2026-11-03T14:30:52.443+01:00 [info    ] running                        [step mode] block=value.const attempt=1
+2026-11-03T14:30:52.570+01:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=127
+2026-11-03T14:30:52.571+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:30:52.584+01:00 [info    ] finished                       [log mode] duration_ms=2 output_bytes=110
+2026-11-03T14:30:56.136+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=15 duration_ms=3468
+2026-11-03T14:30:56.140+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=3569
+2026-11-03T14:30:56.140+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:30:56.146+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:30:56.178+01:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=2587
+2026-11-03T14:30:56.166+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=19
+2026-11-03T14:30:56.166+01:00 [info    ] queued                         [step shape] block=transform.jq attempt=1
+2026-11-03T14:30:56.212+01:00 [info    ] running                        [step shape] block=transform.jq attempt=1
+2026-11-03T14:30:56.320+01:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=108
+2026-11-03T14:30:56.320+01:00 [info    ] queued                         [step send] block=http.request attempt=1
+2026-11-03T14:30:56.325+01:00 [info    ] finished                       [log shape] duration_ms=70 output_bytes=2219
+2026-11-03T14:30:56.331+01:00 [info    ] running                        [step send] block=http.request attempt=1
+2026-11-03T14:30:56.981+01:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=346 duration_ms=616
+2026-11-03T14:30:56.983+01:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=651
+2026-11-03T14:30:56.983+01:00 [info    ] queued                         [step report] block=transform.jq attempt=1
+2026-11-03T14:30:56.987+01:00 [info    ] running                        [step report] block=transform.jq attempt=1
+2026-11-03T14:30:57.007+01:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=20
+2026-11-03T14:30:57.007+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:30:57.011+01:00 [info    ] finished                       [log report] duration_ms=5 output_bytes=136
+2026-11-03T14:30:57.050+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:30:57.089+01:00 [info    ] VALIDATE on the target: OK, 0 created, 15 updated, 0 ignored, of 15 units -- no conflicts [log say]
+2026-11-03T14:30:57.165+01:00 [info    ] finished                       [log verdict] duration_ms=2 output_bytes=136
+2026-11-03T14:30:57.089+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=39
+2026-11-03T14:30:57.089+01:00 [info    ] queued                         [step verdict] block=validate.schema attempt=1
+2026-11-03T14:30:57.089+01:00 [info    ] running                        [step verdict] block=validate.schema attempt=1
+2026-11-03T14:30:57.159+01:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=70
+2026-11-03T14:30:57.434+01:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a1a19a-ffc1-73d6-86a0-304b651980a6 exit_code=0
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block           ┃ outcome   ┃ after       ┃ duration ┃ output                          ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ mode    │ value.const     │ succeeded │ -           │ 0.0s     │ value={4 keys}                  │
-│ read    │ dhis2.metadata  │ succeeded │ -           │ 1.2s     │ body={1 keys}  duration_ms=1213 │
-│ check   │ validate.schema │ succeeded │ read        │ 0.0s     │ value={1 keys}                  │
-│ shape   │ transform.jq    │ succeeded │ check       │ 0.0s     │ value={1 keys}                  │
-│ send    │ http.request    │ succeeded │ shape, mode │ 0.3s     │ status=200  headers={9 keys}    │
+│ mode    │ value.const     │ succeeded │ -           │ 0.1s     │ value={4 keys}                  │
+│ read    │ dhis2.metadata  │ succeeded │ -           │ 3.6s     │ rows=[15 items]                 │
+│         │                 │           │             │          │ duration_ms=3468                │
+│ check   │ validate.schema │ succeeded │ read        │ 0.0s     │ value=[15 items]                │
+│ shape   │ transform.jq    │ succeeded │ check       │ 0.1s     │ value={1 keys}                  │
+│ send    │ http.request    │ succeeded │ shape, mode │ 0.7s     │ status=200  headers={9 keys}    │
 │         │                 │           │             │          │ body={4 keys}  body_bytes=346   │
-│         │                 │           │             │          │ duration_ms=264                 │
+│         │                 │           │             │          │ duration_ms=616                 │
 │ report  │ transform.jq    │ succeeded │ send        │ 0.0s     │ value={9 keys}                  │
 │ say     │ log.write       │ succeeded │ report      │ 0.0s     │ -                               │
-│ verdict │ validate.schema │ succeeded │ say         │ 0.0s     │ value={9 keys}                  │
+│ verdict │ validate.schema │ succeeded │ say         │ 0.1s     │ value={9 keys}                  │
 └─────────┴─────────────────┴───────────┴─────────────┴──────────┴─────────────────────────────────┘
 ```
 
-Fifteen chiefdoms under Bo, read off 2.44 and offered to 2.42.6, which says it would revise
+Fifteen chiefdoms under Bo, read off 2.44 and offered to 2.42.7.1, which says it would revise
 all fifteen and writes nothing. `updated=15` rather than `created=15` is the two demos being
 the same database: this is a rehearsal of a sync that has already happened.
 
 `uv run dg run --local pipelines/dhis2-to-other.yaml ...`:
 
 ```text
-2026-09-26T13:15:54.439+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1084
-2026-09-26T13:15:54.440+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1095
-2026-09-26T13:15:54.493+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=5
-2026-09-26T13:15:54.495+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=2609
-2026-09-26T13:15:54.530+02:00 [info    ] succeeded                      [step records] block=map.jq attempt=1 duration_ms=37
-2026-09-26T13:15:54.533+02:00 [info    ] finished                       [log records] duration_ms=29 output_bytes=1209
-2026-09-26T13:15:54.570+02:00 [info    ] succeeded                      [step batch] block=transform.jq attempt=1 duration_ms=8
-2026-09-26T13:15:54.571+02:00 [info    ] finished                       [log batch] duration_ms=4 output_bytes=1265
-2026-09-26T13:15:54.630+02:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=1700 duration_ms=6
-2026-09-26T13:15:54.631+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=11
-2026-09-26T13:15:54.684+02:00 [info    ] the register took 15 facilities from dhis2-play-dev, first OU_539 under OU_264 [log say]
-2026-09-26T13:15:54.684+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-26T13:15:54.936+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-other run_id=01a0dd6d-c358-778a-9908-adb3361f9195 exit_code=0
+2026-11-03T14:31:01.212+01:00 [info    ] started                        [run] pipeline=dhis2-to-other run_id=01a1a19b-22d4-7324-9753-25e0bde8043c local=true scratch=file:///tmp/dirigent-local-97xqllsb/artifacts/runs/01a1a19b-22d4-7324-9753-25e0bde8043c root=/tmp/dirigent-local-97xqllsb
+2026-11-03T14:31:00.936+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:31:01.294+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:31:03.958+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=15 duration_ms=2639
+2026-11-03T14:31:04.086+01:00 [info    ] finished                       [log check] duration_ms=7 output_bytes=2587
+2026-11-03T14:31:04.252+01:00 [info    ] finished                       [log records] duration_ms=102 output_bytes=1209
+2026-11-03T14:31:04.329+01:00 [info    ] finished                       [log batch] duration_ms=8 output_bytes=1262
+2026-11-03T14:31:04.392+01:00 [info    ] http call                      [log send] method=POST url=http://127.0.0.1:3333/api/v1/playground/request status=200 bytes=1722 duration_ms=21
+2026-11-03T14:31:04.423+01:00 [info    ] the register took 15 facilities from dhis2-play-dev, first OU_539 under OU_264 [log say]
+2026-11-03T14:31:03.970+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=2676
+2026-11-03T14:31:03.970+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:31:03.985+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:31:04.064+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=79
+2026-11-03T14:31:04.064+01:00 [info    ] queued                         [step records] block=map.jq attempt=1
+2026-11-03T14:31:04.093+01:00 [info    ] running                        [step records] block=map.jq attempt=1
+2026-11-03T14:31:04.236+01:00 [info    ] succeeded                      [step records] block=map.jq attempt=1 duration_ms=143
+2026-11-03T14:31:04.236+01:00 [info    ] queued                         [step batch] block=transform.jq attempt=1
+2026-11-03T14:31:04.256+01:00 [info    ] running                        [step batch] block=transform.jq attempt=1
+2026-11-03T14:31:04.310+01:00 [info    ] succeeded                      [step batch] block=transform.jq attempt=1 duration_ms=54
+2026-11-03T14:31:04.310+01:00 [info    ] queued                         [step send] block=http.request attempt=1
+2026-11-03T14:31:04.339+01:00 [info    ] running                        [step send] block=http.request attempt=1
+2026-11-03T14:31:04.395+01:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=56
+2026-11-03T14:31:04.395+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:31:04.404+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:31:04.423+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=19
+2026-11-03T14:31:04.922+01:00 [info    ] succeeded                      [run] pipeline=dhis2-to-other run_id=01a1a19b-22d4-7324-9753-25e0bde8043c exit_code=0
 steps
 ┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ step    ┃ block           ┃ outcome   ┃ after   ┃ duration ┃ output                              ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ read    │ dhis2.metadata  │ succeeded │ -       │ 1.1s     │ body={1 keys}  duration_ms=1084     │
-│ check   │ validate.schema │ succeeded │ read    │ 0.0s     │ value={1 keys}                      │
-│ records │ map.jq          │ succeeded │ check   │ 0.0s     │ value=[15 items]                    │
-│ batch   │ transform.jq    │ succeeded │ records │ 0.0s     │ value={3 keys}                      │
-│ send    │ http.request    │ succeeded │ batch   │ 0.0s     │ status=200  headers={5 keys}        │
-│         │                 │           │         │          │ body={3 keys}  body_bytes=1700      │
-│         │                 │           │         │          │ duration_ms=6                       │
+│ read    │ dhis2.metadata  │ succeeded │ -       │ 2.7s     │ rows=[15 items]  duration_ms=2639   │
+│ check   │ validate.schema │ succeeded │ read    │ 0.1s     │ value=[15 items]                    │
+│ records │ map.jq          │ succeeded │ check   │ 0.1s     │ value=[15 items]                    │
+│ batch   │ transform.jq    │ succeeded │ records │ 0.1s     │ value={3 keys}                      │
+│ send    │ http.request    │ succeeded │ batch   │ 0.1s     │ status=200  headers={11 keys}       │
+│         │                 │           │         │          │ body={3 keys}  body_bytes=1722      │
+│         │                 │           │         │          │ duration_ms=21                      │
 │ say     │ log.write       │ succeeded │ send    │ 0.0s     │ -                                   │
 └─────────┴─────────────────┴───────────┴─────────┴──────────┴─────────────────────────────────────┘
 ```
@@ -322,21 +349,63 @@ transform is one program over one whole value.
 `uv run dg run --local pipelines/other-to-dhis2.yaml ...`:
 
 ```text
-2026-09-26T13:15:57.256+02:00 [info    ] playground generated           [log fetch] rows=1 seed=1659356566 locale=en_US drift=none
-2026-09-26T13:15:57.256+02:00 [info    ] succeeded                      [step fetch] block=playground.generate attempt=1 duration_ms=32
-2026-09-26T13:15:57.262+02:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=4
-2026-09-26T13:15:57.302+02:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=40
-2026-09-26T13:15:57.308+02:00 [info    ] finished                       [log shape] duration_ms=29 output_bytes=358
-2026-09-26T13:15:57.339+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=6
-2026-09-26T13:15:57.343+02:00 [info    ] finished                       [log check] duration_ms=0 output_bytes=358
-2026-09-26T13:15:57.715+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=342 duration_ms=319
-2026-09-26T13:15:57.716+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=325
-2026-09-26T13:15:57.752+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=8
-2026-09-26T13:15:57.754+02:00 [info    ] finished                       [log report] duration_ms=3 output_bytes=134
-2026-09-26T13:15:57.807+02:00 [info    ] VALIDATE on the target by code: OK, 0 created, 3 updated, 0 ignored, of 3 units -- no conflicts [log say]
-2026-09-26T13:15:57.807+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-26T13:15:57.864+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=5
-2026-09-26T13:15:57.952+02:00 [info    ] succeeded                      [run] pipeline=other-to-dhis2 run_id=01a0dd6d-d27f-71d4-b05f-a9fe2f89f4bc exit_code=0
+2026-11-03T14:31:09.905+01:00 [info    ] started                        [run] pipeline=other-to-dhis2 run_id=01a1a19b-44c4-73e8-b07f-afe4688be8d7 local=true scratch=file:///tmp/dirigent-local-88gwf874/artifacts/runs/01a1a19b-44c4-73e8-b07f-afe4688be8d7 root=/tmp/dirigent-local-88gwf874
+2026-11-03T14:31:09.604+01:00 [info    ] queued                         [step fetch] block=playground.generate attempt=1
+2026-11-03T14:31:09.604+01:00 [info    ] queued                         [step mode] block=value.const attempt=1
+2026-11-03T14:31:10.045+01:00 [info    ] running                        [step fetch] block=playground.generate attempt=1
+2026-11-03T14:31:10.087+01:00 [info    ] running                        [step mode] block=value.const attempt=1
+2026-11-03T14:31:10.141+01:00 [info    ] finished                       [log mode] duration_ms=0 output_bytes=111
+2026-11-03T14:31:10.128+01:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=41
+2026-11-03T14:31:10.185+01:00 [info    ] playground generated           [log fetch] rows=1 seed=1447398121 locale=en_US drift=none
+2026-11-03T14:31:10.188+01:00 [info    ] succeeded                      [step fetch] block=playground.generate attempt=1 duration_ms=142
+2026-11-03T14:31:10.188+01:00 [info    ] queued                         [step shape] block=transform.jq attempt=1
+2026-11-03T14:31:10.193+01:00 [info    ] running                        [step shape] block=transform.jq attempt=1
+2026-11-03T14:31:10.241+01:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=47
+2026-11-03T14:31:10.241+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:31:10.244+01:00 [info    ] finished                       [log shape] duration_ms=35 output_bytes=358
+2026-11-03T14:31:10.246+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:31:10.266+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=20
+2026-11-03T14:31:10.266+01:00 [info    ] queued                         [step send] block=http.request attempt=1
+2026-11-03T14:31:10.273+01:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=358
+2026-11-03T14:31:10.297+01:00 [info    ] running                        [step send] block=http.request attempt=1
+2026-11-03T14:31:10.994+01:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=342 duration_ms=684
+2026-11-03T14:31:10.997+01:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=700
+2026-11-03T14:31:10.997+01:00 [info    ] queued                         [step report] block=transform.jq attempt=1
+2026-11-03T14:31:11.006+01:00 [info    ] running                        [step report] block=transform.jq attempt=1
+2026-11-03T14:31:11.033+01:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=28
+2026-11-03T14:31:11.033+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:31:11.053+01:00 [info    ] finished                       [log report] duration_ms=5 output_bytes=134
+2026-11-03T14:31:11.076+01:00 [info    ] VALIDATE on the target by code: OK, 0 created, 3 updated, 0 ignored, of 3 units -- no conflicts [log say]
+2026-11-03T14:31:11.111+01:00 [info    ] finished                       [log verdict] duration_ms=1 output_bytes=134
+2026-11-03T14:31:11.057+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:31:11.076+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=19
+2026-11-03T14:31:11.076+01:00 [info    ] queued                         [step verdict] block=validate.schema attempt=1
+2026-11-03T14:31:11.087+01:00 [info    ] running                        [step verdict] block=validate.schema attempt=1
+2026-11-03T14:31:11.101+01:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=13
+2026-11-03T14:31:11.264+01:00 [info    ] succeeded                      [run] pipeline=other-to-dhis2 run_id=01a1a19b-44c4-73e8-b07f-afe4688be8d7 exit_code=0
+steps
+┏━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step    ┃ block               ┃ outcome   ┃ after       ┃ duration ┃ output                      ┃
+┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ fetch   │ playground.generate │ succeeded │ -           │ 0.1s     │ records=[1 items]  rows=1   │
+│         │                     │           │             │          │ seed=1447398121             │
+│         │                     │           │             │          │ locale=en_US  fields={3     │
+│         │                     │           │             │          │ keys}  drift=none           │
+│         │                     │           │             │          │ delay_ms=0  attempt=1       │
+│         │                     │           │             │          │ fail_until=0                │
+│         │                     │           │             │          │ fail_as=transient           │
+│         │                     │           │             │          │ input_rows=1                │
+│ mode    │ value.const         │ succeeded │ -           │ 0.0s     │ value={4 keys}              │
+│ shape   │ transform.jq        │ succeeded │ fetch       │ 0.0s     │ value={1 keys}              │
+│ check   │ validate.schema     │ succeeded │ shape       │ 0.0s     │ value={1 keys}              │
+│ send    │ http.request        │ succeeded │ check, mode │ 0.7s     │ status=200  headers={9      │
+│         │                     │           │             │          │ keys}  body={4 keys}        │
+│         │                     │           │             │          │ body_bytes=342              │
+│         │                     │           │             │          │ duration_ms=684             │
+│ report  │ transform.jq        │ succeeded │ send        │ 0.0s     │ value={9 keys}              │
+│ say     │ log.write           │ succeeded │ report      │ 0.0s     │ -                           │
+│ verdict │ validate.schema     │ succeeded │ say         │ 0.0s     │ value={9 keys}              │
+└─────────┴─────────────────────┴───────────┴─────────────┴──────────┴─────────────────────────────┘
 ```
 
 Three facilities, matched on their codes rather than their uids, and the target says it would
@@ -355,8 +424,8 @@ stored schema org-unit-sync-verdict
 `uv run dg connection create dhis2 ...`, twice:
 
 ```text
-2026-09-17T16:05:12.920+02:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":false,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
-2026-09-17T16:05:14.150+02:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-11-03T14:31:24.506+01:00 [info    ] created                        [connection.created] code=source connection_kind=dhis2 name="DHIS2 play demo, the source" config={"base_url":"https://play.im.dhis2.org/dev","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":false,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-11-03T14:31:29.230+01:00 [info    ] created                        [connection.created] code=target connection_kind=dhis2 name="DHIS2 play demo, the target" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record each command answers with, and in every read
@@ -365,8 +434,8 @@ after it.
 `uv run dg connection check source` and `uv run dg connection check target`:
 
 ```text
-2026-09-17T16:05:16.323+02:00 [info    ] healthy                        [connection.checked] code=source healthy=true version=2.44-SNAPSHOT
-2026-09-17T16:05:18.571+02:00 [info    ] healthy                        [connection.checked] code=target healthy=true version=2.42.6
+2026-11-03T14:31:34.822+01:00 [info    ] healthy                        [connection.checked] code=source healthy=true version=2.44-SNAPSHOT
+2026-11-03T14:31:39.959+01:00 [info    ] healthy                        [connection.checked] code=target healthy=true version=2.42.7.1
 ```
 
 Two lines, and the two versions are the point of them. A check builds the client from the
@@ -388,22 +457,45 @@ create other-to-dhis2  version 1 (/home/you/dhis2-org-unit-sync/pipelines/other-
 `uv run dg run dhis2-to-dhis2 --watch`:
 
 ```text
-2026-09-17T16:05:21.114+02:00 [info    ] started                        [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-ad56-774a-8e31-142ddc37eede local=false
-2026-09-17T16:05:22.297+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=687
-2026-09-17T16:05:22.302+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=700
-2026-09-17T16:05:22.633+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=16
-2026-09-17T16:05:23.194+02:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=54
-2026-09-17T16:05:23.989+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=346 duration_ms=311
-2026-09-17T16:05:23.991+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=317
-2026-09-17T16:05:24.193+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=10
-2026-09-17T16:05:24.699+02:00 [info    ] VALIDATE on the target: OK, 0 created, 15 updated, 0 ignored, of 15 units -- no conflicts [log say]
-2026-09-17T16:05:25.207+02:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=5
-2026-09-17T16:05:25.247+02:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a0afaf-ad56-774a-8e31-142ddc37eede pipeline_version=1 triggered_by="admin (token dev)" duration_ms=3618 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0afaf-ad56-774a-8e31-142ddc37eede
+2026-11-03T14:31:45.829+01:00 [info    ] started                        [run] pipeline=dhis2-to-dhis2 run_id=01a1a19b-d10d-7080-bf64-506aac9d6a10 local=false
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step mode] block=value.const attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:31:45.959+01:00 [info    ] running                        [step mode] block=value.const attempt=1
+2026-11-03T14:31:45.991+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:31:45.991+01:00 [info    ] succeeded                      [step mode] block=value.const attempt=1 duration_ms=33
+2026-11-03T14:31:46.063+01:00 [info    ] finished                       [log mode] duration_ms=0 output_bytes=110
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:31:46.706+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=15 duration_ms=679
+2026-11-03T14:31:46.710+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=718
+2026-11-03T14:31:46.728+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step shape] block=transform.jq attempt=1
+2026-11-03T14:31:46.775+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=47
+2026-11-03T14:31:46.790+01:00 [info    ] finished                       [log check] duration_ms=6 output_bytes=2587
+2026-11-03T14:31:46.858+01:00 [info    ] running                        [step shape] block=transform.jq attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step send] block=http.request attempt=1
+2026-11-03T14:31:46.969+01:00 [info    ] succeeded                      [step shape] block=transform.jq attempt=1 duration_ms=111
+2026-11-03T14:31:46.978+01:00 [info    ] finished                       [log shape] duration_ms=83 output_bytes=2219
+2026-11-03T14:31:46.992+01:00 [info    ] running                        [step send] block=http.request attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step report] block=transform.jq attempt=1
+2026-11-03T14:31:47.755+01:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=200 bytes=346 duration_ms=686
+2026-11-03T14:31:47.759+01:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=767
+2026-11-03T14:31:47.771+01:00 [info    ] running                        [step report] block=transform.jq attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:31:47.811+01:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=40
+2026-11-03T14:31:47.835+01:00 [info    ] finished                       [log report] duration_ms=8 output_bytes=136
+2026-11-03T14:31:47.891+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:31:45.811+01:00 [info    ] queued                         [step verdict] block=validate.schema attempt=1
+2026-11-03T14:31:47.910+01:00 [info    ] VALIDATE on the target: OK, 0 created, 15 updated, 0 ignored, of 15 units -- no conflicts [log say]
+2026-11-03T14:31:47.911+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=20
+2026-11-03T14:31:47.958+01:00 [info    ] running                        [step verdict] block=validate.schema attempt=1
+2026-11-03T14:31:47.981+01:00 [info    ] succeeded                      [step verdict] block=validate.schema attempt=1 duration_ms=23
+2026-11-03T14:31:47.990+01:00 [info    ] finished                       [log verdict] duration_ms=3 output_bytes=136
+2026-11-03T14:31:48.055+01:00 [info    ] succeeded                      [run] pipeline=dhis2-to-dhis2 run_id=01a1a19b-d10d-7080-bf64-506aac9d6a10 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=2022 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a1a19b-d10d-7080-bf64-506aac9d6a10
 pipeline      dhis2-to-dhis2 (version 1)
 status        succeeded
 triggered by  admin (token dev)
-duration      3.6s
+duration      2.0s
 items         -
 
 steps
@@ -414,7 +506,7 @@ steps
 │ read    │ dhis2.metadata  │ succeeded │ -           │ 1        │ 0.7s     │ -     │
 │ check   │ validate.schema │ succeeded │ read        │ 1        │ 0.0s     │ -     │
 │ shape   │ transform.jq    │ succeeded │ check       │ 1        │ 0.1s     │ -     │
-│ send    │ http.request    │ succeeded │ shape, mode │ 1        │ 0.3s     │ -     │
+│ send    │ http.request    │ succeeded │ shape, mode │ 1        │ 0.8s     │ -     │
 │ report  │ transform.jq    │ succeeded │ send        │ 1        │ 0.0s     │ -     │
 │ say     │ log.write       │ succeeded │ report      │ 1        │ 0.0s     │ -     │
 │ verdict │ validate.schema │ succeeded │ say         │ 1        │ 0.0s     │ -     │
@@ -425,10 +517,10 @@ outputs
 ┃ step    ┃ output                                                                       ┃
 ┡━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ mode    │ value={4 keys}                                                               │
-│ read    │ body={1 keys}  duration_ms=687                                               │
-│ check   │ value={1 keys}                                                               │
+│ read    │ rows=[15 items]  duration_ms=679                                             │
+│ check   │ value=[15 items]                                                             │
 │ shape   │ value={1 keys}                                                               │
-│ send    │ status=200  headers={9 keys}  body={4 keys}  body_bytes=346  duration_ms=311 │
+│ send    │ status=200  headers={9 keys}  body={4 keys}  body_bytes=346  duration_ms=686 │
 │ report  │ value={9 keys}                                                               │
 │ say     │ -                                                                            │
 │ verdict │ value={9 keys}                                                               │
@@ -511,16 +603,17 @@ same database it has to be asked for, and a rehearsal is a safe place to ask:
 `uv run dg run --local pipelines/other-to-dhis2.yaml ... -p parent_code=OU_NOT_THERE`:
 
 ```text
-2026-09-17T16:05:03.268+02:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=409 bytes=3122 duration_ms=929
-2026-09-17T16:05:03.272+02:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=938
-2026-09-17T16:05:03.320+02:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=43
-2026-09-17T16:05:03.379+02:00 [info    ] VALIDATE on the target by code: ERROR, 0 created, 0 updated, 4 ignored, of 4 units -- Badjia E1523: User `xE7jOejl9FI` is not allowed to move organisation `YuQRtpLP10I` unit to parent `Q8sZZs1982U`; Badjia E5002: Invalid reference [OU_NOT_THERE] (OrganisationUnit) on object Badjia [OU_539] (OrganisationUnit) for association `parent`; Baoma E1523: User `xE7jOejl9FI` is not allowed to move organisation `vWbkYPRmKyS` unit to parent `vIsxd6kHyca`; ... [log say]
-2026-09-17T16:05:03.445+02:00 [info    ] failed                         [step verdict] block=validate.schema attempt=1 duration_ms=11
-2026-09-17T16:05:03.555+02:00 [error   ] failed                         [run] pipeline=other-to-dhis2 run_id=01a0afaf-61fe-71d7-b197-4069a548dcae exit_code=1
+2026-11-03T14:31:15.577+01:00 [info    ] http call                      [log send] method=POST url=/api/metadata status=409 bytes=3122 duration_ms=652
+2026-11-03T14:31:15.579+01:00 [info    ] succeeded                      [step send] block=http.request attempt=1 duration_ms=665
+2026-11-03T14:31:15.600+01:00 [info    ] succeeded                      [step report] block=transform.jq attempt=1 duration_ms=15
+2026-11-03T14:31:15.627+01:00 [info    ] VALIDATE on the target by code: ERROR, 0 created, 0 updated, 4 ignored, of 4 units -- Badjia E1523: User `xE7jOejl9FI` is not allowed to move organisation `YuQRtpLP10I` unit to parent `vEylsCVoeSm`; Badjia E5002: Invalid reference [OU_NOT_THERE] (OrganisationUnit) on object Badjia [OU_539] (OrganisationUnit) for association `parent`; Baoma E1523: User `xE7jOejl9FI` is not allowed to move organisation `vWbkYPRmKyS` unit to parent `jIwliNaZMCL`; ... [log say]
+2026-11-03T14:31:15.627+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=9
+2026-11-03T14:31:15.661+01:00 [info    ] failed                         [step verdict] block=validate.schema attempt=1 duration_ms=20
+2026-11-03T14:31:15.792+01:00 [error   ] failed                         [run] pipeline=other-to-dhis2 run_id=01a1a19b-577a-7207-8611-42e27e63baa3 exit_code=1
 
 verdict failed  validate.schema, attempt 1, rejected
   at $.conflicts: [{'uid': 'YuQRtpLP10I', 'name': 'Badjia', 'code': 'E1523', 'message': 'User
-`xE7jOejl9FI` is not allowed to move organisation `YuQRtpLP10I` unit to parent `Q8sZZs1982U`'},
+`xE7jOejl9FI` is not allowed to move organisation `YuQRtpLP10I` unit to parent `vEylsCVoeSm`'},
 {'uid': 'YuQRtpLP10I', 'name': 'Badjia', 'code': 'E5002', 'message': 'Invalid reference
 [OU_NOT_THERE] (OrganisationUnit) on object Badjia [OU_539] (OrganisationUnit) for association
 `parent`'}, ...] is expected to be empty
@@ -538,7 +631,7 @@ makes. Without that line the step would have failed with nothing to show for it 
 `E5002 Invalid reference [OU_NOT_THERE] ... for association 'parent'`. The target's own words
 for the only thing that is actually wrong.
 
-`E1523 ... not allowed to move organisation ... to parent 'Q8sZZs1982U'`, with a uid nobody
+`E1523 ... not allowed to move organisation ... to parent 'vEylsCVoeSm'`, with a uid nobody
 sent. DHIS2 mints a placeholder for an unresolved reference and then complains about the
 placeholder, so one mistake arrives as two errors and the counts say `4 ignored, of 4` for
 three units. A pipeline that repeats DHIS2's numbers rather than counting its own has to be
@@ -552,7 +645,7 @@ again in two hours, so no retry budget is spent on it.
 And the parameter refused before anything is contacted:
 
 ```text
-2026-09-17T16:05:42.245+02:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-to-dhis2/$run
+2026-11-03T14:31:58.644+01:00 [error   ] parameter parent is invalid: 'ImspTQPwCq' is not a 'dhis2-uid' [error] status=422 title="Unprocessable Content" code=parameter.invalid params={"location":"parent","detail":"'ImspTQPwCq' is not a 'dhis2-uid'"} instance=/api/v1/pipelines/dhis2-to-dhis2/$run
 ```
 
 Ten characters instead of eleven. Nothing ran.
@@ -651,15 +744,16 @@ and a collection name this version does not publish are `rejected` and spend no 
 
 **Hop two, `check`.** The gate. It names the schema by code, and the code resolves to the one
 the instance holds -- so two pipelines gating on the same shape gate on the same shape, and it
-is corrected in one place. It hands its input on unchanged as `value`, which makes it a
-waypoint: every step past it provably received the shape.
+is corrected in one place. A read answers the rows it found under `rows`, a list, whichever
+collection it read, and the gate holds that list. It hands its input on unchanged as `value`,
+which makes it a waypoint: every step past it provably received the shape.
 
 ```yaml
   check:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: org-unit-sync-source
 ```
 
@@ -673,7 +767,7 @@ looks: `level` is dropped, and `parent` is narrowed to its uid.
     config:
       input: ${steps.check.output.value}
       program: |
-        {organisationUnits: [.organisationUnits[] | {
+        {organisationUnits: [.[] | {
           id, code, name, shortName, openingDate,
           parent: {id: .parent.id}
         }]}
@@ -804,7 +898,7 @@ returns, so the list is exactly as long as the one that went in.
     block: map.jq
     depends_on: [check]
     config:
-      input: ${steps.check.output.value.organisationUnits}
+      input: ${steps.check.output.value}
       program: |
         {code: .code,
          name: .name,

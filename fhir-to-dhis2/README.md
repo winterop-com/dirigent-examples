@@ -109,7 +109,7 @@ root written as `/tmp/...` and the `queued` and `running` lines left out:
 2026-11-01T14:07:14.629+01:00 [info    ] succeeded                      [step capture] block=endpoint attempt=1 duration_ms=0
 2026-11-01T14:07:14.688+01:00 [info    ] received by hand               [log capture] via=hand bytes=1202
 2026-11-01T14:07:15.006+01:00 [info    ] succeeded                      [step read] block=transform.jq attempt=1 duration_ms=59
-2026-11-01T14:07:17.273+01:00 [info    ] metadata read                  [log form] resource=dataSets duration_ms=2250
+2026-11-01T14:07:17.273+01:00 [info    ] metadata read                  [log form] resource=dataSets rows=1 duration_ms=2250
 2026-11-01T14:07:17.329+01:00 [info    ] succeeded                      [step translate] block=transform.jq attempt=1 duration_ms=23
 2026-11-01T14:07:17.355+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=15
 2026-11-01T14:07:18.160+01:00 [info    ] import summary                 [log rehearse] status=SUCCESS imported=3 updated=0 ignored=0 deleted=0 conflict_count=0
