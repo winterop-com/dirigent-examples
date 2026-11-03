@@ -22,7 +22,7 @@ What you learn here:
 - that every write is a conditional update on the resource's identifier, which is what makes the
   copy safe to run again: the second night creates nothing.
 
-`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.31, and
+`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.32, and
 `uv sync` installs them like any other pack.
 
 ## Run it
