@@ -70,8 +70,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 224 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 224 and all(.invalid == 0)'
+expect "all 231 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 231 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -130,8 +130,8 @@ expect "only the five documents without what they need refused" "$WORK/seed.ndjs
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 218 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 218'
+expect "all 225 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 225'
 # The walk creates a source a worker polls or holds paused, as it does a schedule, so nothing
 # starts runs on its own; an endpoint stays listening, because it only acts when it is called.
 uv run dg source list --json > "$WORK/sources.ndjson"
@@ -322,10 +322,11 @@ say "dhis2-read-gate-send"
 run dhis2-read-gate-send "$WORK/r.ndjson"
 expect "a gated read and a rehearsed import" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
-    and ($step.check.output.value.organisationUnits | length) >= 1
+    and ($step.check.output.value | length) >= 1
     and $step.send.output.status == "SUCCESS"
-    and ($step.send.output.imported + $step.send.output.updated) == 2
-    and ($step.send.output.ignored + $step.send.output.deleted) == 0'
+    and $step.send.output.sent == 2
+    and ($step.send.output.counts.imported + $step.send.output.counts.updated) == 2
+    and ($step.send.output.counts.ignored + $step.send.output.counts.deleted) == 0'
 passed+=(dhis2-read-gate-send)
 
 say "dhis2-metadata-to-storage"
@@ -333,7 +334,7 @@ run dhis2-metadata-to-storage "$WORK/r.ndjson"
 expect "the snapshot written, read back and counted" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
     and $step.load.output.value == $step.check.output.value
-    and $step.count.output.value.units == ($step.check.output.value.organisationUnits | length)'
+    and $step.count.output.value.units == ($step.check.output.value | length)'
 passed+=(dhis2-metadata-to-storage)
 
 rehearsed='
@@ -352,7 +353,7 @@ say "dhis2-to-other"
 run dhis2-to-other "$WORK/r.ndjson" -p "playground=$playground"
 expect "the batch delivered to the other system" "$WORK/r.ndjson" "$step_map"'
   | $run.message == "succeeded"
-    and $step.batch.output.value.synced == ($step.check.output.value.organisationUnits | length)
+    and $step.batch.output.value.synced == ($step.check.output.value | length)
     and $step.send.output.body.request.body == $step.batch.output.value'
 passed+=(dhis2-to-other)
 
@@ -380,6 +381,42 @@ expect "pandoc to write the PDF" "$WORK/r.ndjson" "$step_map"'
     and ($collected.fields.uri | endswith("/org-units.pdf"))
     and $collected.fields.bytes_written > 5000'
 passed+=(org-units-to-pdf)
+
+say "dhis2-reads"
+run dhis2-reads "$WORK/r.ndjson"
+expect "the four reads side by side" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and ($step.info.output.version | length) > 0
+    and $step.children.output.pager.more == false'
+passed+=(dhis2-reads)
+
+say "dhis2-reads-capped"
+run dhis2-reads-capped "$WORK/r.ndjson"
+expect "a capped read to fail rather than answer part of it" "$WORK/r.ndjson" \
+  '(map(select(.kind == "run")) | last) | .message == "failed" and (.failures | any(.error_class == "rejected"))'
+passed+=(dhis2-reads-capped)
+
+say "dhis2-writes-rehearsed"
+run dhis2-writes-rehearsed "$WORK/r.ndjson"
+expect "four writes, each a dry run" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
+passed+=(dhis2-writes-rehearsed)
+
+# --- the pipelines from echo-report and agent-over-mcp ----------------------------------------
+say "echo-report"
+run echo-report "$WORK/r.ndjson"
+expect "a report.render page made the run's report" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded" and ($step.page.output.text | length) > 0'
+passed+=(echo-report)
+
+say "echo-report-params"
+run echo-report-params "$WORK/r.ndjson"
+expect "a report template reading params" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
+passed+=(echo-report-params)
+
+say "station-report"
+run station-report "$WORK/r.ndjson" -p "playground=$playground"
+expect "the station read from the playground" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
+passed+=(station-report)
 
 # --- the tutorial documents, which an instance does not take ---------------------------------
 say "tutorial/, run locally"
@@ -428,6 +465,6 @@ passed+=(echo-schedule)
 echo
 applied="$(jq -s '[.[] | select(.kind == "pipeline")] | length' "$WORK/pipelines.ndjson")"
 echo "everything: $applied pipelines applied; the corpus $corpus"
-echo "verified ${#passed[@]} one by one: the 22 beside the shelves, two playground routes on them, and tutorial/:"
+echo "verified ${#passed[@]} one by one: the 28 beside the shelves, two playground routes on them, and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

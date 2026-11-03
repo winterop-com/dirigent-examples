@@ -73,7 +73,8 @@ steps:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      # A read answers the rows it found under rows, a list, whichever collection it read.
+      input: ${steps.read.output.rows}
       schema: metadata-snapshot-org-units
 
   save:
@@ -100,10 +101,10 @@ steps:
       input: ${steps.load.output.value}
       program: |
         {
-          level: (.organisationUnits[0].level),
-          units: (.organisationUnits | length),
-          first: (.organisationUnits[0].name),
-          last: (.organisationUnits[-1].name)
+          level: (.[0].level),
+          units: length,
+          first: (.[0].name),
+          last: (.[-1].name)
         }
 
   say:

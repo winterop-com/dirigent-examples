@@ -97,7 +97,7 @@ steps:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: org-units-page
 
   markdown:
@@ -105,8 +105,8 @@ steps:
     depends_on: [parent, check]
     config:
       values:
-        parent: ${steps.parent.output.body.organisationUnits.0.name}
-        units: ${steps.check.output.value.organisationUnits}
+        parent: ${steps.parent.output.rows.0.name}
+        units: ${steps.check.output.value}
       content_type: text/markdown
       template: |
         # Organisation units under {{ parent }}
@@ -132,8 +132,8 @@ steps:
     depends_on: [parent, check]
     config:
       values:
-        parent: ${steps.parent.output.body.organisationUnits.0.name}
-        units: ${steps.check.output.value.organisationUnits}
+        parent: ${steps.parent.output.rows.0.name}
+        units: ${steps.check.output.value}
       content_type: text/html
       template: |
         <!DOCTYPE html>
@@ -217,3 +217,8 @@ steps:
     # it was not handed.
     config:
       message: "the page is at ${steps.save_markdown.output.uri} (${steps.save_markdown.output.bytes_written} bytes), ${steps.save_html.output.uri} (${steps.save_html.output.bytes_written} bytes) and ${steps.pdf.output.outputs.page}"
+
+# The markdown page is also the run's report: the Report tab and `dg runs report RUN --markdown`
+# show the same text the file holds, rendered once.
+report:
+  from: markdown

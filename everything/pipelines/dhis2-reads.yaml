@@ -1,0 +1,104 @@
+# Four reads of the DHIS2 play demo, one per block, none of them waiting on another:
+#
+#   info      dhis2.system_info. Which DHIS2 answered, and when its analytics tables were last
+#             built. A report that quotes a number quotes the instance it came from.
+#   holdings  dhis2.metadata_export. Two collections in one GET /api/metadata, each with its
+#             own fields, answered under collections.<name> with a count per name.
+#   changed   dhis2.data_value_set_export, incremental. Only the values changed at or after
+#             the since parameter, which is what a sync reads from its previous run's start.
+#   children  dhis2.tracker with all_pages. Every tracked entity of one program at one
+#             facility, a page at a time, under bounds that fail the step rather than hand on
+#             part of the collection.
+#
+# Every read is safe to retry and the play demo is shared and sometimes slow, so each one has
+# the same small retry budget. A refusal -- an unknown uid, a cap reached -- declines it.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-reads
+name: Four reads of the play demo
+description: System info, two metadata collections in one request, the data values changed since a date, and every tracked entity of a program at one facility.
+
+tags: [dhis2, metadata, tracker, incremental]
+
+requires:
+  blocks:
+    - dhis2.system_info
+    - dhis2.metadata_export
+    - dhis2.data_value_set_export
+    - dhis2.tracker
+  connections:
+    - play
+
+params:
+  type: object
+  properties:
+    since:
+      type: string
+      # The play database's values were last touched in October 2017 and its dates shifted
+      # forward since, so this is the date that finds the last batch someone entered. A real
+      # sync passes the start of its previous run.
+      default: "2017-10-01"
+      description: Read only the values changed at or after this ISO date.
+    org_unit:
+      type: string
+      format: dhis2-uid
+      default: DiszpKrYNg8
+      description: The facility read from. Ngelehun CHC by default.
+
+steps:
+  info:
+    block: dhis2.system_info
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+
+  holdings:
+    block: dhis2.metadata_export
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      # The shared terms, which a collection below replaces by naming its own.
+      fields: id,name
+      order: name:asc
+      resources:
+        dataSets:
+          fields: id,name,periodType
+        programs:
+          # Tracker programs only, the ones dhis2.tracker can read.
+          filter: programType:eq:WITH_REGISTRATION
+
+  changed:
+    block: dhis2.data_value_set_export
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      # An export needs what, where and when. What: the monthly Child Health and Reproductive
+      # Health data sets. Where: one facility. When: last_updated stands in for a period, so
+      # the read is every period whose values changed since the date, not one month's.
+      #
+      # Two data sets rather than one: with a single data set and no period, dirigent-dhis2
+      # 0.33 reads DHIS2's answer, which then names no data set, as an export outside the
+      # account's scope and refuses it.
+      data_set: [BfMAe6Itzgt, QX4ZTUbOt3a]
+      org_unit: ${params.org_unit}
+      last_updated: ${params.since}
+
+  children:
+    block: dhis2.tracker
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      kind: trackedEntities
+      program: IpHINAT79UW
+      org_unit: ${params.org_unit}
+      ou_mode: SELECTED
+      fields: trackedEntity,orgUnit,createdAt
+      all_pages: true
+      # Small pages, so the walk is visible: about 36 children are four pages of ten.
+      page_size: 10
+      # The bounds. Reaching any one fails the step with dhis2.tracker.cap_reached; nothing
+      # downstream is handed the part read so far as if it were the whole.
+      max_rows: 500
+      max_pages: 60
+      max_total: 1MB
