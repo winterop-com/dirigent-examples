@@ -28,6 +28,31 @@ Every command goes through `uv run dg`, so it runs the dirigent version `pyproje
    `uv run dg dev` starts a local instance with its web UI; it keeps running, so a person starts it
    in a terminal of its own.
 
+## Through MCP
+
+When the instance's dirigent MCP server (`/mcp`) is connected, the same loop goes through its
+tools rather than `uv run dg`. A document is passed as its text.
+
+- Find: `list_blocks`, `get_block`, `list_examples` (each example's code and blocks),
+  `get_example` (its document).
+- Check: `plan_document` checks a document against the instance; `validate_pipeline`
+  checks one it already holds, by its code.
+- Apply: `apply_document`. To change a stored pipeline, `edit_pipeline` makes exact `{old, new}`
+  replacements in the text `export_pipeline` answers, each `old` once, then plans and applies;
+  `plan_only` stops at the plan.
+- Run and read runs: `run_pipeline`, `list_runs`, `get_run`, `run_attempts`, `run_logs`.
+  `run_attempts` shows outputs as their size and start; `get_attempt_output` reads one, with
+  `path` a JSON pointer into it. `get_run_report` reads a run's report document,
+  `get_run_profile` where its time went.
+- Connections: `list_connections`, `get_connection`, and `create_connection`, which stores
+  a connection's settings alone and refuses every secret field. Never ask for or pass a
+  secret: tell the person that an admin runs the `supply_with` command it answers,
+  `dg connection set-secret CODE`, which prompts for each secret at their terminal.
+- Alerts and schedules: `create_alert_rule`, `update_alert_rule`, `pause_alert_rule`,
+  `resume_alert_rule`, `delete_alert_rule`, `list_alert_deliveries`, `list_schedule_firings`.
+- Every answer is bounded in size. A cut one carries a `truncated` note saying how to ask for
+  less, and a long text is read on from `next_offset`.
+
 ## Reading what dg says
 
 Outside a terminal, which is every agent's shell, every `dg` command writes NDJSON: one JSON
@@ -51,8 +76,9 @@ record per line, each with a `kind`. Select with `jq`, for example
 - Values move between steps by reference, never by copying: `${params.NAME}`,
   `${steps.STEP.output.FIELD}`, and `${item}` inside a `for_each`. A step that reads another's
   output lists it under `depends_on`.
-- Secrets never go in a document. A connection holds them, created once with
-  `uv run dg connection create KIND CODE`, and a step names it by its code.
+- Secrets never go in a document or through you. A connection holds them, created by a person
+  with `uv run dg connection create KIND CODE`, or with its settings alone by you and completed
+  by an admin with `uv run dg connection set-secret CODE`; a step names it by its code.
 - `.dirigent/state/` and `.env` belong to the local instance; they are not edited by hand.
 
 ## Reading further

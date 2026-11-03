@@ -97,6 +97,14 @@
 # DIRIGENT_LOG_FORMAT
 # log_format: null
 
+# How large dg dev's log file in the state directory grows before it is rotated.
+# DIRIGENT_DEV_LOG_MAX_SIZE
+# dev_log_max_size: 10485760
+
+# How many rotated dg dev log files are kept beside the live one.
+# DIRIGENT_DEV_LOG_BACKUPS
+# dev_log_backups: 3
+
 # Default storage backend URI prefix for run scratch space and artifacts.
 # Host only.
 # DIRIGENT_ARTIFACT_ROOT
@@ -221,6 +229,11 @@
 # Host only.
 # DIRIGENT_RETENTION_NOTIFICATIONS
 # retention_notifications: null
+
+# How long an entry of the audit trail is kept; null keeps every one.
+# Host only.
+# DIRIGENT_RETENTION_AUDIT
+# retention_audit: "52w1d"
 
 # Whether pruning a run also deletes its artifacts from storage.
 # DIRIGENT_RETENTION_SCRATCH
