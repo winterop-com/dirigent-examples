@@ -1,0 +1,150 @@
+# Look after one patient on the target once the copy has put it there: correct the record in
+# place, mark it inactive, read back everything the target holds about it, and clear away a
+# scratch resource left for testing.
+#
+# In:  the target fhir-to-fhir filled, and one record number to look after.
+# Out: that patient written over at its id, patched inactive, and its chart read whole; a test
+#      patient written at a fixed id and deleted again.
+#
+# HOP BY HOP:
+#
+#   find        fhir.search on the target: the one patient carrying the record number.
+#   corrected   transform.jq: the patient as found, with the name it should carry.
+#   rewrite     fhir.update with id: PUT Patient/<id>, the whole resource written over the one
+#               at that id. An update by id replaces; it never merges.
+#   deactivate  fhir.patch: one JSON Patch operation, conditional on the record number, so the
+#               server applies it to the one patient that search matches and refuses it if
+#               several do. A patch changes the fields it names and leaves the rest.
+#   chart       fhir.operation $everything on that patient: the patient and every resource
+#               about it, in one Bundle.
+#   scratch     fhir.update with id: a test patient written at an id this document chooses,
+#               created there the first time and written over every time after.
+#   cleared     fhir.delete with a search: every patient under the test system, at most one,
+#               which fails before deleting anything if the search matches more.
+#
+# EXPECT every run to succeed the same way: the rewrite and the patch land on the same patient
+# each time, the chart holds it and its two observations, and the scratch patient is created
+# and gone again. A later fhir-to-fhir run writes the source's copy back over the patient.
+#
+#   uv run dg run --local pipelines/fhir-target-upkeep.yaml --connections connections.yaml
+
+format: dirigent/v1
+kind: pipeline
+code: fhir-target-upkeep
+name: Look after one patient on the target
+description: |
+  Rewrite one patient at its id, patch it inactive, read its $everything, and delete a test patient.
+
+  The target's own data, changed in place: an update by id, a conditional JSON Patch, an
+  instance-level operation, and a bounded delete by search.
+
+tags: [fhir]
+
+requires:
+  blocks:
+    - fhir.search
+    - fhir.update
+    - fhir.patch
+    - fhir.operation
+    - fhir.delete
+    - transform.jq
+  connections:
+    - fhir-target
+
+params:
+  type: object
+  properties:
+    mrn:
+      type: string
+      default: MRN-0001
+      description: The record number of the patient looked after; Kari Nordmann in the seed.
+
+steps:
+  find:
+    block: fhir.search
+    config:
+      connection: fhir-target
+      resource_type: Patient
+      params:
+        identifier: http://example.org/fhir-to-fhir/mrn|${params.mrn}
+      # The resources alone, rather than a Bundle around them: what the steps below read.
+      emit: resources
+
+  corrected:
+    block: transform.jq
+    depends_on: [find]
+    config:
+      # The first resource the search answered, read by a dotted index: plan refuses
+      # resources[0].
+      input: ${steps.find.output.resources.0}
+      # The whole name is written, never appended to, so every run writes the same one.
+      program: |
+        .name = [{use: "official", family: .name[0].family, given: [.name[0].given[0], "Marie"]}]
+
+  rewrite:
+    block: fhir.update
+    depends_on: [corrected]
+    config:
+      connection: fhir-target
+      # The id the target holds the patient under. Without it, fhir.update matches on the
+      # resource's identifier instead, which is what the copy does.
+      id: ${steps.find.output.resources.0.id}
+      resource: ${steps.corrected.output.value}
+
+  deactivate:
+    block: fhir.patch
+    depends_on: [rewrite]
+    config:
+      connection: fhir-target
+      resource_type: Patient
+      params:
+        identifier: http://example.org/fhir-to-fhir/mrn|${params.mrn}
+      # add sets the field whether or not the patient carries one; replace would fail on a
+      # patient that does not.
+      json_patch:
+        - op: add
+          path: /active
+          value: false
+
+  chart:
+    block: fhir.operation
+    depends_on: [deactivate]
+    config:
+      connection: fhir-target
+      operation: $everything
+      resource_type: Patient
+      id: ${steps.find.output.resources.0.id}
+      params:
+        _count: "50"
+      # Every page of the answer folded into one Bundle, up to this many.
+      max_pages: 5
+
+  scratch:
+    block: fhir.update
+    config:
+      connection: fhir-target
+      # HAPI allows an update to create the resource at an id it does not hold yet, so the
+      # first run answers created and every later one updated.
+      id: fhir-to-fhir-scratch
+      resource:
+        resourceType: Patient
+        identifier:
+          - system: http://example.org/fhir-to-fhir/test
+            value: scratch
+        name:
+          - family: Scratch
+            given: [Test]
+
+  cleared:
+    block: fhir.delete
+    depends_on: [scratch]
+    config:
+      connection: fhir-target
+      resource_type: Patient
+      # Every patient under the test system: a search matching on a value. One that matched on
+      # nothing, or only on _count and the like, would match every patient and is refused at
+      # apply.
+      params:
+        identifier: http://example.org/fhir-to-fhir/test|
+      # The most this may delete. A search matching more fails the step and deletes nothing.
+      max: 1

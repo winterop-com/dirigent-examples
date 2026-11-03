@@ -20,9 +20,12 @@ What you learn here:
   `urn:uuid` the target resolves to its own copy of that patient, so the source's ids never
   reach the target;
 - that every write is a conditional update on the resource's identifier, which is what makes the
-  copy safe to run again: the second night creates nothing.
+  copy safe to run again: the second night creates nothing;
+- and, in a second document, `fhir-target-upkeep`, the writes that change one resource in place
+  once it is there: an update at its id, a JSON Patch, a patient's `$everything`, and a delete
+  bounded by how many a search may match.
 
-`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.32, and
+`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.34, and
 `uv sync` installs them like any other pack.
 
 ## Run it
@@ -46,7 +49,7 @@ Then the project:
 
 ```bash
 uv sync
-uv run dg validate pipelines/fhir-to-fhir.yaml
+uv run dg validate
 ```
 
 The fast loop, with no server. A local run starts on a throwaway instance holding nothing, so it
@@ -89,7 +92,8 @@ docker compose -p dirigent-example-fhir-to-fhir -f hapi/compose.yaml down -v
 
 `./verify.sh` does all of it unattended -- validate, the two servers started empty under their
 own compose project name, the seed, a local run, a second local run, an instance on a free port
-of its own, both connections checked, the apply and a run there -- and asserts on records and on
+of its own, both connections checked, the apply and a run there, then `fhir-target-upkeep` on
+the instance -- and asserts on records and on
 what the target holds: a dozen patients and two dozen observations, the source's identifiers on
 them, every observation's subject resolving on the target to the patient carrying the identifier
 its source patient carries, the search reading three pages, and the second and third runs
@@ -112,6 +116,95 @@ and on every run after it:
 
 `updated` counts what the target found already there and wrote over, which on an unchanged
 source changes nothing on the target.
+
+## Looking after a patient on the target
+
+`pipelines/fhir-target-upkeep.yaml` works on the target alone, once the copy has filled it. It
+takes one record number, `MRN-0001` by default, Kari Nordmann in the seed:
+
+```bash
+uv run dg run --local pipelines/fhir-target-upkeep.yaml --connections connections.yaml
+```
+
+```text
+steps
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step       ┃ block          ┃ outcome   ┃ after      ┃ duration ┃ output                         ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ find       │ fhir.search    │ succeeded │ -          │ 0.1s     │ resources=[1 items]  count=1   │
+│            │                │           │            │          │ total=1  pages=1               │
+│            │                │           │            │          │ complete=true                  │
+│ scratch    │ fhir.update    │ succeeded │ -          │ 0.0s     │ outcome=created  status=201    │
+│            │                │           │            │          │ id=fhir-to-fhir-scratch        │
+│            │                │           │            │          │ version_id=1                   │
+│            │                │           │            │          │ location=http://127.0.0.1:981… │
+│            │                │           │            │          │ resource={5 keys}              │
+│ cleared    │ fhir.delete    │ succeeded │ scratch    │ 0.1s     │ outcome=deleted  deleted=1     │
+│            │                │           │            │          │ ids=[1 items]  issues=[1       │
+│            │                │           │            │          │ items]                         │
+│ corrected  │ transform.jq   │ succeeded │ find       │ 0.0s     │ value={7 keys}                 │
+│ rewrite    │ fhir.update    │ succeeded │ corrected  │ 0.0s     │ outcome=updated  status=200    │
+│            │                │           │            │          │ id=1000  version_id=2          │
+│            │                │           │            │          │ location=http://127.0.0.1:981… │
+│            │                │           │            │          │ resource={7 keys}              │
+│ deactivate │ fhir.patch     │ succeeded │ rewrite    │ 0.1s     │ outcome=updated  status=200    │
+│            │                │           │            │          │ id=1000  version_id=3          │
+│            │                │           │            │          │ location=http://127.0.0.1:981… │
+│            │                │           │            │          │ resource={8 keys}              │
+│ chart      │ fhir.operation │ succeeded │ deactivate │ 0.0s     │ level=instance  resource={7    │
+│            │                │           │            │          │ keys}  resource_type=Bundle    │
+│            │                │           │            │          │ pages=1  complete=true         │
+└────────────┴────────────────┴───────────┴────────────┴──────────┴────────────────────────────────┘
+```
+
+**`rewrite`** is `fhir.update` with `id`: `PUT Patient/1000`, the id `find` read on the target.
+An update by id writes the whole resource over the one at that id -- here the patient as found
+with its name corrected to *Kari Marie* by `corrected` -- and never merges. Without `id`,
+`fhir.update` matches on the resource's identifier instead, which is what the copy does.
+
+**`deactivate`** is `fhir.patch`: one JSON Patch operation, `add /active false`, sent as
+`PATCH Patient?identifier=...|MRN-0001`. A conditional patch applies to the one resource the
+search matches and is refused when several do; a patch changes the fields it names and leaves
+the rest, so the name `rewrite` wrote stays. `fhirpath_patch` takes a FHIRPath Patch
+`Parameters` in place of `json_patch`. A search that matches on nothing -- empty, or only
+`_count`, `_sort` and the like -- would match every patient, and is refused at apply.
+
+**`chart`** is `fhir.operation` with `$everything` on that one patient, an instance-level
+operation: the patient and both observations about it, in one Bundle, the patient carrying both
+changes:
+
+```json
+{
+  "level": "instance",
+  "resource_type": "Bundle",
+  "entries": [
+    {"type": "Patient", "id": "1000"},
+    {"type": "Observation", "id": "1009"},
+    {"type": "Observation", "id": "1010"}
+  ],
+  "patient": {"active": false, "name": [{"use": "official", "family": "Nordmann", "given": ["Kari", "Marie"]}]}
+}
+```
+
+*Shortened from `output.resource`.* The same block invokes `$validate` with `input`, `$expand`
+on a type, or anything else the server offers, and follows a Bundle answer's next links up to
+`max_pages`.
+
+**`scratch`** and **`cleared`** are test data, written and cleared again. `fhir.update` with
+`id: fhir-to-fhir-scratch` creates the patient at an id the document chooses, which HAPI
+allows, and answers `created` the first time. `fhir.delete` with `params` then deletes every
+patient under the test system -- after counting them, at most `max: 1`:
+
+```json
+{"outcome": "deleted", "deleted": 1, "ids": ["fhir-to-fhir-scratch"]}
+```
+
+A search matching more than `max` fails the step with `fhir.delete.too_many` before anything is
+deleted. A delete by `id` reads first and answers `absent` for a resource already gone, so a
+delete is safe to run again either way.
+
+A `fhir-to-fhir` run after this one writes the source's copy of the patient back over it: the
+copy is a conditional update on the identifier, and the source never changed.
 
 ## The document, hop by hop
 
@@ -146,4 +239,5 @@ documents.
 
 - [`fhir-to-dhis2`](../fhir-to-dhis2): FHIR arriving at an endpoint and carried into DHIS2.
 - The `dirigent-fhir` pack's own `fhir` shelf: a read, a paged search, a conditional create, a
-  conditional update and a nightly copy, one document each.
+  conditional update, an update by id, a patch, a bounded delete, `$everything` and a nightly
+  copy, one document each.
