@@ -200,9 +200,19 @@ expect "the body's station and reading to reach record, and sender to reach noth
 
 echo "echo-schedule: the endpoint started ${delivered_run}, reading tromso-langnes"
 
-# A POST without the token is refused before any run exists.
+# A POST without the token is refused before any run exists, and the source counts it as
+# refused. The counts are instance state that outlives this script, so the refusal is read as
+# a step up.
+upstream_counts() {
+  uv run dg source list --json | jq -c -s 'map(.fields | select(.code == "upstream")) | first'
+}
+before=$(upstream_counts)
 http=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$url" \
   -H 'content-type: application/json' -d '{"station": {"code": "nobody"}}')
 [ "$http" = 401 ] || { echo "echo-schedule: expected a POST with no token to be refused 401, and it answered $http" >&2; exit 1; }
+expect "the call with no token counted as refused, and nothing counted as failed" \
+  "[$before, $(upstream_counts)]" '
+  .[0][0] as $was | .[0][1] as $now
+  | $now.refused == $was.refused + 1 and $now.failed == 0 and $now.accepted >= 1'
 
 echo "echo-schedule: the clock and the endpoint both started runs, with nothing called"
