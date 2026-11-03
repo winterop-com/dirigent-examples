@@ -1,0 +1,121 @@
+# A run whose report is a page one of its own steps wrote.
+#
+# In:  a batch of readings, carried in this document and handed over by the node.
+# Out: a summary of the batch, a markdown page rendered from it, and that page as the run's
+#      report.
+#
+# A `report:` section with a `template` renders over the run's own facts when the run
+# settles. `report: {from: page}` takes a step's text instead: the step named renders the
+# page while the run is running, from whatever values the steps above it handed it, and the
+# engine stores that text as the run's report as it stands -- rendered no further. The two
+# are exclusive; a section with both is refused.
+#
+# Why a step, when a template could do it: report.render sees exactly the values it is
+# given, so the page is written over the batch itself rather than over what each step
+# amounted to, and the same text is an output a later step can send anywhere -- a file, a
+# bucket, a webhook -- while the run still has it.
+#
+# Plan and `dg validate` check the pairing: `from` naming a step that does not exist, a
+# source or a reply, or a block whose output carries no `text`, is refused before any run.
+# A report.render step in a document with no `report:` section is a warning, because on its
+# own its text is an output and nothing else.
+#
+# Hop by hop:
+#
+#   readings  the batch, as the node's records. Nothing is called.
+#   summary   reduce it with jq: how many, the coldest, the mean, and whether every one was
+#             above freezing -- a boolean, on purpose.
+#   say       one log line built from the summary inside a longer string. A list or an
+#             object in a ${...} that is only part of a string is written as compact JSON,
+#             and a boolean as true or false, the way JSON reads them.
+#   page      the page, rendered from the summary and the day the run was asked about.
+#
+# EXPECT THIS RUN TO SUCCEED in well under a second, the page as its report.
+#
+#   uv run dg run --local pipelines/echo-report.yaml -p day=2026-01-02
+#   uv run dg apply && uv run dg run echo-report --watch && uv run dg runs report RUN_ID --markdown
+
+format: dirigent/v1
+kind: pipeline
+code: echo-report
+name: A report from a step
+description: |
+  A batch reduced, and a markdown page rendered from the result by a `report.render` step that
+  `report: {from: page}` makes the run's own report.
+
+tags: [recipes, playground, transform, report]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+    - log.write
+    - report.render
+
+params:
+  type: object
+  properties:
+    day:
+      type: string
+      format: date
+      default: "2026-01-01"
+      description: The day the readings are for, written into the page's title.
+
+steps:
+  readings:
+    block: playground.generate
+    config:
+      input:
+        - { station: bergen-florida, celsius: 12.4 }
+        - { station: oslo-blindern, celsius: 3.1 }
+        - { station: tromso-langnes, celsius: -6.8 }
+        - { station: trondheim-voll, celsius: 1.2 }
+
+  summary:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input: ${steps.readings.output.records}
+      program: |
+        {rows: length,
+         stations: map(.station),
+         coldest: (min_by(.celsius) | {station, celsius}),
+         mean_celsius: ((map(.celsius) | add) / length * 10 | round / 10),
+         all_above_freezing: all(.celsius > 0)}
+
+  say:
+    block: log.write
+    depends_on: [summary]
+    config:
+      # Each ${...} here is one part of a longer string, so a list and an object arrive as
+      # compact JSON and the boolean as `false` -- not as Python would print them.
+      message: "stations ${steps.summary.output.value.stations}, coldest ${steps.summary.output.value.coldest}, all above freezing: ${steps.summary.output.value.all_above_freezing}"
+
+  page:
+    block: report.render
+    depends_on: [summary]
+    config:
+      # The template sees `values` and nothing else: no run, no params, no steps. What it
+      # reads is handed to it here, by reference, under the name it reads it by. A ${...}
+      # inside `template` itself is refused, because a value put there would become template
+      # source.
+      values:
+        day: ${params.day}
+        summary: ${steps.summary.output.value}
+      template: |
+        # Readings for {{ day }}
+
+        {{ summary.rows }} stations, mean {{ summary.mean_celsius }} C.
+        The coldest was {{ summary.coldest.station }} at {{ summary.coldest.celsius }} C.
+        {% if summary.all_above_freezing %}Every station was above freezing.{% else %}At least one station was below freezing.{% endif %}
+
+
+        | Station |
+        | --- |
+        {% for station in summary.stations -%}
+        | {{ station }} |
+        {% endfor %}
+
+# The step's text, as it is, is the run's report.
+report:
+  from: page

@@ -124,7 +124,7 @@ schedules of echo-schedule
 ```
 
 ```bash
-uv run dg source list --json | jq '.fields | {pipeline, code, kind, state, url_path, auth, accepted, refused}'
+uv run dg source list --json | jq '.fields | {pipeline, code, kind, state, url_path, auth, accepted, failed, refused}'
 ```
 
 ```json
@@ -136,9 +136,15 @@ uv run dg source list --json | jq '.fields | {pipeline, code, kind, state, url_p
   "url_path": "/endpoints/readings",
   "auth": "token",
   "accepted": 1,
+  "failed": 0,
   "refused": 0
 }
 ```
+
+Three counts, one per way a call can end. `accepted` is a call that started a run and was not
+answered with that run's failure; `failed` is one whose caller was held for the run and got its
+failure back; `refused` is one turned away before any run, a missing or wrong token included,
+and a refused call is in the source's journal too, without its headers or body.
 
 `next firing`, `last fired` and what the source has accepted are instance state, which is
 exactly why they are not in the documents. A source's row carries a prefix of its token and

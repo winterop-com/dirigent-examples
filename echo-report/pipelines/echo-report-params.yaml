@@ -1,0 +1,78 @@
+# The other form of `report:`: a template the engine renders over the run's own facts when
+# the run settles, reading the parameters the run was asked with.
+#
+# In:  a station and a threshold, as parameters, and the readings, carried in the document.
+# Out: the readings over the threshold, and a report saying which parameters produced them.
+#
+# `params` in a report template is the parameters the run resolved to, defaults filled in,
+# so `{{ params.threshold }}` prints the threshold whether the run was given one or not.
+# `run.params` is the same mapping under the run. Plan and `dg validate` warn about a
+# `params.<name>` the document's params schema does not list, and about a `step.<name>` it
+# does not declare, because a name the facts do not have renders as nothing at the run.
+#
+# A value prints the way JSON reads it: `{{ params }}` is the whole mapping as compact JSON,
+# and a boolean is `true` or `false`.
+#
+# EXPECT THIS RUN TO SUCCEED, two readings over the default threshold of 2.
+#
+#   uv run dg run --local pipelines/echo-report-params.yaml -p threshold=0
+#   uv run dg apply && uv run dg run echo-report-params -p threshold=0 --watch
+#   uv run dg runs report RUN_ID --markdown
+
+format: dirigent/v1
+kind: pipeline
+code: echo-report-params
+name: A report that says what it was asked
+description: |
+  Readings over a threshold, and a `report:` template that names the parameters the run
+  resolved to.
+
+tags: [recipes, playground, transform, report]
+
+requires:
+  blocks:
+    - playground.generate
+    - transform.jq
+
+params:
+  type: object
+  properties:
+    threshold:
+      type: integer
+      default: 2
+      description: Readings above this many degrees Celsius are kept.
+    strict:
+      type: boolean
+      default: false
+      description: Printed in the report as true or false; it changes nothing else.
+
+steps:
+  readings:
+    block: playground.generate
+    config:
+      input:
+        - { station: bergen-florida, celsius: 12.4 }
+        - { station: oslo-blindern, celsius: 3.1 }
+        - { station: tromso-langnes, celsius: -6.8 }
+        - { station: trondheim-voll, celsius: 1.2 }
+
+  over:
+    block: transform.jq
+    depends_on: [readings]
+    config:
+      input:
+        rows: ${steps.readings.output.records}
+        threshold: ${params.threshold}
+      program: '[.threshold as $t | .rows[] | select(.celsius > $t) | .station]'
+
+report:
+  template: |
+    # {{ pipeline.code }}: readings above {{ params.threshold }} C
+
+    **{{ run.status }}**, strict: {{ params.strict }}.
+
+    {% if step.over.output %}
+    {{ step.over.output.value | length }} stations: {{ step.over.output.value | join(", ") }}.
+    {% endif %}
+
+    Asked with `{{ params }}`.

@@ -1,0 +1,145 @@
+# Four kinds of write to the DHIS2 play demo, every one of them rehearsed: DHIS2 resolves what
+# each would write, checks it, reports what it would have done, and stores nothing. The demo is
+# shared, so every write step below carries dry_run: true, and verify.sh refuses this document
+# if one does not.
+#
+#   element    dhis2.metadata_import. One new data element, sent as a bundle of one. A dry
+#              run is importMode=VALIDATE, because DHIS2's metadata importer accepts dryRun
+#              and commits anyway.
+#   before     dhis2.data_value, get. The cell the next step rehearses writing, as it stands.
+#   value      dhis2.data_value, set. A dry run never calls /api/dataValues, which takes dryRun
+#              and writes regardless; it sends the cell as a one-value data value set import
+#              with dryRun=true.
+#   after      dhis2.data_value, get. The same cell again: what the rehearsal left behind.
+#   visit      dhis2.tracker_import. One event, validated by the tracker importer as a job the
+#              engine follows, importMode=VALIDATE.
+#   sign_off   dhis2.data_set_completion. A data set marked complete for a month at a
+#              facility, posted with dryRun=true.
+#
+# The four rehearsals wait on nothing but before/after, so they run side by side.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-writes-rehearsed
+name: Four writes, rehearsed
+description: Create a data element, set a data value, import a tracker event and sign a data set off, all as dry runs against the play demo.
+
+tags: [dhis2, metadata, tracker, dry-run]
+
+requires:
+  blocks:
+    - dhis2.metadata_import
+    - dhis2.data_value
+    - dhis2.tracker_import
+    - dhis2.data_set_completion
+  connections:
+    - play
+
+params:
+  type: object
+  properties:
+    period:
+      type: string
+      format: dhis2-period
+      default: "202507"
+      description: The month the value and the sign-off belong to.
+    value:
+      type: string
+      default: "24"
+      description: The value rehearsed into the cell.
+
+# Every uid is a real one on the play demo. DiszpKrYNg8 is Ngelehun CHC; BfMAe6Itzgt the
+# monthly Child Health data set; s46m5MS0hxu "BCG doses given" and Prlt0C1RF0s its "Fixed, <1y"
+# cell; bjDvmb4bfuf the default category combo; eBAyeGv0exc the event program "Inpatient
+# morbidity and mortality", Zj7UnCAulEk its one stage, and qrur9Dvnyt5 "Age in years" on it.
+
+steps:
+  element:
+    block: dhis2.metadata_import
+    config:
+      connection: play
+      metadata:
+        dataElements:
+          - name: Dirigent example rehearsed element
+            shortName: Dirigent rehearsed
+            valueType: NUMBER
+            domainType: AGGREGATE
+            aggregationType: SUM
+            categoryCombo:
+              id: bjDvmb4bfuf
+      # CREATE refuses an element that already exists, rather than quietly updating it.
+      import_strategy: CREATE
+      dry_run: true
+
+  before:
+    block: dhis2.data_value
+    config:
+      connection: play
+      action: get
+      data_element: s46m5MS0hxu
+      period: ${params.period}
+      org_unit: DiszpKrYNg8
+      category_option_combo: Prlt0C1RF0s
+
+  value:
+    block: dhis2.data_value
+    depends_on: [before]
+    config:
+      connection: play
+      action: set
+      data_element: s46m5MS0hxu
+      period: ${params.period}
+      org_unit: DiszpKrYNg8
+      category_option_combo: Prlt0C1RF0s
+      value: ${params.value}
+      dry_run: true
+
+  after:
+    block: dhis2.data_value
+    depends_on: [value]
+    config:
+      connection: play
+      action: get
+      data_element: s46m5MS0hxu
+      period: ${params.period}
+      org_unit: DiszpKrYNg8
+      category_option_combo: Prlt0C1RF0s
+
+  visit:
+    block: dhis2.tracker_import
+    # The import runs as a job on the instance; the engine probes it this often instead of
+    # holding a worker for the wait.
+    poll: 5s
+    config:
+      connection: play
+      tracker:
+        events:
+          - program: eBAyeGv0exc
+            programStage: Zj7UnCAulEk
+            orgUnit: DiszpKrYNg8
+            occurredAt: "2025-07-01"
+            status: ACTIVE
+            # The stage makes four of its data elements compulsory, and the importer refuses
+            # an event without them (E1303), rehearsal or not: admission and discharge dates,
+            # the mode of discharge and the diagnosis, each a code from its option set.
+            dataValues:
+              - dataElement: qrur9Dvnyt5
+                value: "34"
+              - dataElement: eMyVanycQSC
+                value: "2025-06-28"
+              - dataElement: msodh3rEMJa
+                value: "2025-07-01"
+              - dataElement: fWIAEtYVEGk
+                value: MODDISCH
+              - dataElement: K6uUAvq500H
+                value: A009
+      dry_run: true
+
+  sign_off:
+    block: dhis2.data_set_completion
+    config:
+      connection: play
+      data_set: BfMAe6Itzgt
+      period: ${params.period}
+      org_unit: DiszpKrYNg8
+      dry_run: true

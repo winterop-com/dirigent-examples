@@ -1,0 +1,58 @@
+# Ask the playground for one station's reading, and write the run's own report of it.
+#
+# This is the document a person applies and an agent then works on over MCP: the agent reads
+# the report a run rendered with get_run_report, and changes this pipeline with edit_pipeline
+# rather than sending the whole document again. The README walks through both.
+#
+# NEEDS AN INSTANCE TO CALL. The playground is a request-and-response service every dirigent
+# instance serves itself under /api/v1/playground, so start one first, in this directory:
+#
+#   uv run dg dev
+
+format: dirigent/v1
+kind: pipeline
+code: station-report
+name: Station report
+description: Ask the playground for one station's reading, and report what came back.
+
+tags: [http, report, mcp]
+
+requires:
+  blocks:
+    - http.request
+
+params:
+  type: object
+  properties:
+    playground:
+      type: string
+      default: http://127.0.0.1:3333/api/v1/playground
+      description: The playground routes on the instance this calls; `dg dev` serves them here.
+    station:
+      type: string
+      default: bergen-florida
+      description: The station the reading is asked for.
+
+steps:
+  ask:
+    block: http.request
+    config:
+      url: ${params.playground}/request
+      method: GET
+      query:
+        station: ${params.station}
+        reading: "12.4"
+
+# The run's own account of itself, rendered when it settles. `params` is the run's resolved
+# parameters, so the heading names the station whichever one the run was given, and
+# `step.ask.output` is what the step handed on. get_run_report reads this document back.
+report:
+  template: |
+    # {{ params.station }}
+
+    **{{ run.status }}** in {{ run.duration_ms | duration }}, started by {{ run.trigger }}.
+
+    {% if step.ask.output %}
+    The playground answered {{ step.ask.output.status }} and read back station
+    `{{ step.ask.output.body.request.args.station }}`, reading `{{ step.ask.output.body.request.args.reading }}`.
+    {% endif %}

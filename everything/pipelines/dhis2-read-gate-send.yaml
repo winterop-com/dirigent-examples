@@ -17,9 +17,10 @@
 # refuses this document on an instance that does not hold it, before a run rather than
 # during one.
 #
-# A reference walks a value with dots, and an array index is a dot too, so
-# ${steps.check.output.value.organisationUnits.0.id} is the first validated unit's uid --
-# Benkeh MCHP, because the read is ordered by name.
+# A read answers its rows under rows, whichever collection it read, so the gate holds the list
+# itself. A reference walks a value with dots, and an array index is a dot too, so
+# ${steps.check.output.value.0.id} is the first validated unit's uid -- Benkeh MCHP, because
+# the read is ordered by name.
 
 format: dirigent/v1
 kind: pipeline
@@ -74,7 +75,7 @@ steps:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: read-gate-send-org-units
 
   send:
@@ -91,7 +92,7 @@ steps:
         # element's value type says.
         dataSet: BfMAe6Itzgt
         period: ${params.period}
-        orgUnit: ${steps.check.output.value.organisationUnits.0.id}
+        orgUnit: ${steps.check.output.value.0.id}
         dataValues:
           - dataElement: s46m5MS0hxu
             categoryOptionCombo: Prlt0C1RF0s

@@ -110,7 +110,7 @@ steps:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: org-unit-sync-source
 
   shape:
@@ -125,7 +125,7 @@ steps:
       # parent is narrowed to {id} because the request below matches by uid. The other
       # document in this repository matches by code and keeps {code} instead.
       program: |
-        {organisationUnits: [.organisationUnits[] | {
+        {organisationUnits: [.[] | {
           id, code, name, shortName, openingDate,
           parent: {id: .parent.id}
         }]}

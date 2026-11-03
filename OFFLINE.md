@@ -68,7 +68,7 @@ look:
 
 ## What stays online
 
-The four `dhis2-*` examples talk to the DHIS2 play server at `https://play.im.dhis2.org`, which
+The six `dhis2-*` examples talk to the DHIS2 play server at `https://play.im.dhis2.org`, which
 has no stand-in: they need the network and will fail without it.
 `dhis2-org-units-to-markdown`'s PDF document also needs the `pandoc/typst:3.11-alpine` image,
 which `prepare-offline.sh` pulls; its markdown and HTML document needs no container at all.

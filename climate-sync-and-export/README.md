@@ -109,7 +109,7 @@ on the way out. It takes a little over a minute.
 
 ```text
 2026-11-01T13:59:39.360+01:00 [info    ] started                        [run] pipeline=climate-sync-and-export run_id=01a19731-b3c2-77da-b1b3-fc508da7cdaa local=true scratch=file:///tmp/... root=/tmp/...
-2026-11-01T13:59:45.559+01:00 [info    ] metadata read                  [log units] resource=organisationUnits duration_ms=5637
+2026-11-01T13:59:45.559+01:00 [info    ] metadata read                  [log units] resource=organisationUnits rows=15 duration_ms=5637
 2026-11-01T13:59:45.906+01:00 [info    ] succeeded                      [step units] block=dhis2.metadata attempt=1 duration_ms=6013
 2026-11-01T13:59:46.623+01:00 [info    ] 5 periods pending              [log ingest]
 2026-11-01T13:59:46.926+01:00 [info    ] succeeded                      [step shapes] block=transform.jq attempt=1 duration_ms=329

@@ -64,11 +64,11 @@ assert_round_trip() {
     | (map(select(.step == "save")) | last | .output) as $save
     | (map(select(.step == "load")) | last | .output) as $load
     | (map(select(.step == "count")) | last | .output.value) as $count
-    | if ($gated.organisationUnits | length) < 1 then error("\($what): the gate passed no organisation units")
+    | if ($gated | length) < 1 then error("\($what): the gate passed no organisation units")
       elif $save.bytes_written < 1 then error("\($what): nothing was written to storage")
       elif $load.bytes_read != $save.bytes_written then error("\($what): \($save.bytes_written) bytes written, \($load.bytes_read) read back")
       elif $load.value != $gated then error("\($what): what came back out of storage is not what went in")
-      elif $count.units != ($gated.organisationUnits | length) then error("\($what): the count says \($count.units) of \($gated.organisationUnits | length)")
+      elif $count.units != ($gated | length) then error("\($what): the count says \($count.units) of \($gated | length)")
       else true end
   ' "$1" > /dev/null
 }

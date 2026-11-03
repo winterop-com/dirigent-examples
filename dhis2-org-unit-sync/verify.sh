@@ -75,7 +75,7 @@ assert_run_succeeded() {
 assert_rehearsed() {
   jq -se --arg what "$2" --arg identifier "$3" '
     map(select(.kind == "run")) | last | .steps
-    | (map(select(.step == "check")) | last | .output.value.organisationUnits) as $units
+    | (map(select(.step == "check")) | last | .output.value) as $units
     | (map(select(.step == "mode")) | last | .output.value) as $mode
     | (map(select(.step == "report")) | last | .output.value) as $report
     | if ($units | length) < 1 then error("\($what): the gate passed no organisation units")
@@ -94,7 +94,7 @@ assert_rehearsed() {
 assert_delivered() {
   jq -se --arg what "$2" '
     map(select(.kind == "run")) | last | .steps
-    | (map(select(.step == "check")) | last | .output.value.organisationUnits | length) as $units
+    | (map(select(.step == "check")) | last | .output.value | length) as $units
     | (map(select(.step == "batch")) | last | .output.value) as $batch
     | (map(select(.step == "send")) | last | .output.body.request.body) as $echoed
     | if $units < 1 then error("\($what): the gate passed no organisation units")

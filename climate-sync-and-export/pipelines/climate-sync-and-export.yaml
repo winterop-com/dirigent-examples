@@ -126,11 +126,11 @@ steps:
     block: transform.jq
     depends_on: [units]
     config:
-      input: ${steps.units.output.body}
+      input: ${steps.units.output.rows}
       # A chiefdom with no polygon has nothing to average over, so it is left out.
       program: |
         {type: "FeatureCollection",
-         features: [.organisationUnits[] | select(.geometry != null)
+         features: [.[] | select(.geometry != null)
                     | {type: "Feature", id: .id, properties: {name: .name}, geometry: .geometry}]}
 
   aggregate:

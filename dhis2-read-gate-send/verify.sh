@@ -166,13 +166,14 @@ grep -q '^      dry_run: true$' "pipelines/$CODE.yaml" \
   || { echo "the send step does not carry dry_run: true, so the run would write to the demo" >&2; exit 1; }
 jq -se '
   map(select(.kind == "run")) | last | .steps
-  | (map(select(.step == "check")) | last | .output.value.organisationUnits | length) as $units
+  | (map(select(.step == "check")) | last | .output.value | length) as $units
   | (map(select(.step == "send")) | last | .output) as $summary
   | if $units < 1 then error("the gate passed no organisation units")
     elif $summary.status != "SUCCESS" then error("the rehearsed import came back \($summary.status)")
     elif ($summary.conflicts | length) != 0 then error("the rehearsed import reported conflicts")
-    elif ($summary.imported + $summary.updated) != 2 then error("the rehearsed import accounted for \($summary.imported + $summary.updated) of the two values")
-    elif ($summary.ignored + $summary.deleted) != 0 then error("the rehearsed import ignored or deleted values")
+    elif $summary.sent != 2 then error("the rehearsed import sent \($summary.sent) values, not two")
+    elif ($summary.counts.imported + $summary.counts.updated) != 2 then error("the rehearsed import accounted for \($summary.counts.imported + $summary.counts.updated) of the two values")
+    elif ($summary.counts.ignored + $summary.counts.deleted) != 0 then error("the rehearsed import ignored or deleted values")
     else true end
 ' "$WORK/run.ndjson" > /dev/null
 

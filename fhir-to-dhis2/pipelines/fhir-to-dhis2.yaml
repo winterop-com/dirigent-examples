@@ -142,10 +142,10 @@ steps:
     config:
       input:
         capture: ${steps.read.output.value}
-        form: ${steps.form.output.body}
+        form: ${steps.form.output.rows}
       program: |
         .capture as $c
-        | (.form.dataSets[0] // error("DHIS2 has no data set \($c.dataSet)")) as $form
+        | (.form[0] // error("DHIS2 has no data set \($c.dataSet)")) as $form
         # Each data element on the form, with the cells it has.
         | ($form.dataSetElements | map({key: .dataElement.id,
              value: [.dataElement.categoryCombo.categoryOptionCombos[].id]}) | from_entries) as $cells
@@ -202,5 +202,5 @@ steps:
          values: (.document.dataValues | length),
          unanswered: .document.unanswered,
          status: .summary.status,
-         would_import: .summary.imported, would_update: .summary.updated,
-         ignored: .summary.ignored, conflicts: (.summary.conflicts | length)}
+         would_import: .summary.counts.imported, would_update: .summary.counts.updated,
+         ignored: .summary.counts.ignored, conflicts: (.summary.conflicts | length)}

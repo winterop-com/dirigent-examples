@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "dirigent": {
+      "type": "http",
+      "url": "http://127.0.0.1:3333/mcp",
+      "headers": { "Authorization": "Bearer ${DG_MCP_TOKEN}" }
+    }
+  }
+}

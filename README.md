@@ -3,7 +3,7 @@
 Small, independent example projects for dirigent, one folder each in this repository, that
 follow [The basics](https://winterop-com.github.io/dirigent/basics/) and the
 [DHIS2 tutorial](https://winterop-com.github.io/dirigent-dhis2/tutorial/). Every example was
-made with `dg init`, runs on dirigent 0.32, and carries a README in the tutorials' voice, its
+made with `dg init`, runs on dirigent 0.33, and carries a README in the tutorials' voice, its
 documents commented hop by hop, a `verify.sh` that runs it end to end without asking anything,
 and the `AGENTS.md` a coding agent reads before it works there.
 
@@ -20,13 +20,15 @@ uv sync
 ## What you need once
 
 - Python 3.13 and [uv](https://docs.astral.sh/uv/), `jq`, and `curl`.
-- The CLI: `uv tool install "dirigent-cli>=0.32,<0.33"`, the range every example pins, so `dg --version` says 0.32.
+- The CLI: `uv tool install "dirigent-cli>=0.33,<0.34"`, the range every example pins, so `dg --version` says 0.33.
+  A `dg` of another version refuses to work inside an example, naming both versions
+  (`cli.version_mismatch`), because each project pins its own; `uv run dg` is always the pinned one.
 - Docker, for `echo-s3` (a local rustfs container), for `echo-stream` (a local Redpanda container) and for the PDF document in
   `dhis2-org-units-to-markdown` (a pandoc container), and for the three pack examples below,
   which each start the outside system they talk to: `chap-prediction` a Chap stack,
   `climate-sync-and-export` an open climate service, `fhir-to-fhir` two HAPI FHIR servers,
   `fhir-search-to-summary` one.
-- A network only for the four `dhis2-*` examples, which call the public DHIS2 play demo, for
+- A network only for the six `dhis2-*` examples, which call the public DHIS2 play demo, for
   `fhir-to-dhis2` and `climate-sync-and-export`, which call it too, and for `everything`.
   No `echo-*` example calls anything on the internet: the ones that make an HTTP call make it
   against the **playground**, the request-and-response service every dirigent instance serves
@@ -81,7 +83,7 @@ and stops whatever it started.
 ```
 
 runs every example's `verify.sh` in turn and prints which passed. It needs the network for
-the four `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything`, and Docker for
+the six `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything`, and Docker for
 `echo-s3`, `echo-stream`, the PDF document, `chap-prediction`, `climate-sync-and-export`, `fhir-to-fhir`,
 `fhir-search-to-summary` and `everything`. Expect a few
 minutes: the schedule example waits for a scheduled run to land, and the DHIS2 examples talk to
@@ -93,7 +95,7 @@ export UV_OFFLINE=1                       # on the train: uv never reaches out
 ./verify-all.sh
 ```
 
-The four `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything` need
+The six `dhis2-*` examples, `fhir-to-dhis2`, `climate-sync-and-export` and `everything` need
 the network and fail without it; everything else passes.
 
 ## The examples, in the order the tutorials teach them
@@ -108,14 +110,18 @@ the network and fail without it; everything else passes.
 | [`echo-fanout`](echo-fanout) | One item per station over a list, one bad item tolerated, a join. |
 | [`echo-transform`](echo-transform) | A batch reshaped with the three jq verbs, and what each one may do to it. |
 | [`echo-schedule`](echo-schedule) | A reading on a schedule, and another behind an endpoint source, with nothing to call. |
-| [`echo-alert`](echo-alert) | An alert rule on failure delivered to a webhook, shown arriving. |
+| [`echo-alert`](echo-alert) | An alert rule on failure delivered to a webhook and to the process log, each delivery in `dg alerts queue`, the log line's fields naming the failing step and error, and the runs summary and audit trail that follow. |
 | [`echo-storage`](echo-storage) | A batch written to storage, read back, and a run report. |
+| [`echo-report`](echo-report) | A run's report taken from a step: a `report.render` page made the report with `report: {from: page}`, a template reading `{{ params }}`, and lists, objects and booleans read as JSON inside a string. |
 | [`echo-s3`](echo-s3) | The same through the `s3://` scheme against a local rustfs container. |
 | [`echo-stream`](echo-stream) | A sensor waiting for a batch, a stream read whole by an HTTP step, the same batch off a real Kafka topic in a local Redpanda container, and a sensor source that keeps the batches arriving in runs that overlap, the offsets carried on from run to run. |
 | [`dhis2-read-gate-send`](dhis2-read-gate-send) | The three moves against the DHIS2 play demo, with a dry-run import. |
 | [`dhis2-metadata-to-storage`](dhis2-metadata-to-storage) | Organisation units exported, gated on `dhis2-uid` and `dhis2-code`, snapshotted to storage and read back. |
 | [`dhis2-org-unit-sync`](dhis2-org-unit-sync) | Organisation units synchronised three ways: DHIS2 to DHIS2, DHIS2 to another system through jq, and another system into DHIS2 through jq, every import a rehearsal. |
-| [`dhis2-org-units-to-markdown`](dhis2-org-units-to-markdown) | Organisation units rendered as a markdown page, an HTML page, and a PDF from a pandoc container. |
+| [`dhis2-org-units-to-markdown`](dhis2-org-units-to-markdown) | Organisation units rendered as a markdown page, an HTML page, and a PDF from a pandoc container, the markdown page the run's report. |
+| [`dhis2-reads`](dhis2-reads) | The DHIS2 reads side by side against the play demo: system info, two metadata collections in one export, the data values changed since a date, and every tracked entity of a program read page by page under bounds, with a capped read that fails rather than answer part of it. |
+| [`dhis2-writes-rehearsed`](dhis2-writes-rehearsed) | Four DHIS2 writes as dry runs against the play demo: one data element created, one data value set (read back unchanged), one tracker event imported, and a data set signed off, each block sending the dry run its endpoint really honours. |
+| [`agent-over-mcp`](agent-over-mcp) | A coding agent on a running instance through its `/mcp`, under an operator token from a project `.mcp.json` reading `${DG_MCP_TOKEN}`: connections created with their settings alone, one awaiting the secret an admin supplies with `dg connection set-secret`, a pipeline changed with `edit_pipeline`, run, and its report read with `get_run_report`. Its `verify.sh` plays the agent with `curl`, no model needed. |
 | [`everything`](everything) | Every pipeline above except `echo-stream`'s, and the whole dirigent examples corpus in one project: `setup.sh` leaves one instance on 4444 with all of them applied, for a demo. |
 
 ## The packs beyond the tutorials

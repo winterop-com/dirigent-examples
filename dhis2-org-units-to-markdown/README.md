@@ -25,7 +25,7 @@ Two documents, then:
 | `pipelines/org-units-to-pdf.yaml` | The same eight, and a ninth: a pandoc container over the markdown file. Needs a Docker daemon, and `docker.run` allowed. |
 
 Everything below was run against the public DHIS2 demo,
-`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.6** when this was written) -- the Sierra Leone database,
+`https://play.dhis2.org/2.42`, the newest 2.42 demo (**2.42.7.1** when this was written) -- the Sierra Leone database,
 with the published `admin` / `district` credential. Nothing here writes to it.
 
 ## Run it
@@ -129,10 +129,10 @@ uv run dg run org-units-to-markdown --watch
 uv run dg run org-units-to-pdf --watch
 ```
 
-`dg connection create` asks only for a secret the kind cannot do without, and only when the
-command did not say what it wants. This one carries `--set`, and `api_token` is optional, so it
-completes without a prompt and leaves that field unset -- which is what it has to be, because a
-`dhis2` connection takes an `api_token` or basic credentials, not both.
+`dg connection create` asks for a credential only when the command gave none. A `dhis2`
+connection takes an `api_token` or a `basic_username` and `basic_password`, never both; this
+one names the basic pair with `--set`, so it completes without a prompt and leaves `api_token`
+unset.
 
 The pages themselves are in the run rather than on the screen, and every command writes
 records into a pipe, so each of them is one `jq` away:
@@ -195,7 +195,7 @@ uv run dg connection ensure dhis2 play \
 `uv run dg validate`:
 
 ```text
-2026-09-18T22:13:00.531+02:00 [info    ] valid                          [validation] code=org-units-to-markdown document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml checked="document and installed blocks"
+2026-11-03T14:36:50.893+01:00 [info    ] valid                          [validation] code=org-units-to-markdown document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml checked="document and installed blocks"
   each step under the last one it waits for
     parent  (dhis2.metadata)
     read  (dhis2.metadata)
@@ -205,7 +205,7 @@ uv run dg connection ensure dhis2 play \
         html  (report.render)  also after parent
           save_html  (storage.write)
             say  (log.write)  also after save_markdown
-2026-09-18T22:13:00.535+02:00 [info    ] valid                          [validation] code=org-units-to-pdf document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml checked="document and installed blocks"
+2026-11-03T14:36:50.902+01:00 [info    ] valid                          [validation] code=org-units-to-pdf document=/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml checked="document and installed blocks"
   each step under the last one it waits for
     parent  (dhis2.metadata)
     read  (dhis2.metadata)
@@ -216,7 +216,7 @@ uv run dg connection ensure dhis2 play \
               say  (log.write)  also after save_markdown, save_html
         html  (report.render)  also after parent
           save_html  (storage.write)
-2026-09-18T22:13:00.536+02:00 [info    ] valid                          [validated] documents=2 invalid=0 skipped=0
+2026-11-03T14:36:50.903+01:00 [info    ] valid                          [validated] documents=2 invalid=0 skipped=0
 ```
 
 Nothing has run and nothing has been contacted: each tree is the graph its document already
@@ -227,49 +227,64 @@ one parent with the others named beside it.
 `uv run dg run --local pipelines/org-units-to-markdown.yaml ...`:
 
 ```text
-2026-09-18T22:11:01.293+02:00 [info    ] started                        [run] pipeline=org-units-to-markdown run_id=01a0b624-d129-7393-8975-7c9bef5108fa local=true scratch=file:///tmp/dirigent-local-dv3ez7r6/artifacts/runs/01a0b624-d129-7393-8975-7c9bef5108fa root=/tmp/dirigent-local-dv3ez7r6
-2026-09-18T22:11:01.288+02:00 [info    ] queued                         [step parent] block=dhis2.metadata attempt=1
-2026-09-18T22:11:01.288+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-18T22:11:01.325+02:00 [info    ] running                        [step parent] block=dhis2.metadata attempt=1
-2026-09-18T22:11:01.361+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-18T22:11:02.666+02:00 [info    ] metadata read                  [log parent] resource=organisationUnits duration_ms=1332
-2026-09-18T22:11:02.668+02:00 [info    ] succeeded                      [step parent] block=dhis2.metadata attempt=1 duration_ms=1343
-2026-09-18T22:11:02.721+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=1355
-2026-09-18T22:11:02.722+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1361
-2026-09-18T22:11:02.732+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=7
-2026-09-18T22:11:02.734+02:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=902
-2026-09-18T22:11:02.747+02:00 [info    ] rendered                       [log html] content_type=text/html text_bytes=1647
-2026-09-18T22:11:02.747+02:00 [info    ] succeeded                      [step html] block=report.render attempt=1 duration_ms=15
-2026-09-18T22:11:02.752+02:00 [info    ] rendered                       [log markdown] content_type=text/markdown text_bytes=655
-2026-09-18T22:11:02.752+02:00 [info    ] succeeded                      [step markdown] block=report.render attempt=1 duration_ms=5
-2026-09-18T22:11:02.762+02:00 [info    ] wrote                          [log save_html] uri=org-units.html bytes_written=1647 content_type=text/html
-2026-09-18T22:11:02.767+02:00 [info    ] succeeded                      [step save_html] block=storage.write attempt=1 duration_ms=14
-2026-09-18T22:11:02.820+02:00 [info    ] wrote                          [log save_markdown] uri=org-units.md bytes_written=655 content_type=text/markdown
-2026-09-18T22:11:02.821+02:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=8
-2026-09-18T22:11:02.876+02:00 [info    ] the page is at file:///tmp/dirigent-local-dv3ez7r6/artifacts/runs/01a0b624-d129-7393-8975-7c9bef5108fa/org-units.md (655 bytes) and file:///tmp/dirigent-local-dv3ez7r6/artifacts/runs/01a0b624-d129-7393-8975-7c9bef5108fa/org-units.html (1647 bytes) [log say]
-2026-09-18T22:11:02.876+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-18T22:11:03.161+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a0b624-d129-7393-8975-7c9bef5108fa exit_code=0
+2026-11-03T14:36:53.660+01:00 [info    ] started                        [run] pipeline=org-units-to-markdown run_id=01a1a1a0-8395-7213-9ae9-42ee2968fd55 local=true scratch=file:///tmp/dirigent-local-f88ul9bj/artifacts/runs/01a1a1a0-8395-7213-9ae9-42ee2968fd55 root=/tmp/dirigent-local-f88ul9bj
+2026-11-03T14:36:53.502+01:00 [info    ] queued                         [step parent] block=dhis2.metadata attempt=1
+2026-11-03T14:36:53.502+01:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:36:53.710+01:00 [info    ] running                        [step parent] block=dhis2.metadata attempt=1
+2026-11-03T14:36:53.760+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:36:55.738+01:00 [info    ] metadata read                  [log parent] resource=organisationUnits rows=1 duration_ms=2007
+2026-11-03T14:36:55.742+01:00 [info    ] succeeded                      [step parent] block=dhis2.metadata attempt=1 duration_ms=2033
+2026-11-03T14:36:55.753+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=13 duration_ms=1980
+2026-11-03T14:36:55.754+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1994
+2026-11-03T14:36:55.754+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:36:55.758+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:36:55.771+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=13
+2026-11-03T14:36:55.771+01:00 [info    ] queued                         [step markdown] block=report.render attempt=1
+2026-11-03T14:36:55.771+01:00 [info    ] queued                         [step html] block=report.render attempt=1
+2026-11-03T14:36:55.779+01:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=880
+2026-11-03T14:36:55.786+01:00 [info    ] running                        [step html] block=report.render attempt=1
+2026-11-03T14:36:55.800+01:00 [info    ] rendered                       [log html] content_type=text/html text_bytes=1647
+2026-11-03T14:36:55.800+01:00 [info    ] succeeded                      [step html] block=report.render attempt=1 duration_ms=14
+2026-11-03T14:36:55.800+01:00 [info    ] queued                         [step save_html] block=storage.write attempt=1
+2026-11-03T14:36:55.800+01:00 [info    ] running                        [step markdown] block=report.render attempt=1
+2026-11-03T14:36:55.837+01:00 [info    ] rendered                       [log markdown] content_type=text/markdown text_bytes=655
+2026-11-03T14:36:55.837+01:00 [info    ] succeeded                      [step markdown] block=report.render attempt=1 duration_ms=37
+2026-11-03T14:36:55.837+01:00 [info    ] queued                         [step save_markdown] block=storage.write attempt=1
+2026-11-03T14:36:55.837+01:00 [info    ] running                        [step save_html] block=storage.write attempt=1
+2026-11-03T14:36:55.869+01:00 [info    ] running                        [step save_markdown] block=storage.write attempt=1
+2026-11-03T14:36:55.888+01:00 [info    ] wrote                          [log save_markdown] uri=org-units.md bytes_written=655 content_type=text/markdown
+2026-11-03T14:36:55.894+01:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=25
+2026-11-03T14:36:55.910+01:00 [info    ] wrote                          [log save_html] uri=org-units.html bytes_written=1647 content_type=text/html
+2026-11-03T14:36:55.929+01:00 [info    ] the page is at file:///tmp/dirigent-local-f88ul9bj/artifacts/runs/01a1a1a0-8395-7213-9ae9-42ee2968fd55/org-units.md (655 bytes) and file:///tmp/dirigent-local-f88ul9bj/artifacts/runs/01a1a1a0-8395-7213-9ae9-42ee2968fd55/org-units.html (1647 bytes) [log say]
+2026-11-03T14:36:55.911+01:00 [info    ] succeeded                      [step save_html] block=storage.write attempt=1 duration_ms=74
+2026-11-03T14:36:55.911+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:36:55.915+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:36:55.929+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=14
+2026-11-03T14:36:56.130+01:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a1a1a0-8395-7213-9ae9-42ee2968fd55 exit_code=0
 steps
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step          ┃ block           ┃ outcome   ┃ after                    ┃ duration ┃ output                             ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ parent        │ dhis2.metadata  │ succeeded │ -                        │ 1.3s     │ body={1 keys}  duration_ms=1332    │
-│ read          │ dhis2.metadata  │ succeeded │ -                        │ 1.4s     │ body={1 keys}  duration_ms=1355    │
-│ check         │ validate.schema │ succeeded │ read                     │ 0.0s     │ value={1 keys}                     │
-│ html          │ report.render   │ succeeded │ parent, check            │ 0.0s     │ text=<1647 chars>                  │
-│               │                 │           │                          │          │ content_type=text/html             │
-│               │                 │           │                          │          │ text_bytes=1647                    │
-│ markdown      │ report.render   │ succeeded │ parent, check            │ 0.0s     │ text=<655 chars>                   │
-│               │                 │           │                          │          │ content_type=text/markdown         │
-│               │                 │           │                          │          │ text_bytes=655                     │
-│ save_html     │ storage.write   │ succeeded │ html                     │ 0.0s     │ uri=org-units.html                 │
-│               │                 │           │                          │          │ bytes_written=1647                 │
-│               │                 │           │                          │          │ content_type=text/html             │
-│ save_markdown │ storage.write   │ succeeded │ markdown                 │ 0.0s     │ uri=org-units.md                   │
-│               │                 │           │                          │          │ bytes_written=655                  │
-│               │                 │           │                          │          │ content_type=text/markdown         │
-│ say           │ log.write       │ succeeded │ save_markdown, save_html │ 0.0s     │ -                                  │
-└───────────────┴─────────────────┴───────────┴──────────────────────────┴──────────┴────────────────────────────────────┘
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━┓
+┃ step          ┃ block           ┃ outcome   ┃ after              ┃ duration ┃ output             ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━┩
+│ parent        │ dhis2.metadata  │ succeeded │ -                  │ 2.0s     │ rows=[1 items]     │
+│               │                 │           │                    │          │ duration_ms=2007   │
+│ read          │ dhis2.metadata  │ succeeded │ -                  │ 2.0s     │ rows=[13 items]    │
+│               │                 │           │                    │          │ duration_ms=1980   │
+│ check         │ validate.schema │ succeeded │ read               │ 0.0s     │ value=[13 items]   │
+│ html          │ report.render   │ succeeded │ parent, check      │ 0.0s     │ text=<1647 chars>  │
+│               │                 │           │                    │          │ content_type=text… │
+│               │                 │           │                    │          │ text_bytes=1647    │
+│ markdown      │ report.render   │ succeeded │ parent, check      │ 0.0s     │ text=<655 chars>   │
+│               │                 │           │                    │          │ content_type=text… │
+│               │                 │           │                    │          │ text_bytes=655     │
+│ save_html     │ storage.write   │ succeeded │ html               │ 0.1s     │ uri=org-units.html │
+│               │                 │           │                    │          │ bytes_written=1647 │
+│               │                 │           │                    │          │ content_type=text… │
+│ save_markdown │ storage.write   │ succeeded │ markdown           │ 0.0s     │ uri=org-units.md   │
+│               │                 │           │                    │          │ bytes_written=655  │
+│               │                 │           │                    │          │ content_type=text… │
+│ say           │ log.write       │ succeeded │ save_markdown,     │ 0.0s     │ -                  │
+│               │                 │           │ save_html          │          │                    │
+└───────────────┴─────────────────┴───────────┴────────────────────┴──────────┴────────────────────┘
 ```
 
 655 bytes rendered and 655 bytes written, 1647 and 1647: `report.render` says how much text
@@ -281,17 +296,19 @@ other; the log is interleaved for the same reason.
 `save_markdown` on:
 
 ```text
-2026-09-18T22:11:15.931+02:00 [info    ] wrote                          [log save_markdown] uri=org-units.md bytes_written=655 content_type=text/markdown
-2026-09-18T22:11:15.932+02:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=11
-2026-09-18T22:11:15.987+02:00 [info    ] running                        [step pdf] block=docker.run attempt=1
-2026-09-18T22:11:15.987+02:00 [info    ] waiting                        [step pdf] block=docker.run attempt=1
-2026-09-18T22:11:17.236+02:00 [info    ] container started              [log pdf] container_id=d5c42b973e07 image=pandoc/typst:3.11-alpine network=none
-2026-09-18T22:11:18.334+02:00 [info    ] output collected               [log pdf] name=page uri=org-units.pdf bytes_written=37267
-2026-09-18T22:11:18.364+02:00 [info    ] container finished             [log pdf] container_id=d5c42b973e07 exit_code=0 stdout_bytes=0 stderr_bytes=0
-2026-09-18T22:11:18.366+02:00 [info    ] succeeded                      [step pdf] block=docker.run attempt=1 duration_ms=2379
-2026-09-18T22:11:18.382+02:00 [info    ] the page is at file:///tmp/dirigent-local-g_jv4ofa/artifacts/runs/01a0b625-04e3-74cc-95fb-27a00cda5fd0/org-units.md (655 bytes), file:///tmp/dirigent-local-g_jv4ofa/artifacts/runs/01a0b625-04e3-74cc-95fb-27a00cda5fd0/org-units.html (1647 bytes) and file:///tmp/dirigent-local-g_jv4ofa/artifacts/runs/01a0b625-04e3-74cc-95fb-27a00cda5fd0/org-units.pdf [log say]
-2026-09-18T22:11:18.382+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=15
-2026-09-18T22:11:18.500+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-pdf run_id=01a0b625-04e3-74cc-95fb-27a00cda5fd0 exit_code=0
+2026-11-03T14:37:01.137+01:00 [info    ] wrote                          [log save_markdown] uri=org-units.md bytes_written=655 content_type=text/markdown
+2026-11-03T14:37:01.138+01:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=23
+2026-11-03T14:37:01.235+01:00 [info    ] running                        [step pdf] block=docker.run attempt=1
+2026-11-03T14:37:01.235+01:00 [info    ] waiting                        [step pdf] block=docker.run attempt=1
+2026-11-03T14:37:02.517+01:00 [info    ] container started              [log pdf] container_id=20cd6a0c31b8 image=pandoc/typst:3.11-alpine network=none
+2026-11-03T14:37:01.235+01:00 [info    ] running                        [step pdf] block=docker.run attempt=1
+2026-11-03T14:37:03.576+01:00 [info    ] output collected               [log pdf] name=page uri=org-units.pdf bytes_written=37267
+2026-11-03T14:37:03.600+01:00 [info    ] container finished             [log pdf] container_id=20cd6a0c31b8 exit_code=0 stdout_bytes=0 stderr_bytes=0
+2026-11-03T14:37:03.610+01:00 [info    ] succeeded                      [step pdf] block=docker.run attempt=1 duration_ms=2375
+2026-11-03T14:37:03.621+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:37:03.636+01:00 [info    ] the page is at file:///tmp/dirigent-local-_fwmirxe/artifacts/runs/01a1a1a0-98cd-712f-8daa-dbfb65a398eb/org-units.md (655 bytes), file:///tmp/dirigent-local-_fwmirxe/artifacts/runs/01a1a1a0-98cd-712f-8daa-dbfb65a398eb/org-units.html (1647 bytes) and file:///tmp/dirigent-local-_fwmirxe/artifacts/runs/01a1a1a0-98cd-712f-8daa-dbfb65a398eb/org-units.pdf [log say]
+2026-11-03T14:37:03.636+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=14
+2026-11-03T14:37:03.726+01:00 [info    ] succeeded                      [run] pipeline=org-units-to-pdf run_id=01a1a1a0-98cd-712f-8daa-dbfb65a398eb exit_code=0
 ```
 
 `running` then `waiting`: the block creates the container, starts it detached and hands the
@@ -307,7 +324,7 @@ stored schema org-units-page
 ```
 
 ```text
-2026-09-18T22:12:10.022+02:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
+2026-11-03T14:37:07.417+01:00 [info    ] created                        [connection.created] code=play connection_kind=dhis2 name="DHIS2 play demo" config={"base_url":"https://play.dhis2.org/2.42","api_token":null,"basic_username":"admin","verify_tls":true,"follow_redirects_with_auth":true,"timeout":"30s","request_deadline":"10m","max_response":"64mb","basic_password":"***"}
 ```
 
 The password is already withheld in the record the command answers with, and in every read
@@ -316,83 +333,92 @@ after it.
 `uv run dg connection check play`:
 
 ```text
-2026-09-18T22:12:12.526+02:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.6
+2026-11-03T14:37:10.626+01:00 [info    ] healthy                        [connection.checked] code=play healthy=true version=2.42.7.1
 ```
 
 One line, four facts: the URL resolves, TLS is as configured, the credential is accepted, and
-the instance's version is **2.42.6** -- its own word for itself, read from `/api/system/info`
+the instance's version is **2.42.7.1** -- its own word for itself, read from `/api/system/info`
 rather than guessed from an `/api/N` path.
 
 `uv run dg apply`:
 
 ```text
-create org-units-to-markdown  version 1
-(/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml)
-create org-units-to-pdf  version 1
-(/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml)
+create org-units-to-markdown  version 1 (/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-markdown.yaml)
+create org-units-to-pdf  version 1 (/home/you/dhis2-org-units-to-markdown/pipelines/org-units-to-pdf.yaml)
 ```
 
 `uv run dg run org-units-to-markdown --watch`:
 
 ```text
-2026-09-18T22:12:14.857+02:00 [info    ] started                        [run] pipeline=org-units-to-markdown run_id=01a0b625-f085-7682-9940-654641423ef5 local=false
-2026-09-18T22:12:14.855+02:00 [info    ] queued                         [step parent] block=dhis2.metadata attempt=1
-2026-09-18T22:12:14.855+02:00 [info    ] queued                         [step read] block=dhis2.metadata attempt=1
-2026-09-18T22:12:15.038+02:00 [info    ] running                        [step parent] block=dhis2.metadata attempt=1
-2026-09-18T22:12:15.057+02:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
-2026-09-18T22:12:15.850+02:00 [info    ] metadata read                  [log parent] resource=organisationUnits duration_ms=795
-2026-09-18T22:12:15.858+02:00 [info    ] succeeded                      [step parent] block=dhis2.metadata attempt=1 duration_ms=820
-2026-09-18T22:12:15.892+02:00 [info    ] metadata read                  [log read] resource=organisationUnits duration_ms=828
-2026-09-18T22:12:15.896+02:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=839
-2026-09-18T22:12:16.097+02:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=19
-2026-09-18T22:12:16.109+02:00 [info    ] finished                       [log check] duration_ms=2 output_bytes=902
-2026-09-18T22:12:16.611+02:00 [info    ] rendered                       [log html] content_type=text/html text_bytes=1647
-2026-09-18T22:12:16.611+02:00 [info    ] succeeded                      [step html] block=report.render attempt=1 duration_ms=6
-2026-09-18T22:12:16.616+02:00 [info    ] succeeded                      [step markdown] block=report.render attempt=1 duration_ms=5
-2026-09-18T22:12:16.626+02:00 [info    ] wrote                          [log save_html] uri=file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.html bytes_written=1647 content_type=text/html
-2026-09-18T22:12:16.616+02:00 [info    ] rendered                       [log markdown] content_type=text/markdown text_bytes=655
-2026-09-18T22:12:16.627+02:00 [info    ] succeeded                      [step save_html] block=storage.write attempt=1 duration_ms=11
-2026-09-18T22:12:17.139+02:00 [info    ] wrote                          [log save_markdown] uri=file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.md bytes_written=655 content_type=text/markdown
-2026-09-18T22:12:17.140+02:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=13
-2026-09-18T22:12:17.645+02:00 [info    ] the page is at file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.md (655 bytes) and file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.html (1647 bytes) [log say]
-2026-09-18T22:12:17.645+02:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=5
-2026-09-18T22:12:19.033+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a0b625-f085-7682-9940-654641423ef5 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=2607 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0b625-f085-7682-9940-654641423ef5
+2026-11-03T14:37:14.378+01:00 [info    ] started                        [run] pipeline=org-units-to-markdown run_id=01a1a1a0-d482-72a6-9258-c769c047e7a4 local=false
+2026-11-03T14:37:14.376+01:00 [info    ] running                        [step parent] block=dhis2.metadata attempt=1
+2026-11-03T14:37:14.391+01:00 [info    ] running                        [step read] block=dhis2.metadata attempt=1
+2026-11-03T14:37:15.387+01:00 [info    ] metadata read                  [log parent] resource=organisationUnits rows=1 duration_ms=997
+2026-11-03T14:37:15.389+01:00 [info    ] succeeded                      [step parent] block=dhis2.metadata attempt=1 duration_ms=1012
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step check] block=validate.schema attempt=1
+2026-11-03T14:37:15.406+01:00 [info    ] metadata read                  [log read] resource=organisationUnits rows=13 duration_ms=1009
+2026-11-03T14:37:15.408+01:00 [info    ] succeeded                      [step read] block=dhis2.metadata attempt=1 duration_ms=1016
+2026-11-03T14:37:15.411+01:00 [info    ] running                        [step check] block=validate.schema attempt=1
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step html] block=report.render attempt=1
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step markdown] block=report.render attempt=1
+2026-11-03T14:37:15.422+01:00 [info    ] succeeded                      [step check] block=validate.schema attempt=1 duration_ms=11
+2026-11-03T14:37:15.447+01:00 [info    ] finished                       [log check] duration_ms=1 output_bytes=880
+2026-11-03T14:37:15.449+01:00 [info    ] running                        [step html] block=report.render attempt=1
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step save_html] block=storage.write attempt=1
+2026-11-03T14:37:15.470+01:00 [info    ] rendered                       [log html] content_type=text/html text_bytes=1647
+2026-11-03T14:37:15.470+01:00 [info    ] succeeded                      [step html] block=report.render attempt=1 duration_ms=21
+2026-11-03T14:37:15.470+01:00 [info    ] running                        [step markdown] block=report.render attempt=1
+2026-11-03T14:37:15.493+01:00 [info    ] running                        [step save_html] block=storage.write attempt=1
+2026-11-03T14:37:15.517+01:00 [info    ] wrote                          [log save_html] uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a4/org-units.html bytes_written=1647 content_type=text/html
+2026-11-03T14:37:15.518+01:00 [info    ] succeeded                      [step save_html] block=storage.write attempt=1 duration_ms=25
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step save_markdown] block=storage.write attempt=1
+2026-11-03T14:37:15.493+01:00 [info    ] rendered                       [log markdown] content_type=text/markdown text_bytes=655
+2026-11-03T14:37:15.493+01:00 [info    ] succeeded                      [step markdown] block=report.render attempt=1 duration_ms=23
+2026-11-03T14:37:15.511+01:00 [info    ] running                        [step save_markdown] block=storage.write attempt=1
+2026-11-03T14:37:14.373+01:00 [info    ] queued                         [step say] block=log.write attempt=1
+2026-11-03T14:37:15.596+01:00 [info    ] wrote                          [log save_markdown] uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a4/org-units.md bytes_written=655 content_type=text/markdown
+2026-11-03T14:37:15.596+01:00 [info    ] succeeded                      [step save_markdown] block=storage.write attempt=1 duration_ms=85
+2026-11-03T14:37:15.600+01:00 [info    ] running                        [step say] block=log.write attempt=1
+2026-11-03T14:37:15.610+01:00 [info    ] the page is at file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a4/org-units.md (655 bytes) and file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a4/org-units.html (1647 bytes) [log say]
+2026-11-03T14:37:15.611+01:00 [info    ] succeeded                      [step say] block=log.write attempt=1 duration_ms=10
+2026-11-03T14:37:15.678+01:00 [info    ] succeeded                      [run] pipeline=org-units-to-markdown run_id=01a1a1a0-d482-72a6-9258-c769c047e7a4 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=1234 items_total=0 items_failed=0 exit_code=0 priority=normal
+run 01a1a1a0-d482-72a6-9258-c769c047e7a4
 pipeline      org-units-to-markdown (version 1)
 status        succeeded
 triggered by  admin (token dev)
-duration      2.6s
+duration      1.2s
 items         -
 
 steps
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
-┃ step          ┃ block           ┃ outcome   ┃ after                    ┃ attempts ┃ duration ┃ error ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ parent        │ dhis2.metadata  │ succeeded │ -                        │ 1        │ 0.8s     │ -     │
-│ read          │ dhis2.metadata  │ succeeded │ -                        │ 1        │ 0.8s     │ -     │
-│ check         │ validate.schema │ succeeded │ read                     │ 1        │ 0.0s     │ -     │
-│ html          │ report.render   │ succeeded │ parent, check            │ 1        │ 0.0s     │ -     │
-│ markdown      │ report.render   │ succeeded │ parent, check            │ 1        │ 0.0s     │ -     │
-│ save_html     │ storage.write   │ succeeded │ html                     │ 1        │ 0.0s     │ -     │
-│ save_markdown │ storage.write   │ succeeded │ markdown                 │ 1        │ 0.0s     │ -     │
-│ say           │ log.write       │ succeeded │ save_markdown, save_html │ 1        │ 0.0s     │ -     │
-└───────────────┴─────────────────┴───────────┴──────────────────────────┴──────────┴──────────┴───────┘
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ step          ┃ block           ┃ outcome   ┃ after                ┃ attempts ┃ duration ┃ error ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ parent        │ dhis2.metadata  │ succeeded │ -                    │ 1        │ 1.0s     │ -     │
+│ read          │ dhis2.metadata  │ succeeded │ -                    │ 1        │ 1.0s     │ -     │
+│ check         │ validate.schema │ succeeded │ read                 │ 1        │ 0.0s     │ -     │
+│ html          │ report.render   │ succeeded │ parent, check        │ 1        │ 0.0s     │ -     │
+│ markdown      │ report.render   │ succeeded │ parent, check        │ 1        │ 0.0s     │ -     │
+│ save_html     │ storage.write   │ succeeded │ html                 │ 1        │ 0.0s     │ -     │
+│ save_markdown │ storage.write   │ succeeded │ markdown             │ 1        │ 0.1s     │ -     │
+│ say           │ log.write       │ succeeded │ save_markdown,       │ 1        │ 0.0s     │ -     │
+│               │                 │           │ save_html            │          │          │       │
+└───────────────┴─────────────────┴───────────┴──────────────────────┴──────────┴──────────┴───────┘
 
 outputs
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ step          ┃ output                                                                                                 ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ parent        │ body={1 keys}  duration_ms=795                                                                         │
-│ read          │ body={1 keys}  duration_ms=828                                                                         │
-│ check         │ value={1 keys}                                                                                         │
-│ html          │ text=<1647 chars>  content_type=text/html  text_bytes=1647                                             │
-│ markdown      │ text=<655 chars>  content_type=text/markdown  text_bytes=655                                           │
-│ save_html     │ uri=file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.html        │
-│               │ bytes_written=1647  content_type=text/html                                                             │
-│ save_markdown │ uri=file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.md          │
-│               │ bytes_written=655  content_type=text/markdown                                                          │
-│ say           │ -                                                                                                      │
-└───────────────┴────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step          ┃ output                                                                           ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ parent        │ rows=[1 items]  duration_ms=997                                                  │
+│ read          │ rows=[13 items]  duration_ms=1009                                                │
+│ check         │ value=[13 items]                                                                 │
+│ html          │ text=<1647 chars>  content_type=text/html  text_bytes=1647                       │
+│ markdown      │ text=<655 chars>  content_type=text/markdown  text_bytes=655                     │
+│ save_html     │ uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a… │
+│               │ bytes_written=1647  content_type=text/html                                       │
+│ save_markdown │ uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a… │
+│               │ bytes_written=655  content_type=text/markdown                                    │
+│ say           │ -                                                                                │
+└───────────────┴──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 Same document, same eight hops, and the only difference is where the files landed: on the
@@ -402,43 +428,58 @@ temporary one that is about to be deleted.
 `uv run dg run org-units-to-pdf --watch`, the ninth hop and the summary:
 
 ```text
-2026-09-18T22:12:25.335+02:00 [info    ] running                        [step pdf] block=docker.run attempt=1
-2026-09-18T22:12:25.335+02:00 [info    ] waiting                        [step pdf] block=docker.run attempt=1
-2026-09-18T22:12:26.785+02:00 [info    ] container started              [log pdf] container_id=d4091a1299f7 image=pandoc/typst:3.11-alpine network=none
-2026-09-18T22:12:27.922+02:00 [info    ] output collected               [log pdf] name=page uri=file://./.dirigent/state/artifacts/runs/01a0b626-127f-76e7-b8f8-be0058dedc46/org-units.pdf bytes_written=37267
-2026-09-18T22:12:27.952+02:00 [info    ] container finished             [log pdf] container_id=d4091a1299f7 exit_code=0 stdout_bytes=0 stderr_bytes=0
-2026-09-18T22:12:27.954+02:00 [info    ] succeeded                      [step pdf] block=docker.run attempt=1 duration_ms=2619
-2026-09-18T22:12:30.255+02:00 [info    ] succeeded                      [run] pipeline=org-units-to-pdf run_id=01a0b626-127f-76e7-b8f8-be0058dedc46 pipeline_version=1 triggered_by="admin (token dev)" duration_ms=4727 items_total=0 items_failed=0 exit_code=0 priority=normal
-run 01a0b626-127f-76e7-b8f8-be0058dedc46
+run 01a1a1a0-df6a-72a6-8d70-cd3815c0d0ee
 pipeline      org-units-to-pdf (version 1)
 status        succeeded
 triggered by  admin (token dev)
-duration      4.7s
+duration      3.7s
 items         -
 
 steps
-┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
-┃ step          ┃ block           ┃ outcome   ┃ after                         ┃ attempts ┃ duration ┃ error ┃
-┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
-│ parent        │ dhis2.metadata  │ succeeded │ -                             │ 1        │ 0.9s     │ -     │
-│ read          │ dhis2.metadata  │ succeeded │ -                             │ 1        │ 0.9s     │ -     │
-│ check         │ validate.schema │ succeeded │ read                          │ 1        │ 0.0s     │ -     │
-│ html          │ report.render   │ succeeded │ parent, check                 │ 1        │ 0.0s     │ -     │
-│ markdown      │ report.render   │ succeeded │ parent, check                 │ 1        │ 0.0s     │ -     │
-│ save_html     │ storage.write   │ succeeded │ html                          │ 1        │ 0.0s     │ -     │
-│ save_markdown │ storage.write   │ succeeded │ markdown                      │ 1        │ 0.0s     │ -     │
-│ pdf           │ docker.run      │ succeeded │ save_markdown                 │ 1        │ 2.6s     │ -     │
-│ say           │ log.write       │ succeeded │ save_markdown, save_html, pdf │ 1        │ 0.0s     │ -     │
-└───────────────┴─────────────────┴───────────┴───────────────────────────────┴──────────┴──────────┴───────┘
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ step          ┃ block           ┃ outcome   ┃ after                ┃ attempts ┃ duration ┃ error ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ parent        │ dhis2.metadata  │ succeeded │ -                    │ 1        │ 0.8s     │ -     │
+│ read          │ dhis2.metadata  │ succeeded │ -                    │ 1        │ 0.9s     │ -     │
+│ check         │ validate.schema │ succeeded │ read                 │ 1        │ 0.0s     │ -     │
+│ html          │ report.render   │ succeeded │ parent, check        │ 1        │ 0.0s     │ -     │
+│ markdown      │ report.render   │ succeeded │ parent, check        │ 1        │ 0.0s     │ -     │
+│ save_markdown │ storage.write   │ succeeded │ markdown             │ 1        │ 0.0s     │ -     │
+│ pdf           │ docker.run      │ succeeded │ save_markdown        │ 1        │ 2.7s     │ -     │
+│ save_html     │ storage.write   │ succeeded │ html                 │ 1        │ 0.0s     │ -     │
+│ say           │ log.write       │ succeeded │ save_markdown,       │ 1        │ 0.0s     │ -     │
+│               │                 │           │ save_html, pdf       │          │          │       │
+└───────────────┴─────────────────┴───────────┴──────────────────────┴──────────┴──────────┴───────┘
+
+outputs
+┏━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ step          ┃ output                                                                           ┃
+┡━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ parent        │ rows=[1 items]  duration_ms=835                                                  │
+│ read          │ rows=[13 items]  duration_ms=849                                                 │
+│ check         │ value=[13 items]                                                                 │
+│ html          │ text=<1647 chars>  content_type=text/html  text_bytes=1647                       │
+│ markdown      │ text=<655 chars>  content_type=text/markdown  text_bytes=655                     │
+│ save_markdown │ uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-df6a-72a6-8d70-cd3815c0d0e… │
+│               │ bytes_written=655  content_type=text/markdown                                    │
+│ pdf           │ exit_code=0                                                                      │
+│               │ stdout_uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-df6a-72a6-8d70-cd38… │
+│               │ stderr_uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-df6a-72a6-8d70-cd38… │
+│               │ stdout_bytes=0  stderr_bytes=0  stdout_truncated=false  stderr_truncated=false   │
+│               │ container_id=<64 chars>  image=pandoc/typst:3.11-alpine  outputs={1 keys}        │
+│ save_html     │ uri=file://./.dirigent/state/artifacts/runs/01a1a1a0-df6a-72a6-8d70-cd3815c0d0e… │
+│               │ bytes_written=1647  content_type=text/html                                       │
+│ say           │ -                                                                                │
+└───────────────┴──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-The container is 2.6 of the run's 4.7 seconds, and 1.4 of those 2.6 are the daemon starting
+The container is 2.7 of the run's 3.7 seconds, and 1.4 of those 2.7 are the daemon starting
 it. A PDF is not slow; a container is not free.
 
 The markdown, as `dg runs show` hands it back:
 
 ```bash
-uv run dg runs show 01a0b625-f085-7682-9940-654641423ef5 --json \
+uv run dg runs show 01a1a1a0-d482-72a6-9258-c769c047e7a4 --json \
   | jq -r '.fields.attempts[] | select(.step_name == "markdown") | .output.text'
 ```
 
@@ -467,6 +508,10 @@ uv run dg runs show 01a0b625-f085-7682-9940-654641423ef5 --json \
 Thirteen districts, Bo to Western Area, in the order DHIS2 sorted them. The title says
 "Sierra Leone" because the `parent` step read the name; the parameter only ever held
 `ImspTQPwCqd`.
+
+The same text is the run's report, because the document ends `report: {from: markdown}`, so
+`uv run dg runs report <run id> --markdown` prints exactly this page and the run's Report tab
+in the UI draws it.
 
 The HTML is the same values through the other template -- a document that opens from disk,
 with its stylesheet inline and nothing to fetch. Two of its thirteen rows:
@@ -502,7 +547,7 @@ And the write and the container's output, by name:
 
 ```json
 {
-  "uri": "file://./.dirigent/state/artifacts/runs/01a0b625-f085-7682-9940-654641423ef5/org-units.md",
+  "uri": "file://./.dirigent/state/artifacts/runs/01a1a1a0-d482-72a6-9258-c769c047e7a4/org-units.md",
   "bytes_written": 655,
   "content_type": "text/markdown"
 }
@@ -510,14 +555,14 @@ And the write and the container's output, by name:
 
 ```json
 {
-  "page": "file://./.dirigent/state/artifacts/runs/01a0b626-127f-76e7-b8f8-be0058dedc46/org-units.pdf"
+  "page": "file://./.dirigent/state/artifacts/runs/01a1a1a0-df6a-72a6-8d70-cd3815c0d0ee/org-units.pdf"
 }
 ```
 
 `uv run dg run --local pipelines/org-units-to-markdown.yaml ... -p parent=nope`:
 
 ```text
-2026-09-18T22:11:31.014+02:00 [error   ] parameter parent is invalid: 'nope' is not a 'dhis2-uid' [error] status=3 title=Refused code=cli.guard_refused params={"detail":"parameter parent is invalid: 'nope' is not a 'dhis2-uid'"}
+2026-11-03T14:34:38.668+01:00 [error   ] parameter parent is invalid: 'nope' is not a 'dhis2-uid' [error] status=3 title=Refused code=cli.guard_refused params={"detail":"parameter parent is invalid: 'nope' is not a 'dhis2-uid'"}
 ```
 
 Nothing ran. `format: dhis2-uid` on the parameter is the pack's own format, and a parameter's
@@ -629,7 +674,7 @@ same value against the same schema will never pass, so it is not retried.
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: org-units-page
 ```
 
@@ -645,8 +690,8 @@ why a loop on its own line leaves no blank line between the table's rows.
     depends_on: [parent, check]
     config:
       values:
-        parent: ${steps.parent.output.body.organisationUnits.0.name}
-        units: ${steps.check.output.value.organisationUnits}
+        parent: ${steps.parent.output.rows.0.name}
+        units: ${steps.check.output.value}
       content_type: text/markdown
       template: |
         # Organisation units under {{ parent }}
@@ -693,8 +738,8 @@ itself -- `| e` on every value that reaches the markup.
     depends_on: [parent, check]
     config:
       values:
-        parent: ${steps.parent.output.body.organisationUnits.0.name}
-        units: ${steps.check.output.value.organisationUnits}
+        parent: ${steps.parent.output.rows.0.name}
+        units: ${steps.check.output.value}
       content_type: text/html
       template: |
         <!DOCTYPE html>
@@ -742,6 +787,18 @@ place in this document where the graph is not a tree of single edges.
     depends_on: [save_markdown, save_html]
     config:
       message: "the page is at ${steps.save_markdown.output.uri} (${steps.save_markdown.output.bytes_written} bytes) and ${steps.save_html.output.uri} (${steps.save_html.output.bytes_written} bytes)"
+```
+
+And the last line makes the markdown page the run's own report. A run has one report, the
+document the Report tab draws and `dg runs report RUN --markdown` prints, and `from:` names the
+step whose `text` it is, so the page is rendered once and is both the file and the report. A
+`report.render` step that nothing names is only a step's output: `dg validate` warns about one,
+and naming `markdown` here is what keeps `html` from being warned about too, because a run with
+a report has said where its report is.
+
+```yaml
+report:
+  from: markdown
 ```
 
 ## The PDF, hop by hop
@@ -821,25 +878,19 @@ schema reads its identity from its own keywords: `$id` becomes the code it is ad
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "org-units-page",
   "title": "Organisation units, as a page lists them",
-  "description": "An organisationUnits read projected to id, code, name and level: one object per row of the page's table, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so a unit without one still makes a row.",
-  "type": "object",
-  "required": ["organisationUnits"],
-  "properties": {
-    "organisationUnits": {
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "object",
-        "required": ["id", "name", "level"],
-        "properties": {
-          "id": { "type": "string", "format": "dhis2-uid" },
-          "code": { "type": "string", "format": "dhis2-code" },
-          "name": { "type": "string", "minLength": 1 },
-          "level": { "type": "integer", "minimum": 1 }
-        },
-        "additionalProperties": false
-      }
-    }
+  "description": "The rows of an organisationUnits read projected to id, code, name and level: one object per row of the page's table, with every identifier held to the pack's own dhis2-uid format and every code, where one is set, to dhis2-code. A code is DHIS2's optional alternate identifier, so a unit without one still makes a row.",
+  "type": "array",
+  "minItems": 1,
+  "items": {
+    "type": "object",
+    "required": ["id", "name", "level"],
+    "properties": {
+      "id": { "type": "string", "format": "dhis2-uid" },
+      "code": { "type": "string", "format": "dhis2-code" },
+      "name": { "type": "string", "minLength": 1 },
+      "level": { "type": "integer", "minimum": 1 }
+    },
+    "additionalProperties": false
   }
 }
 ```

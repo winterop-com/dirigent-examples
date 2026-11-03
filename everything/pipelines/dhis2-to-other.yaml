@@ -88,14 +88,14 @@ steps:
     block: validate.schema
     depends_on: [read]
     config:
-      input: ${steps.read.output.body}
+      input: ${steps.read.output.rows}
       schema: org-unit-sync-source
 
   records:
     block: map.jq
     depends_on: [check]
     config:
-      input: ${steps.check.output.value.organisationUnits}
+      input: ${steps.check.output.value}
       # The code is the key that travels: a uid is DHIS2's own and means nothing on the other
       # side, while a code is what both systems were configured with. The parent is named by
       # code for the same reason, which is what makes the register rebuildable into a tree.

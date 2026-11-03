@@ -70,8 +70,8 @@ assert_run_succeeded() {
 assert_page() {
   jq -se --arg what "$2" '
     map(select(.kind == "run")) | last | .steps
-    | (map(select(.step == "parent")) | last | .output.body.organisationUnits[0].name) as $parent
-    | (map(select(.step == "check")) | last | .output.value.organisationUnits) as $gated
+    | (map(select(.step == "parent")) | last | .output.rows[0].name) as $parent
+    | (map(select(.step == "check")) | last | .output.value) as $gated
     | (map(select(.step == "markdown")) | last | .output) as $md
     | (map(select(.step == "html")) | last | .output) as $html
     | (map(select(.step == "save_markdown")) | last | .output) as $wrote_md
@@ -256,6 +256,17 @@ say "the page, on the instance"
 uv run dg run "$PAGE" --watch --json > "$WORK/page.ndjson"
 assert_run_succeeded "$WORK/page.ndjson" "the server page run"
 assert_page "$WORK/page.ndjson" "the server page run"
+
+# report: {from: markdown} makes the page the run's report, word for word.
+PAGE_RUN="$(jq -rs 'map(select(.kind == "run")) | last | .run_id' "$WORK/page.ndjson")"
+uv run dg runs report "$PAGE_RUN" --markdown --json > "$WORK/report.ndjson"
+jq -se --slurpfile run "$WORK/page.ndjson" '
+  ($run | map(select(.kind == "run")) | last | .steps | map(select(.step == "markdown")) | last | .output.text) as $page
+  | (map(select(.kind == "run.report_document")) | last | .document) as $report
+  | if $report == null then error("the page run rendered no report")
+    elif $report != $page then error("the run report is not the markdown page")
+    else true end
+' "$WORK/report.ndjson" > /dev/null
 
 if [ "$HAS_DOCKER" = yes ]; then
   say "the PDF, on the instance"

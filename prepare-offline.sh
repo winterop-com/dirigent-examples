@@ -50,7 +50,7 @@ else
   dg_version=""
   echo "dg is not on PATH. The examples all run through 'uv run dg', so this is not fatal;"
   echo "if you want the bare command too, run this now, while the network is up:"
-  echo '    uv tool install "dirigent-cli>=0.32,<0.33"'
+  echo '    uv tool install "dirigent-cli>=0.33,<0.34"'
 fi
 echo
 
@@ -110,7 +110,7 @@ if [ -n "$dg_version" ]; then
   echo "dg on PATH: ${dg_version}"
 fi
 echo "tutorials in ${ROOT}/docs: basics.pdf, dhis2-tutorial.pdf"
-echo "the four dhis2-* examples and fhir-to-dhis2 need the DHIS2 play server and stay online"
+echo "the six dhis2-* examples and fhir-to-dhis2 need the DHIS2 play server and stay online"
 echo "climate-sync-and-export needs the network for CHIRPS and the play server, and stays online"
 if [ "${#failed[@]}" -gt 0 ]; then
   echo
