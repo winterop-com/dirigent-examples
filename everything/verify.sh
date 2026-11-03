@@ -70,8 +70,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 231 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 231 and all(.invalid == 0)'
+expect "all 232 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 232 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -130,8 +130,8 @@ expect "only the five documents without what they need refused" "$WORK/seed.ndjs
              "s3-parquet-to-ingestion.yaml"]'
 ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 225 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 225'
+expect "all 226 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 226'
 # The walk creates a source a worker polls or holds paused, as it does a schedule, so nothing
 # starts runs on its own; an endpoint stays listening, because it only acts when it is called.
 uv run dg source list --json > "$WORK/sources.ndjson"
@@ -396,9 +396,19 @@ expect "a capped read to fail rather than answer part of it" "$WORK/r.ndjson" \
   '(map(select(.kind == "run")) | last) | .message == "failed" and (.failures | any(.error_class == "rejected"))'
 passed+=(dhis2-reads-capped)
 
+say "dhis2-reads-more"
+run dhis2-reads-more "$WORK/r.ndjson"
+expect "CSV and ADX exports, the data store, a SQL view and validation rules" "$WORK/r.ndjson" "$step_map"'
+  | $run.message == "succeeded"
+    and ($step.csv.output.uri | endswith(".csv")) and ($step.adx.output.text | startswith("<adx "))
+    and $step.first.output.key == $step.keys.output.rows[0]
+    and ($step.view.output.rows | length) > 0
+    and $step.validate.output.count == ($step.validate.output.violations | length)'
+passed+=(dhis2-reads-more)
+
 say "dhis2-writes-rehearsed"
 run dhis2-writes-rehearsed "$WORK/r.ndjson"
-expect "four writes, each a dry run" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
+expect "five writes, each a dry run" "$WORK/r.ndjson" '(map(select(.kind == "run")) | last).message == "succeeded"'
 passed+=(dhis2-writes-rehearsed)
 
 # --- the pipelines from echo-report and agent-over-mcp ----------------------------------------
@@ -465,6 +475,6 @@ passed+=(echo-schedule)
 echo
 applied="$(jq -s '[.[] | select(.kind == "pipeline")] | length' "$WORK/pipelines.ndjson")"
 echo "everything: $applied pipelines applied; the corpus $corpus"
-echo "verified ${#passed[@]} one by one: the 28 beside the shelves, two playground routes on them, and tutorial/:"
+echo "verified ${#passed[@]} one by one: the 29 beside the shelves, two playground routes on them, and tutorial/:"
 echo "  ${passed[*]}"
 echo "skipped: ${#skipped[@]}  ${skipped[*]:-}"

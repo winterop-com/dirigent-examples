@@ -230,6 +230,43 @@ uv run dg validate no-report.yaml --json | jq -c 'select(.kind == "validation") 
 [{"code":"document.report_render_unseen","message":"step 'page' renders text with report.render, and with no `report:` it is not the run's report and does not appear in the Report tab; write `report: {from: page}` to make it the run's report","params":{"step":"'page'","bare":"page"},"location":"steps.page"}]
 ```
 
+## What plan says about a changed report
+
+Once a document is on an instance, `dg apply --dry-run` plans the next version without writing
+it, and the plan names every top-level section that changed. Change nothing but the report's
+heading in `echo-report-params`, so it says *stations* where it said *readings*, and the plan
+is an update that changes no step, no parameter and no trigger -- only the report:
+
+```bash
+sed 's/: readings above/: stations above/' pipelines/echo-report-params.yaml > heading.yaml
+uv run dg apply heading.yaml --dry-run
+```
+
+```text
+update echo-report-params  version 2 (/home/you/echo-report/heading.yaml)
+  report changed
+
+steps of echo-report-params  each step under the last one it waits for
+  readings  (playground.generate)
+    over  (transform.jq)
+Nothing was written: this was a dry run.
+```
+
+The record behind that line is the plan's `diff`, which `dg apply`, the API's plan, MCP's
+`plan_document` and the editor all carry:
+
+```bash
+uv run dg apply heading.yaml --dry-run --json | jq -c '.fields.plan.diff'
+```
+
+```json
+{"steps_added":[],"steps_removed":[],"steps_changed":[],"params_changed":false,"triggers_changed":false,"requires_changed":false,"report_changed":true,"settings_changed":false}
+```
+
+`report_changed` is the flag a reviewer reads before approving a version whose only change is
+what its runs will say about themselves. `requires_changed` does the same for `requires:`, and
+`settings_changed` covers the name, description, tags, concurrency, priority and importance.
+
 ## The documents, hop by hop
 
 `pipelines/echo-report.yaml`:

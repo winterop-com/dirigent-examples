@@ -141,6 +141,7 @@ mcp_call tools/list '{}' > "$WORK/tools.json"
 jq -e '
   [.result.tools[].name] as $names
   | ($names | index("create_connection")) and ($names | index("edit_pipeline"))
+    and ($names | index("list_connection_kinds")) and ($names | index("get_connection_kind"))
     and ($names | index("get_run_report")) and ($names | index("run_pipeline"))
     and ($names | index("check_connection") | not) and ($names | index("create_schema") | not)
     and ($names | index("list_audit") | not)
@@ -148,6 +149,21 @@ jq -e '
 
 mcp_tool whoami '{}' | jq -e '
   .result.content[0].text | fromjson | .username == "agent" and .role == "operator" and .token_name == "mcp"
+' > /dev/null
+
+# Before creating anything, the agent reads what each kind takes: its required settings, its
+# secret fields, and the forms a credential comes in. A secret field is one it leaves out.
+mcp_tool list_connection_kinds '{}' | jq -e '
+  .result.content[0].text | fromjson | .items | map({key: .id, value: .}) | from_entries
+  | .http.required == ["base_url"] and (.http.secret | index("basic_password"))
+    and .slack.secret == ["webhook_url", "bot_token"] and .slack.credential_required == true
+' > /dev/null
+mcp_tool get_connection_kind '{"kind": "slack"}' | jq -e '
+  .result.content[0].text | fromjson
+  | (.fields | map({key: .name, value: .}) | from_entries) as $f
+  | $f.bot_token.secret == true and $f.bot_token.credential_form == "bot"
+    and $f.channel.secret == false and $f.channel.credential_form == "bot"
+    and (.credential_forms | map(.code)) == ["webhook", "bot"]
 ' > /dev/null
 
 # A connection with nothing secret to hold is usable the moment it is created.
@@ -221,22 +237,54 @@ jq -e '
 
 # 3. The admin completes what the agent began.
 #
-# dg connection set-secret asks at a terminal and refuses without one, so the same update goes
-# through the API here: the whole config, the secret beside the settings, which the kind's
-# model accepts whole and so completes the connection.
-uv run dg connection set-secret team-alerts --json < /dev/null > "$WORK/set-secret.ndjson" || true
-jq -se 'map(select(.kind == "error")) | last | .code == "cli.cannot_prompt_secret"' \
-  "$WORK/set-secret.ndjson" > /dev/null
+# The admin reads the same description of the kind the agent read, from dg.
+uv run dg connection kinds slack --json | jq -e '
+  .kind == "connection_kind" and .fields.id == "slack"
+  and ([.fields.fields[] | select(.secret) | .name] == ["webhook_url", "bot_token"])
+' > /dev/null
 
-# An operator may not supply it, whatever route it takes.
+# An operator may not supply a secret, whatever route it takes.
 status=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$DG_URL/api/v1/connections/team-alerts" \
   -H "Authorization: Bearer $DG_MCP_TOKEN" -H 'Content-Type: application/json' \
   -d '{"config": {"channel": "#station-alerts", "bot_token": "xoxb-not-a-real-token"}}')
 [ "$status" = 403 ]
 
-curl -fs -X PATCH "$DG_URL/api/v1/connections/team-alerts" \
-  -H "Authorization: Bearer $DG_TOKEN" -H 'Content-Type: application/json' \
-  -d '{"config": {"channel": "#station-alerts", "bot_token": "xoxb-not-a-real-token"}}' > /dev/null
+# dg connection set-secret asks at a terminal, without echoing, and refuses where there is none.
+uv run dg connection set-secret team-alerts --json < /dev/null > "$WORK/set-secret.ndjson" || true
+jq -se 'map(select(.kind == "error")) | last | .code == "cli.cannot_prompt_secret"' \
+  "$WORK/set-secret.ndjson" > /dev/null
+
+# So it is given one: a pseudo-terminal that answers the one prompt set-secret puts the way the
+# admin would type it. The connection already holds a channel, so set-secret has begun the bot
+# form and asks for that form's bot_token alone. The answer waits a moment after the prompt:
+# the terminal is switched to not echoing as it is asked, and that switch discards whatever was
+# typed ahead of it.
+python3 -c '
+import os, pty, select, signal, sys, time
+
+answer = sys.argv[1].encode() + b"\n"
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(sys.argv[2], sys.argv[2:])
+said, answered = b"", False
+while select.select([fd], [], [], 60)[0]:
+    try:
+        chunk = os.read(fd, 4096)
+    except OSError:
+        break
+    if not chunk:
+        break
+    said += chunk
+    if not answered and said.rstrip().endswith(b"bot_token:"):
+        time.sleep(0.5)
+        os.write(fd, answer)
+        answered = True
+else:
+    os.kill(pid, signal.SIGKILL)
+_, status = os.waitpid(pid, 0)
+sys.stdout.write(said.decode(errors="replace"))
+sys.exit(os.waitstatus_to_exitcode(status) or (0 if answered else 1))
+' "xoxb-not-a-real-token" uv run dg connection set-secret team-alerts > "$WORK/set-secret.txt"
 
 uv run dg connection show team-alerts --json > "$WORK/completed.ndjson"
 jq -e '
@@ -244,4 +292,4 @@ jq -e '
     and .fields.config.bot_token == "***"
 ' "$WORK/completed.ndjson" > /dev/null
 
-echo "agent-over-mcp: an operator over /mcp listed its tools, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin completed the connection"
+echo "agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret"

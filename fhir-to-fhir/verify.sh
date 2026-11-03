@@ -180,13 +180,11 @@ export DG_TOKEN
 
 say "the connections, checked: each reads /metadata and reports FHIR 4.0.1"
 # Neither carries a secret, and each names the port this run started its server on, so both
-# are written again on every run.
+# are written again on every run, in place: a connection an applied pipeline names cannot be
+# deleted, and ensure creates it or brings what is stored to what is given.
 for pair in "fhir-source=$SOURCE" "fhir-target=$TARGET"; do
   code="${pair%%=*}"
-  if uv run dg connection list --json | jq -e --arg code "$code" 'select(.fields.code == $code)' > /dev/null; then
-    uv run dg connection delete "$code" --json > /dev/null
-  fi
-  uv run dg connection create fhir "$code" --set base_url="${pair#*=}" --set timeout=1m --json > /dev/null
+  uv run dg connection ensure fhir "$code" --set base_url="${pair#*=}" --set timeout=1m --json > /dev/null
   uv run dg connection check "$code" --json > "$WORK/check.ndjson"
   jq -se --arg code "$code" '
     map(select(.kind == "connection.checked")) | last
@@ -205,4 +203,32 @@ assert_run_succeeded "$WORK/run.ndjson" "the server run"
 assert_receipt "$WORK/run.ndjson" 0 36
 assert_copy
 
-say "ok: $CODE copied $PATIENTS patients and $OBSERVATIONS observations between two HAPI FHIR servers, and a second and third run created nothing"
+say "fhir-target-upkeep, on the instance: one patient rewritten, patched and read whole, test data cleared"
+uv run dg run fhir-target-upkeep --watch --json > "$WORK/upkeep.ndjson"
+assert_run_succeeded "$WORK/upkeep.ndjson" "the upkeep run"
+jq -se '
+  (map(select(.kind == "run")) | last) as $run
+  | ($run.steps | map({key: .step, value: .output}) | from_entries) as $out
+  | ($out.find.resources[0].id) as $id
+  # The rewrite went to the id the search found, and the patch to the same patient.
+  | if $out.rewrite.id != $id or $out.rewrite.outcome != "updated" then error("the rewrite answered \($out.rewrite.outcome) at \($out.rewrite.id), not $id")
+    elif $out.deactivate.id != $id then error("the patch landed on \($out.deactivate.id)")
+    # $everything on the patient: it and the two observations about it.
+    elif $out.chart.level != "instance" or $out.chart.resource_type != "Bundle" then error("$everything answered \($out.chart.resource_type) at \($out.chart.level)")
+    elif ($out.chart.resource.entry | map(.resource.resourceType) | sort) != ["Observation", "Observation", "Patient"] then
+      error("the chart holds \($out.chart.resource.entry | map(.resource.resourceType))")
+    # The patient in the chart carries both changes: the patch kept what the rewrite wrote.
+    elif ($out.chart.resource.entry | map(.resource | select(.resourceType == "Patient")) | first
+          | .active != false or .name[0].given != ["Kari", "Marie"]) then error("the chart does not carry the rewrite and the patch")
+    # The scratch patient: written at its own id, then deleted by the search, one of one.
+    elif $out.scratch.id != "fhir-to-fhir-scratch" then error("the scratch patient is at \($out.scratch.id)")
+    elif $out.cleared.outcome != "deleted" or $out.cleared.ids != ["fhir-to-fhir-scratch"] then error("the clearing deleted \($out.cleared.ids)")
+    else true end
+' "$WORK/upkeep.ndjson" > /dev/null
+# What the target holds afterwards, read straight from it: the scratch patient gone, and the
+# copy's dozen patients still there.
+[ "$(curl -s -o /dev/null -w '%{http_code}' "$TARGET/Patient/fhir-to-fhir-scratch")" = 410 ] \
+  || { echo "the scratch patient is still on the target"; exit 1; }
+[ "$(count "$TARGET" Patient)" = "$PATIENTS" ] || { echo "the target holds $(count "$TARGET" Patient) patients"; exit 1; }
+
+say "ok: $CODE copied $PATIENTS patients and $OBSERVATIONS observations between two HAPI FHIR servers, a second and third run created nothing, and fhir-target-upkeep changed one in place"

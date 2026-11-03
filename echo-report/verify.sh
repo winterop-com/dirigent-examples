@@ -130,6 +130,21 @@ export DG_TOKEN
 # Applying unchanged documents again is not a new version, so this passes on every run.
 uv run dg apply
 
+# --- what plan says about a changed report -----------------------------------------------
+#
+# A version whose only change is its report is planned as an update with report_changed and
+# nothing else, and a dry run writes nothing.
+sed 's/: readings above/: stations above/' pipelines/echo-report-params.yaml >"$scratch/heading.yaml"
+uv run dg apply "$scratch/heading.yaml" --dry-run --json | jq -e -s '
+  ([.[] | select(.kind == "apply")] | first).fields as $f
+  | $f.dry_run == true and $f.plan.action == "update"
+    and $f.plan.diff == {steps_added: [], steps_removed: [], steps_changed: [],
+                         params_changed: false, triggers_changed: false,
+                         requires_changed: false, report_changed: true, settings_changed: false}
+' >/dev/null
+
+echo "echo-report: a version changing its report alone is planned as report_changed"
+
 # --- the report a step wrote ----------------------------------------------------------------
 #
 # The run's report is the page step's text as it was, rendered no further.

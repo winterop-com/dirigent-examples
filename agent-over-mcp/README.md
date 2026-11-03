@@ -4,8 +4,9 @@ A coding agent working on a running instance, the way a person would hand one th
 the instance's own MCP server at `/mcp`, under a token of its own, with a role that decides what
 it may touch. Every dirigent server answers MCP there, so nothing is installed beside the agent.
 The agent here reads and changes a pipeline, runs it and reads the report it rendered, and sets
-up the connections it wants -- but never holds a secret. It creates a connection with its
-settings alone, and a person who is an admin supplies the secret afterwards with
+up the connections it wants -- but never holds a secret. It reads what a connection kind takes,
+which of its fields are secret and the forms a credential comes in, creates the connection with
+its settings alone, and a person who is an admin supplies the secret afterwards with
 `dg connection set-secret`. What the agent did is attributed to it on the instance, run by run.
 
 The project is one pipeline, `station-report`, which asks the playground for a station's
@@ -31,7 +32,7 @@ uv sync
 ```
 
 ```text
-agent-over-mcp: an operator over /mcp listed its tools, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin completed the connection
+agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret
 ```
 
 The rest of this page is the same thing done by hand, with a real agent.
@@ -115,7 +116,7 @@ claude
 
 Approve the `dirigent` server once when asked, and `/mcp` lists it as connected. Every request
 acts as the token it carries, so the agent is offered the tools an operator may call and no
-others: 52 of them, without `check_connection`, `create_schema`, `update_schema`,
+others: 54 of them, without `check_connection`, `create_schema`, `update_schema`,
 `delete_schema` or `list_audit`. Ask it who it is, and `whoami` answers:
 
 ```json
@@ -134,8 +135,56 @@ Claude Code's form of it.
 ## 4. The agent sets up its connections
 
 Ask the agent to call the playground through a connection rather than a URL, and to set up a
-Slack connection for the station alerts in `#station-alerts`. It calls `create_connection` for
-each. The playground needs no secret, so that one is complete the moment it is stored:
+Slack connection for the station alerts in `#station-alerts`. Before it creates anything it
+asks what each kind takes. `list_connection_kinds` answers every kind the instance knows with
+its required settings, its secret fields and its credential forms; Slack's is:
+
+```json
+{
+  "id": "slack",
+  "description": "Which of Slack's two doors an alert goes through, and the credential for it.",
+  "required": [],
+  "secret": ["webhook_url", "bot_token"],
+  "settings": ["channel", "verify_tls", "timeout"],
+  "credential_forms": [
+    { "code": "webhook", "fields": ["webhook_url"], "name": "Incoming webhook" },
+    { "code": "bot", "fields": ["bot_token", "channel"], "name": "Bot token and channel" }
+  ],
+  "credential_required": true
+}
+```
+
+and `get_connection_kind` with `{"kind": "slack"}` describes it field by field: `bot_token` is a
+secret of the `bot` form, `channel` a setting of the same form, `timeout` a duration defaulting
+to `15s`. So the agent knows before it calls anything that it may send the channel and must
+leave the token to someone else. A person reads the same thing from `dg`:
+
+```bash
+uv run dg connection kinds slack
+```
+
+```text
+connection kind slack
+plugin               builtin
+description          Which of Slack's two doors an alert goes through, and the credential for it.
+credential forms     webhook: webhook_url; bot: bot_token, channel
+credential required  yes
+fields
+┏━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━┓
+┃ field       ┃ type     ┃ required ┃ secret ┃ default ┃ form    ┃
+┡━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━╇━━━━━━━━━┩
+│ webhook_url │ string   │ -        │ secret │ -       │ webhook │
+│ bot_token   │ string   │ -        │ secret │ -       │ bot     │
+│ channel     │ string   │ -        │ -      │ -       │ bot     │
+│ verify_tls  │ boolean  │ -        │ -      │ true    │ -       │
+│ timeout     │ duration │ -        │ -      │ 15s     │ -       │
+└─────────────┴──────────┴──────────┴────────┴─────────┴─────────┘
+```
+
+and `uv run dg connection kinds` with no kind is one row per kind: its plugin, its required and
+secret fields, and its credential forms.
+
+Then it calls `create_connection` for each. The playground needs no secret, so that one is complete the moment it is stored:
 
 ```json
 {
@@ -235,11 +284,11 @@ answers the plan alone:
 
 ```json
 {
-  "dry_run": true,
-  "version": null,
+  "kind": "pipeline",
   "plan": {
     "code": "station-report",
     "action": "update",
+    "digest": "sha256:33b68771ade51cf829657c5efc930df4c3b43259cd817b4d33ec8b40075219dd",
     "current_version": 1,
     "next_version": 2,
     "issues": [],
@@ -250,11 +299,21 @@ answers the plan alone:
       "steps_changed": ["ask"],
       "params_changed": true,
       "triggers_changed": false,
+      "requires_changed": false,
+      "report_changed": false,
       "settings_changed": false
     }
-  }
+  },
+  "pipeline_id": "01a1a256-21a2-7124-bfae-d12037fb17e8",
+  "dry_run": true,
+  "triggers": { "schedules_created": [], "schedules_updated": [], "schedules_removed": [] },
+  "sources": { "created": [], "updated": [], "removed": [], "paused": [], "tokens": [] }
 }
 ```
+
+The diff names every top-level section of the document: the steps, the parameters, the
+triggers, `requires:`, `report:` and the settings. Here one step and the parameters changed,
+and the report the run renders did not.
 
 and without it the edit is applied as version 2. The step in the stored version now reads:
 
@@ -337,16 +396,20 @@ connections
 ```
 
 `set-secret` prompts, so it refuses where nobody is at a terminal
-(`cli.cannot_prompt_secret`). `verify.sh` therefore sends the same update through the API as
-the admin, `PATCH /api/v1/connections/team-alerts` with the whole config, and first proves that
-the agent's own token is refused the same request with a 403: supplying a secret is an admin's,
+(`cli.cannot_prompt_secret`). `verify.sh` proves that refusal first, then gives the command a
+pseudo-terminal of its own and answers the one prompt it puts, `bot_token:`, the way the admin
+would type it. Before that it proves the agent's own token is refused the same change through
+the API, `PATCH /api/v1/connections/team-alerts`, with a 403: supplying a secret is an admin's,
 whichever way it is asked. Editing the connection on the Connections screen is the third way.
 
 ## What verify.sh asserts
 
 - `/mcp` opens a session under the operator token, and `tools/list` offers `create_connection`,
-  `edit_pipeline`, `run_pipeline` and `get_run_report` and none of the admin's tools;
-  `whoami` is `agent`, `operator`, token `mcp`.
+  `list_connection_kinds`, `get_connection_kind`, `edit_pipeline`, `run_pipeline` and
+  `get_run_report` and none of the admin's tools; `whoami` is `agent`, `operator`, token `mcp`.
+- `list_connection_kinds` names `base_url` as the one setting `http` requires and
+  `basic_password` among its secrets, and Slack's two secrets; `get_connection_kind` puts
+  `bot_token` and `channel` in the `bot` form, the first secret and the second not.
 - `create_connection` stores the playground complete, refuses a `bot_token` as
   `server.secrets_need_admin`, and stores `team-alerts` awaiting `bot_token` with the
   `set-secret` command in its answer.
@@ -354,9 +417,9 @@ whichever way it is asked. Editing the connection on the Connections screen is t
   `plan_only`, then applies them as a new version.
 - The run the agent starts succeeds, is triggered by `agent (token mcp)`, and its report starts
   `# oslo-blindern` and names the station the playground read back through the connection.
-- `dg connection set-secret` refuses without a terminal, the operator's PATCH is a 403, the
-  admin's completes the connection, and `dg connection show` reads `awaiting_secrets: false`
-  with the token redacted.
+- `dg connection kinds slack` names the same two secrets; the operator's PATCH is a 403;
+  `dg connection set-secret` refuses without a terminal and, given one, completes the
+  connection, and `dg connection show` reads `awaiting_secrets: false` with the token redacted.
 
 Each run starts the agent from the same place: the file is applied again, the account is kept,
 a new token is minted, and the two connections an earlier run left are deleted first.

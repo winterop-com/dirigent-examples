@@ -6,7 +6,7 @@ project: one instance, one apply, and every pipeline, schema and connection in t
 The documents are copied as they are, comments included; each one's README or shelf is where it
 is explained.
 
-`pipelines/` holds the 28 pipelines beside the shelves at its top level and the corpus under
+`pipelines/` holds the 29 pipelines beside the shelves at its top level and the corpus under
 `pipelines/<shelf>/`. `dg validate` and `dg apply` with no argument read the top level alone,
 so `setup.sh` and `verify.sh` walk the whole tree: `seed.py` applies it the way
 `dg dev --seed pipelines` does.
@@ -88,7 +88,8 @@ In this directory `dg` reads the token from `.env`, so a shell still exporting a
 | `org-units-to-pdf` | [dhis2-org-units-to-markdown](../dhis2-org-units-to-markdown) | The same page as a PDF, from a pandoc container. | `uv run dg run org-units-to-pdf --watch` |
 | `dhis2-reads` | [dhis2-reads](../dhis2-reads) | System info, a two-collection export, an incremental data value export and a paged tracker read. | `uv run dg run dhis2-reads --watch` |
 | `dhis2-reads-capped` | [dhis2-reads](../dhis2-reads) | The tracker read under a cap it reaches: it fails rather than answer part of it. | `uv run dg run dhis2-reads-capped --watch` |
-| `dhis2-writes-rehearsed` | [dhis2-writes-rehearsed](../dhis2-writes-rehearsed) | A metadata import, a data value, a tracker import and a data set sign-off, each a dry run. | `uv run dg run dhis2-writes-rehearsed --watch` |
+| `dhis2-reads-more` | [dhis2-reads](../dhis2-reads) | A month of data values as CSV and as ADX, the data store, a SQL view, and validation rules that store nothing. | `uv run dg run dhis2-reads-more --watch` |
+| `dhis2-writes-rehearsed` | [dhis2-writes-rehearsed](../dhis2-writes-rehearsed) | A metadata import, a data value, a tracker import, a data set sign-off and a CSV import named by codes, each a dry run. | `uv run dg run dhis2-writes-rehearsed --watch` |
 | `echo-report` | [echo-report](../echo-report) | A `report.render` page made the run's report with `report: {from: page}`. | `uv run dg run echo-report --watch` |
 | `echo-report-params` | [echo-report](../echo-report) | A report template reading the run's `params`. | `uv run dg run echo-report-params --watch` |
 | `station-report` | [agent-over-mcp](../agent-over-mcp) | The pipeline the agent edits over MCP: one playground call and a report. | `uv run dg run station-report --watch -p playground=http://127.0.0.1:4444/api/v1/playground` |
@@ -106,12 +107,16 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-203 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.33.0.
+203 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.34.0.
 A document with a required parameter or a `${run.window}` reference says so in its command, and
 one that starts at a source a worker polls or holds says how to resume that source.
 Two changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`; and
 `connections-referenced-vs-carried` builds its absolute URL from a `playground` parameter
 rather than spelling out the port, so a run on another instance is a flag.
+No document carries a secret: plan refuses a `connections:` block holding one, so the
+documents that once carried the playground's demo pair or its signing secret
+(`http-headers-and-auth-connection`, `webhook-post-hmac`, `webhook-signed`) name `playground`,
+which `setup.sh` writes with both.
 
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
@@ -444,9 +449,9 @@ rather than spelling out the port, so a run on another instance is a flag.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance on 4444 alone; validates all 231 documents; applies them, and checks
+it leaves the demo instance on 4444 alone; validates all 232 documents; applies them, and checks
 the corpus's polled and held sources landed paused and its endpoints listening; runs the
-28 pipelines beside the shelves and the two playground routes on the shelves with their own
+29 pipelines beside the shelves and the two playground routes on the shelves with their own
 assertions, and the three tutorial documents locally;
 runs every corpus pipeline through `corpus.py`, six at a time and the docker and git shelves
 one at a time after them, each judged on its last run
