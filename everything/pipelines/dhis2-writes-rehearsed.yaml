@@ -1,4 +1,4 @@
-# Four kinds of write to the DHIS2 play demo, every one of them rehearsed: DHIS2 resolves what
+# Five kinds of write to the DHIS2 play demo, every one of them rehearsed: DHIS2 resolves what
 # each would write, checks it, reports what it would have done, and stores nothing. The demo is
 # shared, so every write step below carries dry_run: true, and verify.sh refuses this document
 # if one does not.
@@ -15,14 +15,19 @@
 #              engine follows, importMode=VALIDATE.
 #   sign_off   dhis2.data_set_completion. A data set marked complete for a month at a
 #              facility, posted with dryRun=true.
+#   export     dhis2.data_value_set_export, format: csv. A month of the data set as CSV, its
+#              data elements and org units written by code. The file lands in the run's storage.
+#   csv        dhis2.data_value_set_import, format: csv. That file sent back as it is, read
+#              from the export's uri, with the same id schemes saying how it names things, and
+#              dryRun=true.
 #
-# The four rehearsals wait on nothing but before/after, so they run side by side.
+# The rehearsals wait on nothing but before/after and export/csv, so they run side by side.
 
 format: dirigent/v1
 kind: pipeline
 code: dhis2-writes-rehearsed
-name: Four writes, rehearsed
-description: Create a data element, set a data value, import a tracker event and sign a data set off, all as dry runs against the play demo.
+name: Five writes, rehearsed
+description: Create a data element, set a data value, import a tracker event, sign a data set off and import a CSV file named by codes, all as dry runs against the play demo.
 
 tags: [dhis2, metadata, tracker, dry-run]
 
@@ -32,6 +37,8 @@ requires:
     - dhis2.data_value
     - dhis2.tracker_import
     - dhis2.data_set_completion
+    - dhis2.data_value_set_export
+    - dhis2.data_value_set_import
   connections:
     - play
 
@@ -142,4 +149,33 @@ steps:
       data_set: BfMAe6Itzgt
       period: ${params.period}
       org_unit: DiszpKrYNg8
+      dry_run: true
+
+  export:
+    block: dhis2.data_value_set_export
+    config:
+      connection: play
+      data_set: BfMAe6Itzgt
+      period: ${params.period}
+      org_unit: DiszpKrYNg8
+      format: csv
+      # Codes rather than uids, the way a file from another system names things.
+      data_element_id_scheme: CODE
+      org_unit_id_scheme: CODE
+
+  csv:
+    block: dhis2.data_value_set_import
+    depends_on: [export]
+    config:
+      connection: play
+      # The whole export, read from storage; never the inline head, which may be cut.
+      data_values_uri: ${steps.export.output.uri}
+      format: csv
+      # The file names data elements and org units by code, so the import is told so. Without
+      # these DHIS2 reads every DE_ and OU_ as a uid it does not know and ignores the row.
+      data_element_id_scheme: CODE
+      org_unit_id_scheme: CODE
+      # The demo already holds these values, and DHIS2 ignores a value equal to the one it
+      # holds; NONE reports that rather than refusing the whole file on the first one.
+      atomic_mode: NONE
       dry_run: true

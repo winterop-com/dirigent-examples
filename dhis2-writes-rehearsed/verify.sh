@@ -35,7 +35,13 @@ import sys
 
 import yaml
 
-writes = {"dhis2.metadata_import", "dhis2.data_value", "dhis2.tracker_import", "dhis2.data_set_completion"}
+writes = {
+    "dhis2.metadata_import",
+    "dhis2.data_value",
+    "dhis2.tracker_import",
+    "dhis2.data_set_completion",
+    "dhis2.data_value_set_import",
+}
 steps = yaml.safe_load(open(sys.argv[1]))["steps"]
 live = [
     name
@@ -48,7 +54,7 @@ if live:
     sys.exit(f"these steps would write to the play demo: {', '.join(live)}")
 PY
 
-say "four writes, rehearsed against the play demo"
+say "five writes, rehearsed against the play demo"
 uv run dg run --local "pipelines/$CODE.yaml" \
   --connections connections.yaml --json > "$WORK/run.ndjson" || true
 
@@ -72,7 +78,14 @@ jq -se '
     # The sign-off: one registration, taken.
     elif $out.sign_off.status != "SUCCESS" or $out.sign_off.completed != true then error("the sign-off came back \($out.sign_off.status)")
     elif $out.sign_off.counts.ignored != 0 then error("the sign-off was ignored")
+    # The CSV: a file of codes, every row sent, and every code resolved. The demo already
+    # holds each value, so DHIS2 ignores them as unchanged; a code it could not resolve would
+    # be a conflict (E7610), and the import a WARNING.
+    elif ($out.export.text | split("\n") | .[1] | test("^DE_[^,]*,[^,]*,OU_") | not) then error("the export does not name things by code")
+    elif $out.csv.sent == 0 then error("the CSV rehearsal sent nothing")
+    elif $out.csv.status != "SUCCESS" or ($out.csv.conflicts | length) != 0 then error("the CSV rehearsal came back \($out.csv.status): \($out.csv.conflicts[0:3])")
+    elif ($out.csv.counts | .imported + .updated + .ignored) != $out.csv.sent then error("the CSV rehearsal lost rows")
     else true end
 ' "$WORK/run.ndjson" > /dev/null
 
-say "ok: $CODE rehearsed four writes and the play demo kept what it held"
+say "ok: $CODE rehearsed five writes and the play demo kept what it held"
