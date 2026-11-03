@@ -1,0 +1,35 @@
+# The same tracker read as dhis2-reads' children step, with a bound it is bound to reach:
+# max_rows is 20, and the facility has more children than that. It fails on purpose.
+#
+# all_pages reads every page or none. The step fails rejected with dhis2.tracker.cap_reached
+# once the rows gathered pass max_rows, rather than answering the first twenty as if they were
+# all, and a rejected failure spends no retry: reading again would reach the same bound.
+
+format: dirigent/v1
+kind: pipeline
+code: dhis2-reads-capped
+name: A tracker read that reaches its bound
+description: Every tracked entity of a program at one facility, capped below what the facility holds, so the read fails rather than answering part of it.
+
+tags: [dhis2, tracker]
+
+requires:
+  blocks:
+    - dhis2.tracker
+  connections:
+    - play
+
+steps:
+  children:
+    block: dhis2.tracker
+    retry: {max_attempts: 3, backoff: 2s}
+    config:
+      connection: play
+      kind: trackedEntities
+      program: IpHINAT79UW
+      org_unit: DiszpKrYNg8
+      ou_mode: SELECTED
+      fields: trackedEntity
+      all_pages: true
+      page_size: 10
+      max_rows: 20
