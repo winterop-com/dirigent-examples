@@ -260,12 +260,14 @@ uv run dg apply heading.yaml --dry-run --json | jq -c '.fields.plan.diff'
 ```
 
 ```json
-{"steps_added":[],"steps_removed":[],"steps_changed":[],"params_changed":false,"triggers_changed":false,"requires_changed":false,"report_changed":true,"settings_changed":false}
+{"steps_added":[],"steps_removed":[],"steps_changed":[],"params_changed":false,"triggers_changed":false,"requires_changed":false,"report_changed":true,"alerts_added":[],"alerts_removed":[],"alerts_changed":[],"settings_changed":false}
 ```
 
 `report_changed` is the flag a reviewer reads before approving a version whose only change is
-what its runs will say about themselves. `requires_changed` does the same for `requires:`, and
-`settings_changed` covers the name, description, tags, concurrency, priority and importance.
+what its runs will say about themselves. `requires_changed` does the same for `requires:`,
+`alerts_added`, `alerts_removed` and `alerts_changed` name the rules of a document's `alerts:`
+section by code ([echo-alert](../echo-alert) declares two), and `settings_changed` covers the
+name, description, tags, concurrency, priority and importance.
 
 ## The documents, hop by hop
 

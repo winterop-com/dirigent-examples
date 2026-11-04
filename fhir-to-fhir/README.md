@@ -25,7 +25,7 @@ What you learn here:
   once it is there: an update at its id, a JSON Patch, a patient's `$everything`, and a delete
   bounded by how many a search may match.
 
-`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.34, and
+`pyproject.toml` pins `dirigent-cli` and the `dirigent-fhir` pack from PyPI, both at 0.35, and
 `uv sync` installs them like any other pack.
 
 ## Run it

@@ -185,7 +185,8 @@ jq -e '
   and (.result.content[0].text | fromjson
        | .connection.awaiting_secrets == true
          and (.secrets_to_supply | index("bot_token"))
-         and (.supply_with.command | endswith("connection set-secret team-alerts")))
+         and (.supply_with.command | endswith("connection set-secret team-alerts"))
+         and (.supply_with.piped | endswith("connection set-secret team-alerts FIELD --stdin")))
 ' "$WORK/created.json" > /dev/null
 
 # The edit is matched against the text export_pipeline answers, which is the stored version
@@ -254,37 +255,11 @@ uv run dg connection set-secret team-alerts --json < /dev/null > "$WORK/set-secr
 jq -se 'map(select(.kind == "error")) | last | .code == "cli.cannot_prompt_secret"' \
   "$WORK/set-secret.ndjson" > /dev/null
 
-# So it is given one: a pseudo-terminal that answers the one prompt set-secret puts the way the
-# admin would type it. The connection already holds a channel, so set-secret has begun the bot
-# form and asks for that form's bot_token alone. The answer waits a moment after the prompt:
-# the terminal is switched to not echoing as it is asked, and that switch discards whatever was
-# typed ahead of it.
-python3 -c '
-import os, pty, select, signal, sys, time
-
-answer = sys.argv[1].encode() + b"\n"
-pid, fd = pty.fork()
-if pid == 0:
-    os.execvp(sys.argv[2], sys.argv[2:])
-said, answered = b"", False
-while select.select([fd], [], [], 60)[0]:
-    try:
-        chunk = os.read(fd, 4096)
-    except OSError:
-        break
-    if not chunk:
-        break
-    said += chunk
-    if not answered and said.rstrip().endswith(b"bot_token:"):
-        time.sleep(0.5)
-        os.write(fd, answer)
-        answered = True
-else:
-    os.kill(pid, signal.SIGKILL)
-_, status = os.waitpid(pid, 0)
-sys.stdout.write(said.decode(errors="replace"))
-sys.exit(os.waitstatus_to_exitcode(status) or (0 if answered else 1))
-' "xoxb-not-a-real-token" uv run dg connection set-secret team-alerts > "$WORK/set-secret.txt"
+# Outside a terminal, the admin's script names the one field and pipes its value in, the
+# form supply_with.piped names. The value here is a stand-in, never a real token; a real one
+# is piped from where it is kept, `op read ... |`, so it never lands on disk.
+printf '%s\n' "xoxb-not-a-real-token" \
+  | uv run dg connection set-secret team-alerts bot_token --stdin --json > "$WORK/set-secret.ndjson"
 
 uv run dg connection show team-alerts --json > "$WORK/completed.ndjson"
 jq -e '
@@ -292,4 +267,4 @@ jq -e '
     and .fields.config.bot_token == "***"
 ' "$WORK/completed.ndjson" > /dev/null
 
-echo "agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret"
+echo "agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret --stdin"

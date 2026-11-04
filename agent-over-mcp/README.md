@@ -32,7 +32,7 @@ uv sync
 ```
 
 ```text
-agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret
+agent-over-mcp: an operator over /mcp listed its tools, read the connection kinds, created a connection with its settings alone, edited, ran and read the report of a pipeline; the admin read the kind and completed the connection with dg connection set-secret --stdin
 ```
 
 The rest of this page is the same thing done by hand, with a real agent.
@@ -227,12 +227,16 @@ and who supplies it:
   "supply_with": {
     "by": "an admin of this instance",
     "command": "dg --url http://127.0.0.1:3333 connection set-secret team-alerts",
+    "piped": "op read ... | dg --url http://127.0.0.1:3333 connection set-secret team-alerts FIELD --stdin",
     "screen": "http://127.0.0.1:3333/connections/team-alerts"
   }
 }
 ```
 
-`secrets_to_supply` names both because either form will do: a webhook, or a bot token with the
+`command` is what an admin runs at a terminal, which prompts; `piped` is the form for a shell
+with no terminal behind it, a script's or an agent's, where one `FIELD` is named and its value
+piped in from where it is kept, so it never passes through the agent. `secrets_to_supply` names
+both because either form will do: a webhook, or a bot token with the
 channel already given. Until one is set, every step, alert and check that names `team-alerts`
 is refused with `secret.connection_awaiting_secrets`. The Connections screen draws it as
 *awaiting secrets*, and so does the listing:
@@ -301,6 +305,9 @@ answers the plan alone:
       "triggers_changed": false,
       "requires_changed": false,
       "report_changed": false,
+      "alerts_added": [],
+      "alerts_removed": [],
+      "alerts_changed": [],
       "settings_changed": false
     }
   },
@@ -312,8 +319,9 @@ answers the plan alone:
 ```
 
 The diff names every top-level section of the document: the steps, the parameters, the
-triggers, `requires:`, `report:` and the settings. Here one step and the parameters changed,
-and the report the run renders did not.
+triggers, `requires:`, `report:`, the rules of an `alerts:` section by code, and the settings.
+Here one step and the parameters changed, and the report the run renders and the alert rules
+did not.
 
 and without it the edit is applied as version 2. The step in the stored version now reads:
 
@@ -396,9 +404,24 @@ connections
 ```
 
 `set-secret` prompts, so it refuses where nobody is at a terminal
-(`cli.cannot_prompt_secret`). `verify.sh` proves that refusal first, then gives the command a
-pseudo-terminal of its own and answers the one prompt it puts, `bot_token:`, the way the admin
-would type it. Before that it proves the agent's own token is refused the same change through
+(`cli.cannot_prompt_secret`). Outside one, it takes the form the agent's answer named under
+`supply_with.piped`: exactly one field, and its value on stdin. The whole of stdin is the
+secret, less one trailing newline, so it never lands on disk or in the process list:
+
+```bash
+op read op://station/team-alerts/bot_token \
+  | uv run dg connection set-secret team-alerts bot_token --stdin
+```
+
+In a pipe the answer is one record, the token redacted and the field named under `set`:
+
+```json
+{"v":1,"at":"2026-11-04T07:22:56.560+00:00","level":"info","kind":"connection.updated","step":null,"item":null,"message":"updated","code":"team-alerts","connection_kind":"slack","name":"Station alerts","description":null,"config":{"webhook_url":null,"channel":"#station-alerts","verify_tls":true,"timeout":"15s","bot_token":"***"},"awaiting_secrets":false,"set":["bot_token"]}
+```
+
+`verify.sh` proves the refusal without a terminal first, then completes the connection the
+piped way with a stand-in value, `xoxb-not-a-real-token`, never a real token. Before that it
+proves the agent's own token is refused the same change through
 the API, `PATCH /api/v1/connections/team-alerts`, with a 403: supplying a secret is an admin's,
 whichever way it is asked. Editing the connection on the Connections screen is the third way.
 
@@ -418,8 +441,9 @@ whichever way it is asked. Editing the connection on the Connections screen is t
 - The run the agent starts succeeds, is triggered by `agent (token mcp)`, and its report starts
   `# oslo-blindern` and names the station the playground read back through the connection.
 - `dg connection kinds slack` names the same two secrets; the operator's PATCH is a 403;
-  `dg connection set-secret` refuses without a terminal and, given one, completes the
-  connection, and `dg connection show` reads `awaiting_secrets: false` with the token redacted.
+  `create_connection` names the `--stdin` form under `supply_with.piped`;
+  `dg connection set-secret` refuses without a terminal and, with `bot_token --stdin` and a
+  stand-in value piped in, completes the connection, and `dg connection show` reads `awaiting_secrets: false` with the token redacted.
 
 Each run starts the agent from the same place: the file is applied again, the account is kept,
 a new token is minted, and the two connections an earlier run left are deleted first.

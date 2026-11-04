@@ -27,7 +27,8 @@ into `.dirigent/state`; creates the buckets `echo-s3` and `dirigent-archive`; st
 on http://127.0.0.1:4444 in the background; logs in as `admin` / `admin` and keeps the
 token in `.env`; creates the ten schemas; applies everything under `pipelines/` through
 `seed.py`, which creates what a document carries and applies it without; and writes
-echo-alert's rule `echo-failed` with its sink `echo-sink`, the instance's own playground.
+echo-alert's sink `echo-sink`, the instance's own playground, before the apply that creates the
+rules echo-alert's document declares.
 Running it again changes nothing that is already right.
 
 A schedule the walk creates is created paused, as `dg dev --seed` does, except echo-schedule's
@@ -107,7 +108,7 @@ uv run dg run --local tutorial/echo-send-before.yaml --schema schemas/playground
 
 ## The corpus
 
-203 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.34.0.
+204 documents across 21 shelves and `hello-world`, from dirigent's `examples/` at v0.35.0.
 A document with a required parameter or a `${run.window}` reference says so in its command, and
 one that starts at a source a worker polls or holds says how to resume that source.
 Two changes from the corpus: every `127.0.0.1:3333` is `127.0.0.1:4444`; and
@@ -216,6 +217,7 @@ which `setup.sh` writes with both.
 
 | Pipeline | What it shows | Run it |
 | --- | --- | --- |
+| [`alerts-declared`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/patterns/alerts-declared.yaml) | Fail a load on purpose, and raise the alert rule this document declares. | `uv run dg run alerts-declared --watch` |
 | [`concurrency-queue`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/patterns/concurrency-queue.yaml) | Process a batch, and hold any new run until the current one finishes. | `uv run dg run concurrency-queue --watch` |
 | [`concurrency-replace`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/patterns/concurrency-replace.yaml) | Render and publish a revision, cancelling any render already in progress. | `uv run dg run concurrency-replace --watch` |
 | [`concurrency-skip`](https://github.com/winterop-com/dirigent/blob/main/packages/dirigent-examples/src/dirigent_examples/shelves/patterns/concurrency-skip.yaml) | Refresh a view, and do nothing if a refresh is already running. | `uv run dg run concurrency-skip --watch` |
@@ -449,7 +451,7 @@ which `setup.sh` writes with both.
 ```
 
 starts its own rustfs, brokers, warehouse and instance on free ports and a throwaway state, so
-it leaves the demo instance on 4444 alone; validates all 232 documents; applies them, and checks
+it leaves the demo instance on 4444 alone; validates all 233 documents; applies them, and checks
 the corpus's polled and held sources landed paused and its endpoints listening; runs the
 29 pipelines beside the shelves and the two playground routes on the shelves with their own
 assertions, and the three tutorial documents locally;

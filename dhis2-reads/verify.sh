@@ -40,9 +40,9 @@ jq -se --arg since "$SINCE" '
     # Which DHIS2 answered: the demo addressed as 2.42 is a 2.42 release.
     elif ($out.info.version | startswith("2.42") | not) then error("system info says \($out.info.version)")
     # Two collections in one export, each counted, and the count is the rows it holds.
-    elif ($out.holdings.counts | keys) != ["dataSets", "programs"] then error("the export answered \($out.holdings.counts | keys)")
+    elif ($out.holdings.totals | keys) != ["dataSets", "programs"] then error("the export answered \($out.holdings.totals | keys)")
     elif ($out.holdings.collections | to_entries | any(.value | length == 0)) then error("a collection came back empty")
-    elif ($out.holdings.collections | to_entries | any((.value | length) != $out.holdings.counts[.key])) then error("a count does not match its rows")
+    elif ($out.holdings.collections | to_entries | any((.value | length) != $out.holdings.totals[.key])) then error("a count does not match its rows")
     elif ($out.holdings.collections.dataSets | any(has("periodType") | not)) then error("dataSets were not read with their own fields")
     # The incremental export: values, every one of them changed at or after the date.
     elif ($out.changed.body.dataValues | length) == 0 then error("nothing changed since \($since)")

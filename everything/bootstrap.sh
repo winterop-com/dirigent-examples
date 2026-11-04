@@ -176,25 +176,15 @@ ensure_schemas() {
   done
 }
 
-# echo-alert's rule, delivering run_failed to a webhook connection pointed at this instance's
-# own playground. The rule goes before the connection it names, and is written again after.
+# echo-alert's sink: a webhook connection pointed at this instance's own playground. The
+# document's echo-failed rule names it, and plan refuses a rule naming a connection the
+# instance does not hold, so it is written before the apply.
 ensure_alert() {
   local sink="$DG_URL/api/v1/playground/request"
-  if uv run dg alerts rules list --json | jq -e -s 'any(.[]; .fields.code == "echo-failed")' > /dev/null; then
-    uv run dg alerts rules delete echo-failed --json > /dev/null
-  fi
   uv run dg connection ensure webhook echo-sink \
     --name "The alert sink" \
     --description "The playground's /request, which answers with whatever was POSTed to it." \
     --set "url=$sink" \
-    --json > /dev/null
-  uv run dg alerts rules create echo-failed \
-    --name "Echo failures to the sink" \
-    --event run_failed \
-    --pipeline echo-alert \
-    --connection echo-sink \
-    --template '{{ pipeline.code }} run {{ run.status }}' \
-    --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.' \
     --json > /dev/null
 }
 

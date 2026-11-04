@@ -6,14 +6,16 @@
 # NOTHING HERE IS CALLED. playground.generate takes an `input` and hands it back, and its
 # `fail_until` knob fails that many attempts before succeeding -- so a failure on cue is a
 # number in this document rather than an endpoint somewhere that has to be answering. No
-# connection, no URL, no network.
+# step names a connection or a URL, and nothing needs a network.
 #
-# The alerting half of this example is not in this document and cannot be: a rule binds an
-# event to a notifier and a notifier delivers through a connection, and both are records the
-# INSTANCE holds, minted with `dg connection create` and `dg alerts rules create`. A
-# document that carried either would be a document that carried a credential, which is the
-# one thing a portable document must never do. So this file is only the failure, and
-# README.md is the rule.
+# The alerting half is in this document too, under `alerts:` at the bottom: two rules on
+# run_failed, keyed by their codes like steps. A rule binds an event to a notifier, and a
+# notifier delivers through a connection, which is a record the INSTANCE holds, minted once
+# with `dg connection create`: a connection carries a credential, and a portable document
+# never does. So a rule names its connection by code, and `dg apply` refuses one the instance
+# does not hold. The document owns its rules: an apply creates, rewrites and removes them, and
+# changing or deleting one by hand is refused with alert.declared. Pausing one stays an
+# operator's choice on the instance, and the next apply keeps it.
 #
 # Hop by hop:
 #
@@ -23,6 +25,9 @@
 #            budget is for; echo-retry is where the other class sits beside it.
 #   note     never runs. Its edge is the default all_success, and the step it waits for did
 #            not succeed, so it is skipped rather than failed.
+#
+#   echo-failed      the failure, POSTed through the webhook connection echo-sink.
+#   echo-failed-log  the same failure, written to the process log: no connection at all.
 #
 # EXPECT THIS RUN TO FAIL in about a second, with publish out of attempts and note skipped
 # behind it.
@@ -38,7 +43,8 @@ description: |
   A read that works followed by a publish that fails every attempt, so the run ends `failed`
   and an alert rule on `run_failed` has something to fire on.
 
-  The rule and the connection it delivers through are the instance's, never the document's.
+  The rules are the document's, under `alerts:`; the connection one delivers through is the
+  instance's, named by its code.
 
 tags: [playground, failure]
 
@@ -75,8 +81,7 @@ steps:
   publish:
     block: playground.generate
     depends_on: [ask]
-    # Two attempts allowed, and a transient failure spends both. Where the alert itself is
-    # delivered is not here: that is the sink connection's url, on the instance.
+    # Two attempts allowed, and a transient failure spends both.
     retry:
       max_attempts: 2
       backoff: 1s
@@ -89,3 +94,23 @@ steps:
     depends_on: [publish]
     config:
       message: "published the reading for ${params.station}"
+
+# The pipeline's own alert rules, keyed by rule code. Each watches this pipeline alone, so
+# there is no scope to write. Neither carries a throttle, which means none: every failed run
+# raises its own notification. On a real instance a run_failed rule wants `throttle: 15m`, so
+# a pipeline failing every minute is one message rather than sixty.
+alerts:
+  echo-failed:
+    name: Echo failures to the sink
+    event: run_failed
+    # Where it is delivered is the connection's url, on the instance: here its own playground.
+    connection: echo-sink
+    # Both templates are compiled at plan, so one that does not compile is refused at apply
+    # rather than at the failure it was written for.
+    template: "{{ pipeline.code }} run {{ run.status }}"
+    body: "Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}."
+
+  echo-failed-log:
+    name: Echo failures to the log
+    # No connection: the log notifier, which needs no credential and is always there.
+    event: run_failed
