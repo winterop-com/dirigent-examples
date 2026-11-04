@@ -4,8 +4,8 @@ version = "0.1.0"
 description = "A dirigent project: pipeline documents, and the runtime that runs them."
 requires-python = ">=3.13"
 dependencies = [
-    "dirigent-cli>=0.35,<0.36",
+    "dirigent-cli>=0.36,<0.37",
     # The s3:// storage backend and the `s3` connection kind it resolves through. The CLI
     # does not carry it: a scheme is a package, and an instance serves the schemes it has.
-    "dirigent-storage-s3>=0.35,<0.36",
+    "dirigent-storage-s3>=0.36,<0.37",
 ]
