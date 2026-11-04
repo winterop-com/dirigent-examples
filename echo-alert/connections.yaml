@@ -1,0 +1,14 @@
+# The connection a --local run has nowhere else to read. A local run starts on a throwaway
+# instance holding nothing, and the document's echo-failed rule names echo-sink, so plan
+# refuses the document unless the run is handed it here.
+#
+# A local run raises no alert, so nothing is ever POSTed to this url; the address is the one
+# `dg dev` serves its playground on by default. No secret is in it.
+
+connections:
+  echo-sink:
+    kind: webhook
+    name: The alert sink
+    description: The instance's own playground, which answers 200 to whatever is POSTed.
+    config:
+      url: http://127.0.0.1:3333/api/v1/playground/request

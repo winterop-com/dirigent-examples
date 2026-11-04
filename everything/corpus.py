@@ -34,6 +34,7 @@ TIMEOUT_SECONDS = 300
 EXPECTED: dict[str, str] = {
     **dict.fromkeys(
         [
+            "alerts-declared",
             "deadline-on-a-sensor",
             "docker-compose-failing-up",
             "docker-run-failing-teardown",

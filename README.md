@@ -3,7 +3,7 @@
 Small, independent example projects for dirigent, one folder each in this repository, that
 follow [The basics](https://winterop-com.github.io/dirigent/basics/) and the
 [DHIS2 tutorial](https://winterop-com.github.io/dirigent-dhis2/tutorial/). Every example was
-made with `dg init`, runs on dirigent 0.34, and carries a README in the tutorials' voice, its
+made with `dg init`, runs on dirigent 0.35, and carries a README in the tutorials' voice, its
 documents commented hop by hop, a `verify.sh` that runs it end to end without asking anything,
 and the `AGENTS.md` a coding agent reads before it works there.
 
@@ -20,7 +20,7 @@ uv sync
 ## What you need once
 
 - Python 3.13 and [uv](https://docs.astral.sh/uv/), `jq`, and `curl`.
-- The CLI: `uv tool install "dirigent-cli>=0.34,<0.35"`, the range every example pins, so `dg --version` says 0.34.
+- The CLI: `uv tool install "dirigent-cli>=0.35,<0.36"`, the range every example pins, so `dg --version` says 0.35.
   A `dg` of another version refuses to work inside an example, naming both versions
   (`cli.version_mismatch`), because each project pins its own; `uv run dg` is always the pinned one.
 - Docker, for `echo-s3` (a local rustfs container), for `echo-stream` (a local Redpanda container) and for the PDF document in
@@ -115,7 +115,7 @@ the network and fail without it; everything else passes.
 | [`echo-fanout`](echo-fanout) | One item per station over a list, one bad item tolerated, a join. |
 | [`echo-transform`](echo-transform) | A batch reshaped with the three jq verbs, and what each one may do to it. |
 | [`echo-schedule`](echo-schedule) | A reading on a schedule, and another behind an endpoint source, with nothing to call. |
-| [`echo-alert`](echo-alert) | An alert rule on failure delivered to a webhook and to the process log, each delivery in `dg alerts queue`, the log line's fields naming the failing step and error, and the runs summary and audit trail that follow. |
+| [`echo-alert`](echo-alert) | Alert rules the document declares under `alerts:`, owned by it so a hand delete is refused and a pause survives an apply, a failure delivered to a webhook and to the process log, each delivery in `dg alerts queue`, the log line's fields naming the failing step and error, and the runs summary and audit trail that follow. |
 | [`echo-storage`](echo-storage) | A batch written to storage, read back, and a run report. |
 | [`echo-report`](echo-report) | A run's report taken from a step: a `report.render` page made the report with `report: {from: page}`, a template reading `{{ params }}`, lists, objects and booleans read as JSON inside a string, and a plan whose only change is the report saying `report_changed`. |
 | [`echo-s3`](echo-s3) | The same through the `s3://` scheme against a local rustfs container. |
@@ -126,7 +126,7 @@ the network and fail without it; everything else passes.
 | [`dhis2-org-units-to-markdown`](dhis2-org-units-to-markdown) | Organisation units rendered as a markdown page, an HTML page, and a PDF from a pandoc container, the markdown page the run's report, and the block catalog marking `docker.run` unsafe and enabled on that instance. |
 | [`dhis2-reads`](dhis2-reads) | The DHIS2 reads side by side against the play demo: system info, two metadata collections in one export, the data values changed since a date, and every tracked entity of a program read page by page under bounds, with a capped read that fails rather than answer part of it; then a month exported as CSV and as ADX, the data store, a SQL view, and validation rules that store nothing. |
 | [`dhis2-writes-rehearsed`](dhis2-writes-rehearsed) | Five DHIS2 writes as dry runs against the play demo: one data element created, one data value set (read back unchanged), one tracker event imported, a data set signed off, and a CSV file named by codes imported with the id schemes that say so, each block sending the dry run its endpoint really honours. |
-| [`agent-over-mcp`](agent-over-mcp) | A coding agent on a running instance through its `/mcp`, under an operator token from a project `.mcp.json` reading `${DG_MCP_TOKEN}`: the connection kinds read with `list_connection_kinds` and `get_connection_kind`, connections created with their settings alone, one awaiting the secret an admin supplies with `dg connection set-secret`, a pipeline changed with `edit_pipeline`, run, and its report read with `get_run_report`. Its `verify.sh` plays the agent with `curl`, no model needed. |
+| [`agent-over-mcp`](agent-over-mcp) | A coding agent on a running instance through its `/mcp`, under an operator token from a project `.mcp.json` reading `${DG_MCP_TOKEN}`: the connection kinds read with `list_connection_kinds` and `get_connection_kind`, connections created with their settings alone, one awaiting the secret an admin supplies with `dg connection set-secret`, piped in with `--stdin` as the answer's `supply_with.piped` names, a pipeline changed with `edit_pipeline`, run, and its report read with `get_run_report`. Its `verify.sh` plays the agent with `curl`, no model needed. |
 | [`everything`](everything) | Every pipeline above except `echo-stream`'s, and the whole dirigent examples corpus in one project: `setup.sh` leaves one instance on 4444 with all of them applied, for a demo. |
 
 ## The packs beyond the tutorials

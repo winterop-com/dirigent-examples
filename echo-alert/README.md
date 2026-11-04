@@ -3,11 +3,12 @@
 A pipeline that fails at three in the morning has failed whether or not anybody is looking, so
 the instance has to be the thing that notices. An **alert rule** binds an event -- `run_failed`,
 `run_completed_with_errors`, `run_succeeded`, `run_stuck` -- at a scope to a **notifier**, and
-the notifier delivers through a **connection**. None of those three is in the document, and
-that is the design rather than an omission: a rule is operational and a connection carries a
-credential, and a document that carried either would stop being portable the moment it was
-applied anywhere else. So this repository is a pipeline that fails on purpose, and a README
-that is the rule. The sink here is the instance's own **playground**, the request-and-response
+the notifier delivers through a **connection**. The rules here are the document's own, in its
+`alerts:` section beside the steps they are about, so they travel with the pipeline and an
+apply keeps them in step with it. The connection is not: it carries a credential, and a
+document that carried one would stop being portable the moment it was applied anywhere else.
+So a rule names its connection by code, and the instance holds it. The sink here is the
+instance's own **playground**, the request-and-response
 service every dirigent instance serves under `/api/v1/playground`: it accepts anything and
 answers 200, so there is a receiving endpoint without standing one up and without anything
 leaving the machine.
@@ -19,8 +20,15 @@ The pipeline fails by design, so prove that first, with no server:
 ```bash
 uv sync
 uv run dg validate pipelines/echo-alert.yaml
-uv run dg run --local pipelines/echo-alert.yaml     # ends failed, and exits 1
+uv run dg run --local pipelines/echo-alert.yaml --connections connections.yaml   # ends failed, and exits 1
 ```
+
+A local run plans the document against a throwaway instance that holds nothing, and plan refuses
+a rule naming a connection the instance does not hold, so the run is handed `echo-sink` in
+`connections.yaml`, beside the documents; it carries a url and no secret. The throwaway instance
+raises the rules' alerts like any other, and delivers them before it exits: with a `dg dev` on
+3333 its playground takes the POST, and with nothing there the delivery fails and the run's
+outcome is the same.
 
 The alerting half needs an instance. A connection carries a credential, so the instance will
 not store one until it has a key to seal it with. Mint it once into `.env` -- the gitignored
@@ -51,20 +59,8 @@ uv run dg connection create webhook echo-sink \
     --description "The instance's own playground, which answers 200 to whatever is POSTed." \
     --set url=http://127.0.0.1:3333/api/v1/playground/request
 
-uv run dg apply
-
-uv run dg alerts rules create echo-failed \
-    --name "Echo failures to the sink" \
-    --event run_failed \
-    --pipeline echo-alert \
-    --connection echo-sink \
-    --template '{{ pipeline.code }} run {{ run.status }}' \
-    --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.'
-
-uv run dg alerts rules create echo-failed-log \
-    --name "Echo failures to the log" \
-    --event run_failed \
-    --pipeline echo-alert
+uv run dg apply                 # the pipeline, and with it both of its rules
+uv run dg alerts rules list
 
 uv run dg run echo-alert --watch
 uv run dg alerts queue
@@ -76,14 +72,15 @@ At a terminal, `dg connection create` asks only for a secret the kind cannot do 
 only when the command did not say what it wants. This one carries `--set`, and `bearer_token`
 is optional, so it completes without a prompt and leaves that field unset.
 
-The rule is created after the pipeline because `--pipeline` scopes it to one, and a scope
-naming a pipeline no instance holds is refused. `./verify.sh` does all of this unattended: it
-keeps the key on a line in the gitignored `.env` so its second run can still read what its
-first run stored, starts a `dg dev` on a free port of its own, mints its token with `dg auth login
---username admin --password admin`, writes the connection and both rules, fails a run,
-waits for both notifications to be delivered, reads the log rule's line back out of
-`.dirigent/state/dev.log`, reads the runs summary and the audit trail, and stops the instance it
-started by pid.
+The connection is created before the apply because the document's `echo-failed` rule names it,
+and plan refuses a rule naming a connection the instance does not hold. `./verify.sh` does all
+of this unattended: it keeps the key on a line in the gitignored `.env` so its second run can
+still read what its first run stored, starts a `dg dev` on a free port of its own, mints its
+token with `dg auth login --username admin --password admin`, writes the connection, applies the
+document and with it both rules, proves a hand delete of a declared rule is refused and a pause
+survives an apply, plans a changed rule, fails a run locally and on the instance, waits for both
+notifications to be delivered, reads the log rule's line back out of `.dirigent/state/dev.log`,
+reads the runs summary and the audit trail, and stops the instance it started by pid.
 
 ### If the key was lost
 
@@ -102,9 +99,8 @@ uv run dg connection ensure webhook echo-sink \
 
 `dg connection ensure` writes the row straight to this instance's database, reading `.env` for
 the key rather than a token, and brings it whole to what the arguments say. The rule keeps
-pointing at it by its code, so nothing else changes. `verify.sh` takes the other way between its
-two legs, because it points the sink somewhere else: it deletes the rule, then the connection,
-and creates both again.
+pointing at it by its code, so nothing else changes. `verify.sh` does the same on every run after
+its first, because its instance is on a new port each time and the sink's url moves with it.
 
 ## This one needs no network
 
@@ -136,7 +132,7 @@ uv run dg validate pipelines/echo-alert.yaml
 ```
 
 ```bash
-uv run dg run --local pipelines/echo-alert.yaml
+uv run dg run --local pipelines/echo-alert.yaml --connections connections.yaml
 ```
 
 ```text
@@ -154,6 +150,8 @@ uv run dg run --local pipelines/echo-alert.yaml
 2026-11-03T14:25:59.387+01:00 [error   ] failed                         [log publish] duration_ms=0 error_class=transient error="the playground failed attempt 2 on purpose as transient, because fail_until is 3; attempt 4 is the first that would succeed"
 2026-11-03T14:25:59.383+01:00 [info    ] failed                         [step publish] block=playground.generate attempt=2 duration_ms=11
 2026-11-03T14:25:59.383+01:00 [info    ] skipped                        [step note] block=log.write attempt=1
+2026-11-03T14:25:59.383+01:00 [info    ] alert 'echo-failed' queued for delivery through 'webhook' [log] event=run_failed notifier=webhook
+2026-11-03T14:25:59.383+01:00 [info    ] alert 'echo-failed-log' queued for delivery through 'log' [log] event=run_failed notifier=log
 2026-11-03T14:25:59.455+01:00 [error   ] failed                         [run] pipeline=echo-alert run_id=01a1a196-8284-77c1-9e87-d01f14fada9a exit_code=1
 steps
 ┏━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┓
@@ -190,6 +188,7 @@ Two attempts, which is the budget: `fail_until: 3` is above it, so the step runs
 and the run ends `failed`. The failure is classed **transient**, which is the class a budget is
 for -- [echo-retry](../echo-retry) is where the other class sits beside it. `note` is
 **skipped** rather than failed: it never ran, because the step it waits for did not succeed.
+The two `alert ... queued` lines are the document's rules, raised by the throwaway instance.
 
 Now the instance. The connection is minted first, because the rule names it. Nothing is asked
 for along the way: the command carries `--set`, so only a secret the kind cannot do without
@@ -214,43 +213,88 @@ uv run dg apply
 create echo-alert  version 1 (/home/you/echo-alert/pipelines/echo-alert.yaml)
 ```
 
+The apply wrote the pipeline and the two rules its `alerts:` section declares, each scoped to
+`echo-alert`. Both templates were compiled at plan, so one that does not compile is refused at
+the apply with the line it broke on rather than at the failure it was written for. Neither rule
+carries a `throttle`, and none means none: every failed run of `echo-alert` raises its own
+notification. On a real instance a `run_failed` rule wants `throttle: 15m`, so a pipeline
+failing every minute is one message rather than sixty.
+
+`echo-failed-log` names no connection at all, and a rule with no connection delivers to the
+**process log**: the `log` notifier, which needs no credential and is always there. It is the
+channel that works on a fresh install, and the one a log shipper already reads. The listing's
+`declared by` column names the document each rule came from, and the records say `declared`:
+
 ```bash
-uv run dg alerts rules create echo-failed \
-    --name "Echo failures to the sink" \
-    --event run_failed \
-    --pipeline echo-alert \
-    --connection echo-sink \
-    --template '{{ pipeline.code }} run {{ run.status }}' \
-    --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.'
+uv run dg alerts rules list --json | jq -c '.fields | {code, notifier, connection, declared, paused}'
+```
+
+```json
+{"code":"echo-failed","notifier":"webhook","connection":"echo-sink","declared":true,"paused":false}
+{"code":"echo-failed-log","notifier":"log","connection":null,"declared":true,"paused":false}
+```
+
+### The document owns its rules
+
+A declared rule changes only by applying its document. Deleting one by hand, or changing what it
+says through the API or an MCP tool, is refused with `alert.declared`, naming the pipeline:
+
+```bash
+uv run dg alerts rules delete echo-failed
 ```
 
 ```text
-2026-11-03T14:26:43.353+01:00 [info    ] created                        [alert_rule.created] code=echo-failed name="Echo failures to the sink" event=run_failed scope=echo-alert notifier=webhook connection=echo-sink template=true body=true throttle=0s
+2026-11-04T08:17:57.300+01:00 [error   ] alert rule 'echo-failed' is declared by the document of pipeline 'echo-alert': edit its alerts: section and apply it again; pausing and resuming it stay allowed [error] status=409 title=Conflict code=alert.declared params={"code":"'echo-failed'","pipeline":"'echo-alert'"} instance=/api/v1/alert-rules/echo-failed
+(exit 1)
 ```
 
-`throttle=0s` is the default and it means no throttle: every failed run of `echo-alert` raises
-its own notification. On a real instance a `run_failed` rule wants `--throttle 15m`, so a
-pipeline failing every minute is one message rather than sixty.
-
-Both templates are compiled when the rule is created, so one that does not compile is refused
-here with the line it broke on rather than at the failure it was written for.
-
-A second rule on the same event names no connection at all, and a rule with no connection
-delivers to the **process log**: the `log` notifier, which needs no credential and is always
-there. It is the channel that works on a fresh install, and the one a log shipper already reads:
+Pausing is the exception, because it is an operator's choice on the instance rather than
+something the rule declares: a paused rule ignores every event until it is resumed, nothing is
+queued for it meanwhile, and the next apply leaves it paused:
 
 ```bash
-uv run dg alerts rules create echo-failed-log \
-    --name "Echo failures to the log" \
-    --event run_failed \
-    --pipeline echo-alert
+uv run dg alerts rules pause echo-failed-log
+uv run dg apply
+uv run dg alerts rules list --json | jq -c '.fields | {code, declared, paused}'
+uv run dg alerts rules resume echo-failed-log
+```
+
+```json
+{"code":"echo-failed","declared":true,"paused":false}
+{"code":"echo-failed-log","declared":true,"paused":true}
+```
+
+A changed rule is a changed document, and plan names it. Give `echo-failed` a throttle in a copy
+and plan it:
+
+```bash
+sed 's/^    connection: echo-sink$/    connection: echo-sink\n    throttle: 15m/' pipelines/echo-alert.yaml > throttled.yaml
+uv run dg apply throttled.yaml --dry-run
+uv run dg apply throttled.yaml --dry-run --json | jq -c '.fields.plan.diff'
 ```
 
 ```text
-2026-11-03T14:26:46.467+01:00 [info    ] created                        [alert_rule.created] code=echo-failed-log name="Echo failures to the log" event=run_failed scope=echo-alert notifier=log template=false body=false throttle=0s
+update echo-alert  version 2 (throttled.yaml)
+  alerts changed: echo-failed
+
+steps of echo-alert  each step under the last one it waits for
+  ask  (playground.generate)
+    publish  (playground.generate)
+      note  (log.write)
+Nothing was written: this was a dry run.
 ```
 
-Then the failure, and what it raises:
+```json
+{"steps_added":[],"steps_removed":[],"steps_changed":[],"params_changed":false,"triggers_changed":false,"requires_changed":false,"report_changed":false,"alerts_added":[],"alerts_removed":[],"alerts_changed":["echo-failed"],"settings_changed":false}
+```
+
+`alerts_added`, `alerts_removed` and `alerts_changed` name the rules by code. Applying a version
+whose `alerts:` no longer names a rule removes it; a rule created by hand with
+`dg alerts rules create`, even one scoped to this pipeline, is never touched by an apply.
+
+### The failure, and what it raises
+
+On the instance this time:
 
 ```bash
 uv run dg run echo-alert --watch
@@ -495,25 +539,28 @@ morning starts with. The Runs screen's *By pipeline* view is the same answer, at
 
 ### Who changed what
 
-Every administrative change this walkthrough made -- the connection, the pipeline, both rules --
-is a row in the instance's **audit trail**, written in the same transaction as the change. It
-names who acted and through which token, never a value:
+Every administrative change this walkthrough made -- the connection, the pipeline and the two
+rules its apply created, the pause and the resume -- is a row in the instance's **audit
+trail**, written in the same transaction as the change. It names who acted and through which
+token, never a value:
 
 ```bash
 uv run dg audit --since 1h
 ```
 
 ```text
-2026-11-03T14:26:46.455+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed-log actor="admin (token dev)"
-2026-11-03T14:26:43.347+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed actor="admin (token dev)"
-2026-11-03T14:26:40.376+01:00 [info    ] created                        [audit] subject_kind=pipeline subject=echo-alert actor="admin (token dev)"
-2026-11-03T14:26:37.645+01:00 [info    ] created                        [audit] subject_kind=connection subject=echo-sink actor="admin (token dev)"
-2026-11-03T14:26:21.671+01:00 [info    ] created                        [audit] subject_kind=token subject=admin/dev actor="dg dev"
-2026-11-03T14:26:21.661+01:00 [info    ] created                        [audit] subject_kind=user subject=admin actor="dg dev"
+2026-11-04T08:18:02.470+01:00 [info    ] resumed                        [audit] subject_kind=alert_rule subject=echo-failed-log actor="admin (token dev)"
+2026-11-04T08:17:58.554+01:00 [info    ] paused                         [audit] subject_kind=alert_rule subject=echo-failed-log actor="admin (token dev)"
+2026-11-04T08:17:54.700+01:00 [info    ] created                        [audit] subject_kind=pipeline subject=echo-alert actor="admin (token dev)"
+2026-11-04T08:17:54.699+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed-log actor="admin (token dev)"
+2026-11-04T08:17:54.698+01:00 [info    ] created                        [audit] subject_kind=alert_rule subject=echo-failed actor="admin (token dev)"
+2026-11-04T08:17:53.250+01:00 [info    ] created                        [audit] subject_kind=connection subject=echo-sink actor="admin (token dev)"
+2026-11-04T08:17:49.816+01:00 [info    ] created                        [audit] subject_kind=token subject=admin/dev actor="dg dev"
+2026-11-04T08:17:49.813+01:00 [info    ] created                        [audit] subject_kind=user subject=admin actor="dg dev"
 ```
 
-Newest first. The bottom two are `dg dev` seeding its own admin and that admin's token on the
-empty state; a change no account made is named by the host command that made it. Each line is
+Newest first. The rules were created by the apply, so they name the account that applied. The
+bottom two are `dg dev` seeding its own admin and that admin's token on the empty state; a change no account made is named by the host command that made it. Each line is
 an `audit` record with the row under `fields`, and `--kind`, `--subject`, `--actor` and
 `--action` narrow it:
 
@@ -539,7 +586,7 @@ rows.
 
 ## The document, hop by hop
 
-`pipelines/echo-alert.yaml` opens by saying where the other half lives:
+`pipelines/echo-alert.yaml` opens by saying where each half lives:
 
 ```yaml
 # A run that fails on purpose, so there is something for an alert rule to be about.
@@ -550,14 +597,16 @@ rows.
 # NOTHING HERE IS CALLED. playground.generate takes an `input` and hands it back, and its
 # `fail_until` knob fails that many attempts before succeeding -- so a failure on cue is a
 # number in this document rather than an endpoint somewhere that has to be answering. No
-# connection, no URL, no network.
+# step names a connection or a URL, and nothing needs a network.
 #
-# The alerting half of this example is not in this document and cannot be: a rule binds an
-# event to a notifier and a notifier delivers through a connection, and both are records the
-# INSTANCE holds, minted with `dg connection create` and `dg alerts rules create`. A
-# document that carried either would be a document that carried a credential, which is the
-# one thing a portable document must never do. So this file is only the failure, and
-# README.md is the rule.
+# The alerting half is in this document too, under `alerts:` at the bottom: two rules on
+# run_failed, keyed by their codes like steps. A rule binds an event to a notifier, and a
+# notifier delivers through a connection, which is a record the INSTANCE holds, minted once
+# with `dg connection create`: a connection carries a credential, and a portable document
+# never does. So a rule names its connection by code, and `dg apply` refuses one the instance
+# does not hold. The document owns its rules: an apply creates, rewrites and removes them, and
+# changing or deleting one by hand is refused with alert.declared. Pausing one stays an
+# operator's choice on the instance, and the next apply keeps it.
 #
 # Hop by hop:
 #
@@ -568,11 +617,15 @@ rows.
 #   note     never runs. Its edge is the default all_success, and the step it waits for did
 #            not succeed, so it is skipped rather than failed.
 #
+#   echo-failed      the failure, POSTed through the webhook connection echo-sink.
+#   echo-failed-log  the same failure, written to the process log: no connection at all.
+#
 # EXPECT THIS RUN TO FAIL in about a second, with publish out of attempts and note skipped
 # behind it.
 #
 #   uv run dg run --local pipelines/echo-alert.yaml     # fails, by design
 #   uv run dg run --local pipelines/echo-alert.yaml -p fail_until=0   # succeeds
+
 ```
 
 The lines every document opens with, and a parameter that decides whether this run is the
@@ -587,7 +640,8 @@ description: |
   A read that works followed by a publish that fails every attempt, so the run ends `failed`
   and an alert rule on `run_failed` has something to fire on.
 
-  The rule and the connection it delivers through are the instance's, never the document's.
+  The rules are the document's, under `alerts:`; the connection one delivers through is the
+  instance's, named by its code.
 
 tags: [playground, failure]
 
@@ -635,8 +689,7 @@ transient, which is the class a budget exists for:
   publish:
     block: playground.generate
     depends_on: [ask]
-    # Two attempts allowed, and a transient failure spends both. Where the alert itself is
-    # delivered is not here: that is the sink connection's url, on the instance.
+    # Two attempts allowed, and a transient failure spends both.
     retry:
       max_attempts: 2
       backoff: 1s
@@ -654,6 +707,33 @@ difference stays visible: a step that was refused its turn is not a step that we
     depends_on: [publish]
     config:
       message: "published the reading for ${params.station}"
+```
+
+**`alerts:`** is the pipeline's own rules, keyed by rule code like steps, and each takes what a
+pipeline-scoped rule takes through the API: `event`, `connection`, `template`, `body`,
+`importance`, `throttle`, `active`, `name` and `description`. There is no scope to write,
+because a declared rule always watches the pipeline whose document declares it:
+
+```yaml
+# The pipeline's own alert rules, keyed by rule code. Each watches this pipeline alone, so
+# there is no scope to write. Neither carries a throttle, which means none: every failed run
+# raises its own notification. On a real instance a run_failed rule wants `throttle: 15m`, so
+# a pipeline failing every minute is one message rather than sixty.
+alerts:
+  echo-failed:
+    name: Echo failures to the sink
+    event: run_failed
+    # Where it is delivered is the connection's url, on the instance: here its own playground.
+    connection: echo-sink
+    # Both templates are compiled at plan, so one that does not compile is refused at apply
+    # rather than at the failure it was written for.
+    template: "{{ pipeline.code }} run {{ run.status }}"
+    body: "Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}."
+
+  echo-failed-log:
+    name: Echo failures to the log
+    # No connection: the log notifier, which needs no credential and is always there.
+    event: run_failed
 ```
 
 `-p fail_until=0` runs the same document green, which is the other half of what a rule is

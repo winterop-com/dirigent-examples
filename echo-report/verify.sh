@@ -140,7 +140,9 @@ uv run dg apply "$scratch/heading.yaml" --dry-run --json | jq -e -s '
   | $f.dry_run == true and $f.plan.action == "update"
     and $f.plan.diff == {steps_added: [], steps_removed: [], steps_changed: [],
                          params_changed: false, triggers_changed: false,
-                         requires_changed: false, report_changed: true, settings_changed: false}
+                         requires_changed: false, report_changed: true,
+                         alerts_added: [], alerts_removed: [], alerts_changed: [],
+                         settings_changed: false}
 ' >/dev/null
 
 echo "echo-report: a version changing its report alone is planned as report_changed"

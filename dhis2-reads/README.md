@@ -99,7 +99,7 @@ In `dhis2-reads`, four steps, none under another: they are queued together and r
 2026-11-03T14:26:15.484+01:00 [info    ] running                        [step holdings] block=dhis2.metadata_export attempt=1
 2026-11-03T14:26:15.502+01:00 [info    ] running                        [step info] block=dhis2.system_info attempt=1
 2026-11-03T14:26:18.637+01:00 [info    ] system info read               [log info] version=2.42.7.1 duration_ms=3109
-2026-11-03T14:26:18.649+01:00 [info    ] metadata exported              [log holdings] counts={"dataSets":26,"programs":7} duration_ms=3150
+2026-11-03T14:26:18.649+01:00 [info    ] metadata exported              [log holdings] totals={"dataSets":26,"programs":7} duration_ms=3150
 2026-11-03T14:26:18.662+01:00 [info    ] succeeded                      [step info] block=dhis2.system_info attempt=1 duration_ms=3160
 2026-11-03T14:26:18.671+01:00 [info    ] succeeded                      [step holdings] block=dhis2.metadata_export attempt=1 duration_ms=3187
 2026-11-03T14:26:18.780+01:00 [info    ] data value set exported        [log changed] values=10 duration_ms=3376
@@ -147,7 +147,7 @@ scoped to its collection, as `dataSets:fields=` and `programs:filter=`:
 
 ```json
 {
-  "counts": { "dataSets": 26, "programs": 7 },
+  "totals": { "dataSets": 26, "programs": 7 },
   "programs": [
     "Child Programme",
     "MNCH / PNC (Adult Woman)",

@@ -99,15 +99,15 @@ check_connections
 say "the schemas"
 ensure_schemas
 
+say "echo-alert's sink, which its document's rule names"
+ensure_alert
+
 say "every document under pipelines/, applied"
 apply_all "$STATE/seed.ndjson"
 jq -r -s '
   (map(select(.kind == "seed.done")) | last) as $done
   | "   \($done.pipelines) applied, \($done.refused) refused; the refusals are in '"$STATE"'/seed.ndjson"
 ' "$STATE/seed.ndjson"
-
-say "echo-alert's rule and the sink it delivers to"
-ensure_alert
 
 say "the pipelines on the instance"
 uv run dg pipeline list --json | jq -r -s '[.[] | select(.kind == "pipeline") | .fields.code] | sort | join(" ")' \

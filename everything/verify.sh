@@ -70,8 +70,8 @@ uv sync --quiet
 
 say "every document, checked offline"
 validate_all "$WORK/validate.ndjson"
-expect "all 232 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
-  'length == 232 and all(.invalid == 0)'
+expect "all 233 documents under pipelines/ to validate" "$WORK/validate.ndjson" \
+  'length == 233 and all(.invalid == 0)'
 for document in tutorial/*.yaml; do
   uv run dg validate "$document" --json > "$WORK/validate.ndjson"
   expect "$document to validate" "$WORK/validate.ndjson" 'map(select(.kind == "validated")) | last | .invalid == 0'
@@ -119,8 +119,9 @@ export DG_TOKEN
 say "every connection, checked"
 check_connections
 
-say "the schemas, the documents, and echo-alert's rule"
+say "the schemas, echo-alert's sink, and the documents"
 ensure_schemas
+ensure_alert
 apply_all "$WORK/seed.ndjson"
 # The five documents this project cannot give what they need, and nothing else, are refused.
 expect "only the five documents without what they need refused" "$WORK/seed.ndjson" '
@@ -128,10 +129,9 @@ expect "only the five documents without what they need refused" "$WORK/seed.ndjs
   | sort == ["docker-build-push.yaml", "docker-remote-daemon.yaml", "kobo-submissions-to-csv.yaml",
              "odk-central-submissions.yaml",
              "s3-parquet-to-ingestion.yaml"]'
-ensure_alert
 uv run dg pipeline list --json > "$WORK/pipelines.ndjson"
-expect "all 226 pipelines on the instance" "$WORK/pipelines.ndjson" \
-  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 226'
+expect "all 227 pipelines on the instance" "$WORK/pipelines.ndjson" \
+  '[.[] | select(.kind == "pipeline") | .fields.code] | length == 227'
 # The walk creates a source a worker polls or holds paused, as it does a schedule, so nothing
 # starts runs on its own; an endpoint stays listening, because it only acts when it is called.
 uv run dg source list --json > "$WORK/sources.ndjson"
@@ -240,13 +240,13 @@ alerted="$(jq -rs '[.[] | select(.kind == "run") | .run_id] | first' "$WORK/r.nd
 sent=""
 for _ in $(seq 1 30); do
   uv run dg alerts queue --json > "$WORK/queue.ndjson"
-  sent="$(jq -rs --arg run "$alerted" '[.[] | select(.fields.run_id == $run and .fields.status == "sent") | .fields.id] | (first // "")' "$WORK/queue.ndjson")"
+  sent="$(jq -rs --arg run "$alerted" '[.[] | select(.fields.run_id == $run and .fields.status == "sent" and .fields.rule == "echo-failed") | .fields.id] | (first // "")' "$WORK/queue.ndjson")"
   [ -n "$sent" ] && break
   sleep 2
 done
 expect "run_failed delivered to echo-sink by echo-failed" "$WORK/queue.ndjson" --arg run "$alerted" '
-  [.[] | select(.fields.run_id == $run and .fields.status == "sent")] | first | .fields
-  | .event == "run_failed" and .rule == "echo-failed" and .connection == "echo-sink"'
+  [.[] | select(.fields.run_id == $run and .fields.status == "sent" and .fields.rule == "echo-failed")] | first | .fields
+  | .event == "run_failed" and .connection == "echo-sink"'
 passed+=(echo-alert)
 
 say "echo-storage, and its report"

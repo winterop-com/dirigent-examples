@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Run this example end to end and fail if anything about it has moved.
 #
-# An alert rule is a record the instance holds, so this one starts its own `dg dev`, writes
-# the connection and two rules, fails a run on purpose, waits for both notifications to be
-# delivered, reads the log rule's line out of dg dev's own log file, reads the runs summary and
-# the audit trail, and stops the instance again. .dirigent/state survives between runs by design,
-# so running this twice passes twice.
+# The document declares its alert rules, and a rule's connection is a record the instance
+# holds, so this one starts its own `dg dev`, writes the connection, applies the document and
+# with it both rules, proves a declared rule refuses a hand edit, plans a changed rule, fails a
+# run on purpose, waits for both notifications to be delivered, reads the log rule's line out
+# of dg dev's own log file, reads the runs summary and the audit trail, and stops the instance
+# again. .dirigent/state survives between runs by design, so running this twice passes twice.
 #
 # The document reaches nothing, and the sink the notification is POSTed to is the instance's
 # own playground, so the whole of this script passes with no network at all.
@@ -20,6 +21,7 @@ uv run dg validate pipelines/echo-alert.yaml
 dev_pid=
 records=$(mktemp)
 log=$(mktemp)
+scratch=$(mktemp -d)
 
 # Nothing this script started may still be listening when it returns: a dg dev that outlived
 # its wrapper shares .dirigent/state with the next run, claims its steps and fails them.
@@ -45,7 +47,8 @@ cleanup() {
     wait "$dev_pid" 2>/dev/null || true
   fi
   port_clear "${port:-}"
-  rm -f "$records" "$log"
+  rm -f "$records" "$log" "$scratch"/*.yaml
+  rmdir "$scratch" 2>/dev/null || true
 }
 trap cleanup EXIT
 
@@ -54,21 +57,6 @@ trap cleanup EXIT
 free_port() {
   python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()'
 }
-
-# --- the failure, without a server at all -------------------------------------------------
-#
-# The pipeline fails by design, so dg exits non-zero and the run record is what is read.
-uv run dg run --local pipelines/echo-alert.yaml --json >"$records" || true
-jq -e -s '
-  (map(select(.kind == "run" and has("exit_code"))) | last) as $run
-  | ($run.steps | map({key: .step, value: .}) | from_entries) as $step
-  | $run.message == "failed"
-    and $step.ask.status == "succeeded"
-    and $step.publish.status == "failed"
-    and $step.note.status == "skipped"
-    and ($run.failures | map(.error_class)) == ["transient", "transient"]
-    and ($run.failures | map(.attempt)) == [1, 2]
-' "$records" >/dev/null
 
 # --- the instance ----------------------------------------------------------------------
 #
@@ -103,54 +91,88 @@ DG_TOKEN=$(uv run dg auth login --username admin --password admin --json \
 export DG_TOKEN
 [ -n "$DG_TOKEN" ]
 
-uv run dg apply
-
-# --- the notifier, and the rule that uses it ----------------------------------------------
-#
-# The sink is an instance record, so pointing this example at another echo is a command
-# rather than a flag. An instance refuses to delete a connection something still points at,
-# which is why the rule goes first and is written again after: one leg, one sink.
-#
-# The rule carries no --throttle, which means no throttle: every failed run of echo-alert
-# raises its own notification.
-point_sink_at() {
-  if uv run dg alerts rules list --json | jq -e -s 'any(.[]; .fields.code == "echo-failed")' >/dev/null; then
-    uv run dg alerts rules delete echo-failed --json >/dev/null
-  fi
-  if uv run dg connection list --json | jq -e -s 'any(.[]; .fields.code == "echo-sink")' >/dev/null; then
-    uv run dg connection delete echo-sink --json >/dev/null
-  fi
-  uv run dg connection create webhook echo-sink \
-    --name "The alert sink" \
-    --description "The instance's own playground, which answers 200 to whatever is POSTed." \
-    --set url="$1" \
-    --json >/dev/null
-  uv run dg alerts rules create echo-failed \
-    --name "Echo failures to the sink" \
-    --event run_failed \
-    --pipeline echo-alert \
-    --connection echo-sink \
-    --template '{{ pipeline.code }} run {{ run.status }}' \
-    --body 'Run {{ run.id }} of {{ pipeline.code }} (version {{ pipeline.version }}) ended {{ run.status }} in {{ run.duration_ms | duration }}.' \
-    --json >/dev/null
-}
-
-# The second rule names no connection, so it delivers to the process log: nothing to point
-# anywhere, so it is written once and left alone on a second run.
-if ! uv run dg alerts rules list --json | jq -e -s 'any(.[]; .fields.code == "echo-failed-log")' >/dev/null; then
-  uv run dg alerts rules create echo-failed-log \
-    --name "Echo failures to the log" \
-    --event run_failed \
-    --pipeline echo-alert \
-    --json >/dev/null
-fi
-
-# --- the failure on the instance, and what it raises --------------------------------------
+# --- the sink, and the rules that use it --------------------------------------------------
 #
 # The sink is this instance's own playground: unauthenticated, answers 200 to a POST, and
-# reachable without anything on the public internet being involved.
+# reachable without anything on the public internet being involved. The connection is an
+# instance record, created before the apply because plan refuses a rule naming a connection
+# the instance does not hold. Its url is this run's port, so a second run brings the same row
+# to the new url in place with `dg connection ensure`: a connection a rule names cannot be
+# deleted.
 sink="$DG_URL/api/v1/playground/request"
-point_sink_at "$sink"
+if uv run dg connection list --json | jq -e -s 'any(.[]; .fields.code == "echo-sink")' >/dev/null; then
+  ensure=ensure
+else
+  ensure=create
+fi
+uv run dg connection "$ensure" webhook echo-sink \
+  --name "The alert sink" \
+  --description "The instance's own playground, which answers 200 to whatever is POSTed." \
+  --set url="$sink" \
+  --json >/dev/null
+
+# The apply creates both rules with the pipeline. Neither carries a throttle, which means
+# none: every failed run of echo-alert raises its own notification.
+uv run dg apply
+
+uv run dg alerts rules list --json | jq -e -s '
+  [.[] | select(.kind == "alert_rule") | .fields | select(.code | startswith("echo-failed"))]
+  | map({key: .code, value: .}) | from_entries as $rule
+  | ($rule | keys) == ["echo-failed", "echo-failed-log"]
+    and $rule["echo-failed"].declared == true
+    and $rule["echo-failed"].connection == "echo-sink"
+    and $rule["echo-failed"].notifier == "webhook"
+    and $rule["echo-failed-log"].declared == true
+    and $rule["echo-failed-log"].notifier == "log"
+' >/dev/null
+
+# A declared rule is the document's: deleting it by hand is refused, naming the pipeline.
+if uv run dg alerts rules delete echo-failed --json >"$records" 2>&1; then
+  echo "a declared rule was deleted by hand" >&2
+  exit 1
+fi
+jq -e -s 'any(.[]; .kind == "error" and .code == "alert.declared")' "$records" >/dev/null
+
+# Pausing stays an operator's choice, and an apply keeps it.
+uv run dg alerts rules pause echo-failed-log --json >/dev/null
+uv run dg apply --json >/dev/null
+uv run dg alerts rules list --json | jq -e -s '
+  any(.[]; .kind == "alert_rule" and .fields.code == "echo-failed-log" and .fields.paused == true)
+' >/dev/null
+uv run dg alerts rules resume echo-failed-log --json >/dev/null
+
+# A version that changes one rule is planned with that rule under alerts_changed and nothing
+# else, and a dry run writes nothing.
+sed 's/^    connection: echo-sink$/    connection: echo-sink\n    throttle: 15m/' pipelines/echo-alert.yaml >"$scratch/throttled.yaml"
+uv run dg apply "$scratch/throttled.yaml" --dry-run --json | jq -e -s '
+  ([.[] | select(.kind == "apply")] | first).fields as $f
+  | $f.dry_run == true and $f.plan.action == "update"
+    and $f.plan.diff.alerts_changed == ["echo-failed"]
+    and $f.plan.diff.alerts_added == [] and $f.plan.diff.alerts_removed == []
+    and $f.plan.diff.steps_changed == []
+' >/dev/null
+
+# --- the failure in a throwaway instance ---------------------------------------------------
+#
+# A local run plans the document too, so it is handed the connection in a file; this one
+# points at this script's instance rather than connections.yaml's 3333. The pipeline fails by
+# design, so dg exits non-zero and the run record is what is read, with both rules raising.
+sed "s#http://127.0.0.1:3333/api/v1/playground/request#${sink}#" connections.yaml >"$scratch/connections.yaml"
+uv run dg run --local pipelines/echo-alert.yaml --connections "$scratch/connections.yaml" --json >"$records" || true
+jq -e -s '
+  (map(select(.kind == "run" and has("exit_code"))) | last) as $run
+  | ($run.steps | map({key: .step, value: .}) | from_entries) as $step
+  | $run.message == "failed"
+    and $step.ask.status == "succeeded"
+    and $step.publish.status == "failed"
+    and $step.note.status == "skipped"
+    and ($run.failures | map(.error_class)) == ["transient", "transient"]
+    and ($run.failures | map(.attempt)) == [1, 2]
+    and any(.[]; .kind == "log" and .message == "alert '"'"'echo-failed'"'"' queued for delivery through '"'"'webhook'"'"'")
+    and any(.[]; .kind == "log" and .message == "alert '"'"'echo-failed-log'"'"' queued for delivery through '"'"'log'"'"'")
+' "$records" >/dev/null
+
+# --- the failure on the instance, and what it raises --------------------------------------
 
 uv run dg run echo-alert --watch --json >"$records" || true
 run=$(jq -rs '[.[] | select(.kind == "run") | .run_id] | first' "$records")
@@ -226,15 +248,13 @@ uv run dg runs summary --since 1h --pipeline echo-alert --json | jq -e -s '
 # --- the audit trail --------------------------------------------------------------------------
 #
 # Every change above is a row, newest first, naming the account that made it and never a value.
-# This run wrote the connection and the webhook rule again; the log rule may be from an earlier
-# run, so it is asked for by its code alone.
-uv run dg audit --since 1h --json | jq -e -s '
-  [.[] | select(.kind == "audit") | .fields] as $rows
-  | ($rows | any(.action == "created" and .subject_kind == "connection" and .subject_code == "echo-sink" and .actor_username == "admin"))
-    and ($rows | any(.action == "created" and .subject_kind == "alert_rule" and .subject_code == "echo-failed" and .actor_username == "admin"))
-' >/dev/null
-uv run dg audit --kind alert_rule --subject echo-failed-log --action created --json | jq -e -s '
-  any(.[]; .kind == "audit" and .fields.subject_code == "echo-failed-log" and .fields.actor_username == "admin")
-' >/dev/null
+# The connection and the rules were created by the first run on this state, which may be an
+# earlier one, so each is asked for by its code alone. The rules were created by the apply, so
+# the account that applied is the one named.
+for subject in connection:echo-sink alert_rule:echo-failed alert_rule:echo-failed-log; do
+  uv run dg audit --kind "${subject%%:*}" --subject "${subject#*:}" --action created --json | jq -e -s --arg code "${subject#*:}" '
+    any(.[]; .kind == "audit" and .fields.subject_code == $code and .fields.actor_username == "admin")
+  ' >/dev/null
+done
 
-echo "echo-alert: run ${run} failed, its alerts reached ${sink} and the log, and the summary and audit trail say so"
+echo "echo-alert: the document declared both rules and a hand delete was refused; run ${run} failed, its alerts reached ${sink} and the log, and the summary and audit trail say so"
